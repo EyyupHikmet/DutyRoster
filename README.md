@@ -56,11 +56,30 @@ Windows için hazır kurulum dosyasını
 indirebilirsiniz — `.msi` veya `-setup.exe` dosyalarından biri yeterlidir;
 ikisi de aynı uygulamayı kurar.
 
-> Bu dosyalar dijital olarak **imzalanmadığı** için Windows SmartScreen ilk
-> çalıştırmada "Windows bilgisayarınızı korudu" uyarısı gösterir. **Ek bilgi →
-> Yine de çalıştır** ile devam edebilirsiniz. İmzalama ücretli bir sertifika
-> gerektirdiğinden bu uyarı şimdilik beklenen bir durumdur; bir sorun olduğu
-> anlamına gelmez.
+### "Windows bilgisayarınızı korudu" uyarısı
+
+Kurulum dosyasını ilk çalıştırdığınızda Windows bu uyarıyı gösterir. Bazen
+*"Microsoft Defender SmartScreen tanınmayan bir uygulamanın başlatılmasını
+engelledi"* biçiminde de çıkabilir.
+
+**Devam etmek için: _Ek bilgi_ → _Yine de çalıştır_.**
+
+Bunun nedeni, kurulum dosyasının dijital olarak imzalanmamış olması; yani
+Windows yayıncıyı tanımıyor. Bu bir virüs uyarısı değildir ve dosyada bir şey
+bulunduğu anlamına gelmez — imzalanmamış her küçük proje, içeriği ne olursa
+olsun bu mesajı alır. İmzalama ücretli bir sertifika gerektiriyor ve projenin
+henüz böyle bir sertifikası yok.
+
+Dosyayı kendiniz doğrulamak isterseniz, her sürümde bir `SHA256SUMS.txt`
+dosyası bulunur. Kendi kopyanızla karşılaştırın:
+
+```powershell
+Get-FileHash .\DutyRoster_0.1.0_x64-setup.exe -Algorithm SHA256
+```
+
+Çıkan özet değeri `SHA256SUMS.txt` içindeki ilgili satırla aynıysa,
+indirdiğiniz dosya GitHub'ın etiketlenmiş kaynaktan derlediği dosyanın birebir
+aynısıdır.
 
 Uygulamayı kendiniz derlemek isterseniz aşağıdaki adımları izleyebilirsiniz.
 

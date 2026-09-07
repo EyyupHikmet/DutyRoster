@@ -54,10 +54,28 @@ Download the latest Windows installer from the
 the `.msi` or the `-setup.exe`. They install the same application; pick
 whichever you prefer.
 
-> These builds are **not code-signed**, so Windows SmartScreen shows a
-> "Windows protected your PC" warning the first time you run one. Choose
-> **More info → Run anyway**. Signing requires a paid certificate; until there
-> is one, this warning is expected and not a sign that anything is wrong.
+### "Windows protected your PC"
+
+Windows shows this the first time you run the installer. It may also appear as
+*"Microsoft Defender SmartScreen prevented an unrecognised app from starting"*.
+
+**To continue: click _More info_, then _Run anyway_.**
+
+This happens because the installer is not code-signed, so Windows does not
+recognise the publisher. It is not a virus warning, and it does not mean
+anything was found in the file — an unsigned installer from a small project
+gets this message whatever it contains. Code signing requires a paid
+certificate the project does not have yet.
+
+If you would rather check the download yourself, every release includes a
+`SHA256SUMS.txt` file. Compare it with your copy:
+
+```powershell
+Get-FileHash .\DutyRoster_0.1.0_x64-setup.exe -Algorithm SHA256
+```
+
+If the hash matches that file's line in `SHA256SUMS.txt`, your download is
+byte-for-byte the file GitHub built from the tagged source.
 
 Prefer to build it yourself? See below.
 

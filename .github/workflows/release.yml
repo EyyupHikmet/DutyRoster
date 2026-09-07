@@ -64,6 +64,7 @@ jobs:
         run: npm test
 
       - uses: tauri-apps/tauri-action@v0
+        id: tauri
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -77,6 +78,39 @@ jobs:
 
             These builds are not code-signed, so Windows SmartScreen will show
             a "Windows protected your PC" warning on first run. Choose
-            **More info -> Run anyway** to continue.
+            **More info -> Run anyway** to continue. The warning means Windows
+            does not recognise the publisher - not that it found anything wrong
+            with the file.
+
+            `SHA256SUMS.txt` below lists the checksum of each installer, so you
+            can confirm your download is exactly what this build produced:
+
+            ```powershell
+            Get-FileHash .\DutyRoster_0.1.0_x64-setup.exe -Algorithm SHA256
+            ```
           releaseDraft: true
           prerelease: false
+
+      # Publish a checksum for every installer. This does not remove the
+      # SmartScreen warning - only code signing does that - but it lets anyone
+      # verify the file they downloaded is byte-for-byte what this build
+      # produced, which is part of what signing would otherwise vouch for.
+      - name: Publish SHA-256 checksums
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $bundle = "src-tauri/target/release/bundle"
+          $files = Get-ChildItem -Path $bundle -Recurse -File |
+                   Where-Object { $_.Extension -in '.msi', '.exe' } |
+                   Sort-Object Name
+          # Fail loudly rather than publishing a release with no checksums.
+          if (-not $files) { throw "No installers found under $bundle" }
+          $lines = foreach ($f in $files) {
+            $hash = (Get-FileHash -Algorithm SHA256 -Path $f.FullName).Hash.ToLower()
+            # Two spaces between hash and name: the format "sha256sum -c" expects.
+            "$hash  $($f.Name)"
+          }
+          $lines | Set-Content -Path SHA256SUMS.txt -Encoding ascii
+          Get-Content SHA256SUMS.txt
+          gh release upload $env:GITHUB_REF_NAME SHA256SUMS.txt --clobber
