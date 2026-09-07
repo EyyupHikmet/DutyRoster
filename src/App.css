@@ -1,0 +1,1214 @@
+/* Premium Acrylic-Translucent & Minimalist Zinc Theme (Zero generic-SaaS feel) */
+:root {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  
+  /* Light Theme Constants (Translucent Glassmorphism) */
+  --bg-app: #f1f5f9;                               /* Clean slate-100 canvas */
+  --bg-content: rgba(255, 255, 255, 0.65);         /* Translucent white */
+  --bg-card: rgba(241, 245, 249, 0.55);            /* Translucent slate-50 */
+
+  /* OPAQUE surfaces, for anything that has to hide what sits behind it:
+     dialogs, popovers/dropdowns, and the wizard step pills (which have a
+     connector line running behind them). The translucent tokens above are for
+     in-page panels, where the frosted look is intentional and nothing needs to
+     be occluded. Using a translucent token for an overlay is a bug, not a
+     style choice: you end up reading the app through its own dialog. */
+  --bg-surface: #ffffff;                           /* Opaque white */
+  --border: #cbd5e1;                               /* Crisp, solid, opaque Slate-300 */
+  --border-hover: #94a3b8;                         /* Slate-400 */
+  --text-primary: #0f172a;                         /* Slate-900 rich ink */
+  --text-secondary: #475569;                       /* Slate-600 */
+  --text-muted: #64748b;                           /* Slate-500 */
+  
+  --primary: #0f172a;                              /* Deep Slate Primary */
+  --primary-hover: #1e293b;  
+  --primary-light: rgba(15, 23, 42, 0.08);         /* Translucent deep slate tint */
+  
+  --success: #16a34a;        
+  --success-light: rgba(22, 163, 74, 0.08);        
+  --success-text: #14532d;
+  
+  --danger: #dc2626;         
+  --danger-light: rgba(220, 38, 38, 0.06);   
+  --danger-text: #7f1d1d;
+  
+  --warning: #ea580c;
+  --warning-light: rgba(234, 88, 12, 0.06);
+  --warning-text: #7c2d12;
+  --select-arrow: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+
+  /* Slate neutral scale (used for chrome/badges/disabled states outside the semantic tokens above) */
+  --slate-50: #f8fafc;
+  --slate-100: #f1f5f9;
+  --slate-200: #e2e8f0;
+  --slate-300: #cbd5e1;
+  --slate-500: #64748b;
+  --slate-600: #475569;
+  --slate-900: #0f172a;
+
+  /* Button interaction states */
+  --success-hover: #15803d;
+  --danger-hover: #b91c1c;
+
+  /* WCAG AA "solid fill + white text" badge/button tokens.
+     --success/--warning/--danger/--slate-600 above are tuned as *accent* colors
+     (borders, small text-on-translucent-surface) and legitimately need to stay
+     vivid/theme-inverted for that job (see e.g. --slate-600's dark-theme value,
+     which is intentionally light because it's read as muted TEXT on a dark
+     surface elsewhere in this file). Reusing those same tokens as a *background*
+     under solid white text is a different, stricter contrast requirement (4.5:1)
+     that the accent values fail in one or both themes (measured with axe-core:
+     white on light-theme --success 3.30:1, dark-theme --success 2.28:1,
+     dark-theme --slate-600 2.56:1, dark-theme --danger 3.76:1, both themes'
+     --warning ~3.56:1/worse). Rather than darkening the shared accent tokens
+     (which would then fail their OWN existing passing use as light-on-dark
+     accent text), these are fixed, theme-independent, deliberately dark
+     shades — same reasoning as .tooltip-content's fixed dark chip above —
+     each verified >=4.5:1 with white text via manual luminance calculation
+     AND a live axe-core re-scan (both recorded during that work).
+     Used only by .cell-badge-*, .btn-success, .btn-danger. */
+  --badge-success-bg: #15803d;  /* Tailwind green-700, ~5.0:1 with white */
+  --badge-warning-bg: #c2410c;  /* Tailwind orange-700, ~5.2:1 with white */
+  --badge-danger-bg: #b91c1c;   /* Tailwind red-700, ~6.5:1 with white */
+  --badge-neutral-bg: #475569;  /* Tailwind slate-600 (light-theme shade), ~7.6:1 with white */
+}
+
+[data-theme="dark"] {
+  /* Dark Theme Constants (Premium Acrylic Zinc Dark Mode) */
+  --bg-app: #09090b;                               /* Pure deep black zinc-950 */
+  --bg-content: rgba(24, 24, 27, 0.65);            /* Translucent zinc-900 */
+  --bg-card: rgba(32, 32, 36, 0.55);              /* Translucent zinc-800 */
+
+  /* Opaque counterparts - see the note in :root. Defined in BOTH themes on
+     purpose: an undefined custom property silently resolves to nothing, which
+     would bring the transparency straight back in one theme only. */
+  --bg-surface: #18181b;                           /* Opaque zinc-900 */
+  --border: #27272a;                               /* Solid, sharp, opaque Zinc-800 border */
+  --border-hover: #3f3f46;                         /* Zinc-700 */
+  --text-primary: #fafafa;                         /* Zinc-50 crisp white */
+  --text-secondary: #a1a1aa;                       /* Zinc-400 */
+  --text-muted: #71717a;                           /* Zinc-500 */
+  
+  --primary: #fafafa;                              /* Pure White Contrast Primary */
+  --primary-hover: #e4e4e7;  
+  --primary-light: rgba(250, 250, 250, 0.08);      /* Translucent white tint */
+  
+  --success: #22c55e;        
+  --success-light: rgba(34, 197, 94, 0.08);  
+  --success-text: #4ade80;
+  
+  --danger: #ef4444;         
+  --danger-light: rgba(239, 68, 68, 0.06);   
+  --danger-text: #fca5a5;
+  
+  --warning: #f59e0b;
+  --warning-light: rgba(245, 158, 11, 0.06);
+  --warning-text: #fde047;
+  --select-arrow: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+
+  /* Slate neutral scale, inverted to the Zinc dark palette (mirrors how --border/--text-* invert above) */
+  --slate-50: #18181b;
+  --slate-100: #27272a;
+  --slate-200: #3f3f46;
+  --slate-300: #52525b;
+  --slate-500: #71717a;
+  --slate-600: #a1a1aa;
+  --slate-900: #fafafa;
+
+  /* Button interaction states */
+  --success-hover: #16a34a;
+  --danger-hover: #dc2626;
+}
+
+/* Visually hidden but screen-reader-accessible content (the page's single <h1>,
+   the file-import <input type="file">, and live-region status announcements).
+   Uses the standard clip-based technique rather than
+   display:none/visibility:hidden so the element stays in the accessibility
+   tree and, for the file input, stays focusable/keyboard-operable. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Visible focus indicator for every focusable element, including the
+   div/span-based custom controls below that only became keyboard-focusable
+   as part of the accessibility pass (calendar cells, teacher list items, wizard step
+   indicators, mode-option cards, CustomSelect). :focus-visible (not bare
+   :focus) so mouse/touch activation doesn't show a ring, matching how a
+   sighted keyboard user actually navigates. */
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+html, body, #root {
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden; /* Block global scrolling entirely */
+  background-color: var(--bg-app);
+  color: var(--text-primary);
+}
+
+.app-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  padding: 16px 24px;
+  overflow: hidden;
+  background-color: var(--bg-app);
+}
+
+/* Compact Native Header */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 1.5rem;
+  color: var(--text-primary);
+  font-weight: 850;
+  letter-spacing: -0.025em;
+}
+
+.header p {
+  margin: 2px 0 0 0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+/* View switcher tabs */
+.view-mode-tabs {
+  margin-bottom: 12px;
+  flex-shrink: 0;
+}
+
+.view-mode-tabs .btn {
+  padding: 8px 16px;
+  font-size: 0.88rem;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Clickable Connected Action Step Buttons */
+.wizard-steps {
+  display: flex;
+  justify-content: center;
+  gap: 32px;
+  background-color: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  margin-bottom: 20px;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.wizard-steps::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 12%;
+  right: 12%;
+  height: 3px;
+  background-color: var(--border);
+  transform: translateY(-50%);
+  z-index: 1; /* lies behind buttons */
+}
+
+.step-indicator {
+  flex: 1;
+  max-width: 260px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--text-secondary);
+  font-weight: 700;
+  font-size: 0.92rem;
+  /* Genuinely opaque, so the connector line drawn by .wizard-steps::before
+     is hidden behind the pill instead of showing through it. This used to use
+     the translucent --bg-content while claiming to be solid. No backdrop-filter
+     either: blurring what shows through only matters if anything shows
+     through, and nothing should. */
+  background-color: var(--bg-surface);
+  padding: 10px 20px;
+  border-radius: 20px; /* highly rounded pill for flow */
+  border: 2px solid var(--border);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+  z-index: 2; /* sits on top of line */
+}
+
+.step-indicator:hover {
+  transform: translateY(-1px);
+  border-color: var(--border-hover);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
+.step-indicator.active {
+  color: var(--primary);
+  border-color: var(--primary);
+  /* The tint is layered OVER the opaque base rather than replacing it:
+     --primary-light is an 8%-alpha wash, so setting it as the background-color
+     would make the active pill the most transparent one of the three and let
+     the connector line show through the step you are actually on. */
+  background-color: var(--bg-surface);
+  background-image: linear-gradient(var(--primary-light), var(--primary-light));
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.08);
+}
+
+.step-indicator.completed {
+  color: var(--success);
+  border-color: var(--success);
+  background-color: var(--bg-surface);
+  background-image: linear-gradient(var(--success-light), var(--success-light));
+}
+
+.step-number {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+  transition: all 0.2s;
+  background-color: var(--bg-surface); /* solid bg inside circle */
+  z-index: 3;
+}
+
+.step-indicator.active .step-number {
+  border-color: var(--primary);
+  background-color: var(--primary-light);
+  color: var(--primary);
+}
+
+.step-indicator.completed .step-number {
+  border-color: var(--success);
+  background-color: var(--success-light);
+  color: var(--success);
+}
+
+/* Full Screen Content Wrapper */
+.content-area {
+  flex-grow: 1;
+  background-color: var(--bg-content);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  padding: 20px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* Prevent vertical overflow scroll on parent */
+}
+
+.step-title {
+  color: var(--text-primary);
+  font-size: 1.25rem;
+  font-weight: 800;
+  margin-top: 0;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  letter-spacing: -0.02em;
+  flex-shrink: 0;
+}
+
+/* Native Split-Screen Layouts */
+.desktop-split-layout {
+  display: flex;
+  gap: 20px;
+  flex-grow: 1;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Generic "fills the rest of its flex-column parent's height, no page-level scroll" pane
+   idiom shared by the wizard-step wrappers and the split-layout panes below. Every element
+   using it unlocks together in the responsive media queries at the bottom of this file
+   instead of each call site fighting its own inline styles with !important. */
+.fill-column {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Split-layout pane sizing (base/wide-screen widths only - the responsive media queries
+   reset these to fluid/stacked values, see bottom of file) */
+.split-pane-list {
+  flex: 1 1 300px;
+  max-width: 350px;
+}
+
+.split-pane-main {
+  flex: 2 1 50%;
+}
+
+.split-pane-sidebar {
+  flex: 1 1 300px;
+  max-width: 350px;
+}
+
+.solver-options-column {
+  flex: 0 0 320px;
+}
+
+.solver-day-config-column {
+  flex: 0 0 320px;
+  max-width: 350px;
+}
+
+/* Custom Scrollbar Styling (Globally Unified & Elegant) */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--border);
+  border-radius: 10px;
+  border: 1px solid transparent;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--border-hover);
+}
+
+/* For Firefox compatibility */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+/* Scrollable containers inside columns */
+.scrollable-column {
+  overflow-y: auto;
+  height: 100%;
+  padding-right: 4px;
+}
+
+/* Form Styles */
+.form-group {
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-group label {
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.form-control {
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1.5px solid var(--border);
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  width: 100%;
+  box-sizing: border-box;
+  transition: all 0.2s;
+  background-color: var(--bg-card); /* subtle translucent dark tint inside forms */
+  
+  /* Custom select dropdown styling */
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: var(--select-arrow);
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 14px;
+  padding-right: 40px !important;
+}
+
+.form-control:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+
+/* Custom styled select box when an option is pinned */
+select.form-control.pinned-select {
+  background-color: var(--warning-light) !important;
+  border-color: var(--warning) !important;
+  color: var(--warning-text) !important;
+}
+
+/* Settings Toggle Button with High Contrast Hover */
+.settings-toggle-btn {
+  padding: 8px;
+  height: 40px;
+  width: 40px;
+  border-radius: 10px;
+  font-size: 1.15rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border: 1.5px solid var(--border);
+  background-color: var(--bg-content);
+  color: var(--text-primary);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.settings-toggle-btn:hover {
+  background-color: var(--slate-100);
+  border-color: var(--border-hover);
+  color: var(--primary);
+  transform: scale(1.05);
+}
+
+/* Buttons */
+.btn {
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: none;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+}
+
+.btn:active {
+  transform: translateY(1px);
+}
+
+.btn-primary {
+  background-color: var(--primary);
+  color: var(--bg-content);
+}
+
+.btn-primary:hover {
+  background-color: var(--primary-hover);
+}
+
+.btn-success {
+  background-color: var(--badge-success-bg);
+  color: white;
+}
+
+.btn-success:hover {
+  background-color: var(--badge-success-bg);
+  filter: brightness(0.85); /* darkening a passing bg only ever improves white-text contrast */
+}
+
+.btn-danger {
+  background-color: var(--badge-danger-bg);
+  color: white;
+}
+
+.btn-danger:hover {
+  background-color: var(--badge-danger-bg);
+  filter: brightness(0.85);
+}
+
+.btn-secondary {
+  background-color: var(--bg-card);
+  color: var(--text-secondary);
+  border: 1.5px solid var(--border);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.btn-secondary:hover {
+  background-color: var(--primary-light);
+}
+
+.btn-disabled {
+  background-color: var(--slate-200);
+  color: var(--slate-500);
+  cursor: not-allowed;
+  box-shadow: none;
+  opacity: 0.6;
+}
+
+/* Overlay surface: dialogs and popovers. Pairs with .card for the border,
+   radius and padding, then overrides the translucent background, because an
+   overlay that you can read the app through is unreadable in both directions.
+   The backdrop-filter is dropped with it - it costs a compositing layer and
+   does nothing once the surface is opaque. */
+.surface-solid,
+.card.surface-solid {
+  background-color: var(--bg-surface);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* Cards & Lists */
+.card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  background-color: var(--bg-card);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.teacher-list-container {
+  height: calc(100% - 40px); /* Fill vertical card height */
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background-color: var(--bg-content);
+}
+
+.teacher-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.teacher-item:last-child {
+  border-bottom: none;
+}
+
+.teacher-item:hover {
+  background-color: var(--bg-card);
+}
+
+.teacher-item.selected {
+  background-color: var(--primary-light);
+  border-left: 4px solid var(--primary);
+}
+
+.teacher-info h4 {
+  margin: 0 0 4px 0;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.teacher-info p {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+/* Calendar Grids */
+.calendar-wrapper {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: 100%;
+}
+
+.calendar-header-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  text-align: center;
+  font-weight: 700;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  grid-template-rows: repeat(6, 1fr); /* Force equal rows on calendar grid */
+  gap: 6px;
+  flex-grow: 1;
+  height: 100%;
+  overflow: hidden;
+}
+
+.calendar-cell {
+  border-radius: 10px;
+  border: 1.5px solid var(--border);
+  background-color: var(--bg-content);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 8px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.01);
+  overflow: hidden;
+  color: var(--text-primary);
+}
+
+.calendar-cell:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  border-color: var(--border-hover);
+}
+
+.calendar-cell-empty {
+  background-color: transparent;
+  border: none;
+  cursor: default;
+}
+
+/* Day Eligibility Colors (Adım 2 - Clean Top Borders) */
+.calendar-cell.included {
+  background-color: var(--bg-content);
+  color: var(--text-primary);
+  border-top: 4px solid var(--primary);
+}
+
+.calendar-cell.excluded {
+  background-color: var(--bg-card);
+  border-color: var(--border);
+  /* --text-muted measured (axe-core) below 4.5:1 against this
+     background in dark theme for every unstyled text node that inherits
+     this default; --text-secondary is the theme-tuned "passes as text"
+     sibling of the same neutral scale. */
+  color: var(--text-secondary);
+  /* Was `opacity: 0.65` on the whole cell — that blends EVERY descendant
+     (including the excluded-day-number text and the "Tatil" badge) toward
+     whatever sits behind the cell, silently cutting their effective contrast
+     regardless of what color token they use. Measured via axe-core as part of
+     the accessibility pass; this was a real contributor to the reported color-contrast
+     violations, not just the raw token colors. The "muted/excluded" look is
+     conveyed without it via --bg-card/--text-muted/the border-top already set
+     here, so the fade is dropped and the specific text colors are tuned
+     (--danger-text below) to pass 4.5:1/3:1 on their own. */
+  border-top: 4px solid var(--border);
+  text-decoration: none; /* remove strike-through for high contrast */
+}
+
+/* Availability Status Colors (Adım 1 - High Fidelity Top Border Indicators) */
+.calendar-cell.avail-preferred {
+  background-color: var(--bg-content);
+  border-color: var(--border);
+  color: var(--text-primary);
+  border-top: 4px solid var(--success);
+}
+
+.calendar-cell.avail-available {
+  background-color: var(--bg-content);
+  border-color: var(--border);
+  color: var(--text-primary);
+  border-top: 4px solid var(--warning);
+}
+
+.calendar-cell.avail-unavailable {
+  background-color: var(--bg-content);
+  border-color: var(--border);
+  color: var(--text-primary);
+  border-top: 4px solid var(--danger);
+}
+
+.cell-badge {
+  font-size: 0.68rem;
+  padding: 2px 4px;
+  border-radius: 4px;
+  text-align: center;
+  align-self: center;
+  width: 100%;
+  box-sizing: border-box;
+  font-weight: 700;
+}
+
+.cell-badge-pref {
+  background-color: var(--badge-success-bg);
+  color: white;
+}
+
+.cell-badge-avail {
+  background-color: var(--badge-warning-bg);
+  color: white;
+}
+
+.cell-badge-unavail {
+  background-color: var(--badge-danger-bg);
+  color: white;
+}
+
+.cell-badge-excluded {
+  background-color: var(--badge-neutral-bg);
+  color: white;
+}
+
+/* Tooltips */
+.tooltip-container {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: help;
+  position: relative;
+}
+
+.tooltip-icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background-color: var(--slate-100);
+  border: 1px solid var(--border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: bold;
+  color: var(--text-secondary);
+}
+
+.tooltip-content {
+  display: none;
+  position: absolute;
+  bottom: 125%;
+  left: 50%;
+  transform: translateX(-50%);
+  /* Always a fixed dark chip regardless of theme: --slate-900 itself inverts to a light
+     tone in dark mode (needed for text-color uses elsewhere), which would make this
+     white-on-white and invisible again, so this stays a literal dark color. */
+  background-color: #1e293b;
+  color: white;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  width: 240px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  z-index: 50;
+  font-weight: 500;
+  line-height: 1.15rem;
+}
+
+.tooltip-container:hover .tooltip-content {
+  display: block;
+}
+
+/* Step-title "?" tooltips sit right under .content-area's top padding, with
+   no room above them inside the overflow:hidden clipping ancestor for the
+   default upward-opening .tooltip-content (bottom: 125%) — it renders
+   entirely outside the visible box and is invisible. The "i" tooltips
+   elsewhere in the wizard have room above them and are unaffected, so this
+   is a modifier on the container instead of a change to the shared rule. */
+.tooltip-container--title .tooltip-content {
+  bottom: auto;
+  top: 125%;
+}
+
+/* Footer Navigation */
+.wizard-footer {
+  margin-top: 12px;
+  display: flex;
+  justify-content: space-between;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  flex-shrink: 0;
+}
+
+/* Alerts (100% WCAG AAA-Compliant High Contrast) */
+.alert {
+  padding: 12px 20px;
+  border-radius: 10px;
+  margin-bottom: 16px;
+  font-weight: 600;
+  font-size: 0.88rem;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.01);
+}
+
+.alert-success {
+  background-color: var(--success-light);
+  border: 1px solid var(--border);
+  color: var(--success-text);
+}
+
+[data-theme="dark"] .alert-success {
+  color: var(--success-text);
+  border-color: var(--border);
+}
+
+.alert-danger {
+  background-color: var(--danger-light);
+  border: 1px solid var(--border);
+  color: var(--danger-text);
+  white-space: pre-line;
+}
+
+[data-theme="dark"] .alert-danger {
+  color: var(--danger-text);
+  border-color: var(--border);
+}
+
+.alert-info {
+  background-color: var(--primary-light);
+  border: 1px solid var(--border);
+  color: var(--primary); /* Deep Zinc in light / White in dark mode */
+}
+
+[data-theme="dark"] .alert-info {
+  color: var(--primary);
+  border-color: var(--border);
+}
+
+/* Roster Excel Import dragbox */
+.import-section {
+  border: 1.5px dashed var(--border) !important;
+  background-color: var(--bg-card) !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.import-section:hover {
+  background-color: var(--primary-light) !important;
+  border-color: var(--primary) !important;
+  border-style: dashed !important;
+  transform: translateY(-1px);
+}
+
+.import-label {
+  font-weight: 700;
+  color: var(--primary);
+  font-size: 0.9rem;
+}
+
+/* Step 3 calendar items */
+.schedule-calendar-cell {
+  background-color: var(--bg-content);
+  border-color: var(--border);
+}
+
+.schedule-calendar-cell:hover {
+  transform: none;
+  box-shadow: none;
+  border-color: var(--border-hover);
+}
+
+.schedule-assignments-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  /* Deliberate accessibility tradeoff, recorded here rather than left
+     implicit: this list lives inside the Step 3 calendar cell's own
+     role="button" (the cell's single click target, "open this day's
+     config"). `overflow-y: auto` made this list its OWN independently
+     keyboard-scrollable region nested inside that button — axe-core's
+     "scrollable-region-focusable" correctly flagged it, and the real
+     underlying problem isn't just "add tabIndex": a scrollable focusable
+     region *inside* a button is a genuine WCAG 2.4.3/4.1.2 ambiguity (what
+     does Enter do vs. arrow-key-scroll, on the same DOM node's descendant?)
+     that ARIA's button role explicitly disallows via focusable content. The
+     fix restructuring Step2's analogous case (day-toggle button + sibling
+     extra-badge) doesn't apply here because there's no second click target
+     to split out — the whole cell has exactly one action. So: overflow
+     changed to `hidden` instead of `auto`. With the realistic teachersPerDay
+     range this app supports (1-5, see Step3Solver's `max="5"`) and the
+     existing `max-height`, this only visually clips names in the rare case
+     a day is heavily over-assigned relative to its cell size — the cell's
+     own accessible name (built in Step3Solver.tsx from the same assignment
+     list) still names every assigned teacher regardless of visual clipping,
+     so no information is lost for a screen-reader user, only a sighted
+     mouse-scroll convenience for that edge case.
+  */
+  overflow-y: hidden;
+  max-height: calc(100% - 20px);
+}
+
+.schedule-assignments-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.schedule-assignments-list::-webkit-scrollbar-thumb {
+  background-color: var(--border);
+  border-radius: 2px;
+}
+
+.schedule-assignment-tag {
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 0.65rem;
+  text-align: center;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.01);
+}
+
+/* Options for Solver config */
+.options-pane {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 20px;
+  overflow-y: auto;
+  max-height: 100%;
+}
+
+.mode-option-card {
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  background-color: var(--bg-content);
+}
+
+.mode-option-card:hover {
+  border-color: var(--border-hover);
+  background-color: var(--bg-card);
+}
+
+.mode-option-card.selected {
+  border-color: var(--primary);
+  background-color: var(--primary-light);
+  box-shadow: 0 2px 4px rgba(79, 70, 229, 0.05);
+}
+
+.mode-option-title {
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+  font-size: 0.88rem;
+}
+
+.mode-option-desc {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  line-height: 1.2rem;
+  font-weight: 500;
+}
+
+.color-guide {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.color-guide-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.color-box {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+}
+
+/* Delete btn action */
+.delete-btn {
+  background: none;
+  border: none;
+  color: var(--danger);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.delete-btn:hover {
+  background-color: var(--danger-light);
+  transform: scale(1.05);
+}
+
+/* Step 2 Expansive Fullscreen Calendar */
+.step2-calendar-wrapper {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  padding: 24px !important;
+}
+
+.step2-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  grid-template-rows: repeat(6, 1fr);
+  gap: 12px;
+  flex-grow: 1;
+  height: 100%;
+}
+
+.step2-calendar-cell {
+  border-radius: 16px;
+  padding: 16px;
+  font-size: 1.4rem;
+  font-weight: 800;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+}
+
+.step2-calendar-cell:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 20px -5px rgba(0, 0, 0, 0.08);
+}
+
+.step2-cell-badge {
+  font-size: 0.92rem;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  margin-top: auto;
+  text-align: center;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.step2-extra-badge {
+  font-size: 0.8rem;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-weight: 700;
+}
+
+/* Premium Desktop Responsiveness & Layout Adaptations.
+   None of these need !important: the base rules above only ever set these properties via
+   plain CSS classes (never inline styles), so a later same-specificity media-query rule
+   already wins the cascade on its own. `.fill-column`/`.split-pane-*`/`.solver-*` are the
+   shared idiom classes applied in the components (see App.tsx, Step1Roster.tsx,
+   Step2ActiveDays.tsx, Step3Solver.tsx, AvailabilityCalendar.tsx, TeacherList.tsx). */
+@media (max-width: 1200px) {
+  html, body, #root {
+    overflow: auto;
+    height: auto;
+  }
+
+  .app-container {
+    height: auto;
+    min-height: 100vh;
+    overflow-y: auto;
+  }
+
+  /* Unlock every "fills its parent's height, no scroll" pane at once instead of each one
+     needing its own override. */
+  .fill-column {
+    height: auto;
+    overflow: visible;
+  }
+
+  .desktop-split-layout {
+    flex-direction: column;
+    overflow-y: visible;
+    height: auto;
+  }
+
+  .content-area {
+    overflow-y: visible; /* Let parent scroll handle everything */
+    height: auto;
+  }
+
+  .scrollable-column {
+    flex: 1 1 auto;
+    max-width: 100%;
+    height: auto;
+    overflow-y: visible;
+  }
+
+  /* Stacked split-layout panes go full width; keep a sane floor height so they don't
+     collapse to nothing before the page-level scroll kicks in. */
+  .split-pane-list,
+  .split-pane-main {
+    flex: 1 1 auto;
+  }
+
+  .split-pane-list {
+    min-height: 300px;
+  }
+
+  .split-pane-main {
+    min-height: 500px;
+  }
+
+  .calendar-wrapper {
+    min-height: 550px;
+    flex-grow: 0;
+    flex-shrink: 0;
+  }
+
+  .calendar-grid {
+    grid-template-rows: repeat(6, 75px); /* Lock legible cell heights on stacked view */
+  }
+
+  /* Step 2's own full-width calendar (not part of a split layout) needs the same fixed-row
+     treatment once its ancestors go height:auto, otherwise its 1fr grid rows have no space
+     to distribute and collapse. Its cells carry a bigger date number and badge than the
+     other calendar-grid views, so they get a taller fixed row (100px, not 75px) to avoid
+     clipping the "Nöbet Var"/"Tatil" badge text. */
+  .step2-calendar-wrapper {
+    min-height: 650px;
+  }
+
+  .step2-calendar-grid {
+    grid-template-rows: repeat(6, 100px);
+  }
+}
+
+@media (max-width: 768px) {
+  .app-container {
+    padding: 12px 16px;
+  }
+
+  .wizard-steps {
+    gap: 16px;
+  }
+
+  .step-indicator {
+    padding: 8px 12px;
+    font-size: 0.8rem;
+  }
+
+  .calendar-grid {
+    grid-template-rows: repeat(6, 60px);
+  }
+
+  .step2-calendar-grid {
+    grid-template-rows: repeat(6, 88px);
+  }
+}
