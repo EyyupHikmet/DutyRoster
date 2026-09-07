@@ -111,6 +111,14 @@ jobs:
             # Two spaces between hash and name: the format "sha256sum -c" expects.
             "$hash  $($f.Name)"
           }
-          $lines | Set-Content -Path SHA256SUMS.txt -Encoding ascii
-          Get-Content SHA256SUMS.txt
+          # Write LF, not CRLF, and no BOM. Set-Content on Windows produces
+          # CRLF, which makes "sha256sum -c" read the trailing carriage return
+          # as part of the filename and fail every line with "No such file or
+          # directory" - the checksum file is then useless for the one thing it
+          # exists for. WriteAllText with an explicit UTF8Encoding($false)
+          # avoids both that and a byte-order mark.
+          $text = ($lines -join "`n") + "`n"
+          $path = Join-Path $PWD 'SHA256SUMS.txt'
+          [System.IO.File]::WriteAllText($path, $text, [System.Text.UTF8Encoding]::new($false))
+          Get-Content $path
           gh release upload $env:GITHUB_REF_NAME SHA256SUMS.txt --clobber
