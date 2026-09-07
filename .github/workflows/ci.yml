@@ -14,15 +14,21 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       # No Rust toolchain here on purpose: this job checks the TypeScript side
       # only, which is where essentially all the logic lives. Building the
       # Tauri host needs Rust and platform webview libraries, and belongs in a
       # separate release workflow.
+      # --ignore-scripts: better-sqlite3's install script is "node-gyp rebuild",
+      # which compiles from source even though the package ships prebuilt
+      # binaries for every platform it supports (including this one). That
+      # compile is unnecessary and fails on some runners. esbuild's postinstall
+      # is skipped for the same reason - the platform-specific @esbuild/*
+      # package in the lockfile provides the binary.
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Typecheck
         run: npx tsc --noEmit
