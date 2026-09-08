@@ -520,22 +520,39 @@ export default function App() {
   };
 
   // Opens the just-exported file in its OS default handler.
+  //
+  // A rejection here MUST reach the user. These two handlers used to swallow
+  // the error into console.error, and in a release build there is no console
+  // anyone will look at -- so a failure looked exactly like a button that was
+  // never wired up, which is how it was reported. The file was written and the
+  // path is on screen, so the fallback advice ("open it yourself from the
+  // folder") is genuinely actionable.
   const handleOpenExportedFile = async () => {
     if (!exportToast) return;
+    setExportErrorMessage(null);
     try {
       await openPath(exportToast.path);
     } catch (err) {
       console.error("Dosya açılırken hata oluştu:", err);
+      setExportErrorMessage(
+        `Dosya açılamadı. Raporu şu konumdan kendiniz açabilirsiniz: ${exportToast.path}`
+      );
+      setTimeout(() => setExportErrorMessage(null), 8000);
     }
   };
 
   // Reveals the just-exported file in its containing folder.
   const handleOpenExportedFolder = async () => {
     if (!exportToast) return;
+    setExportErrorMessage(null);
     try {
       await revealItemInDir(exportToast.path);
     } catch (err) {
       console.error("Klasör açılırken hata oluştu:", err);
+      setExportErrorMessage(
+        `Klasör açılamadı. Rapor şu konuma kaydedildi: ${exportToast.path}`
+      );
+      setTimeout(() => setExportErrorMessage(null), 8000);
     }
   };
 

@@ -468,4 +468,58 @@ describe("App — Excel export save dialog and confirmation", () => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
   });
+
+  // A rejected openPath used to go only to console.error. In a release build
+  // there is no console anyone will look at, so a failure was indistinguishable
+  // from a button that is not wired up -- which is exactly how it was reported.
+  describe("the toast's open buttons report their own failures", () => {
+    it("'Dosyayı Aç' surfaces a message when openPath rejects", async () => {
+      const user = userEvent.setup();
+      mockedExcelUtils.exportScheduleToExcel.mockResolvedValue({
+        status: "saved",
+        path: "C:\Users\test\Belgeler\rapor.xlsx",
+        filename: "rapor.xlsx",
+      });
+      mockedOpener.openPath.mockRejectedValue(new Error("forbidden path"));
+      const exportButton = await goToStep3WithExportButton(user);
+      await user.click(exportButton);
+
+      await user.click(await screen.findByRole("button", { name: "Dosyayı Aç" }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent("Dosya açılamadı");
+    });
+
+    it("'Klasörü Aç' surfaces a message when revealItemInDir rejects", async () => {
+      const user = userEvent.setup();
+      mockedExcelUtils.exportScheduleToExcel.mockResolvedValue({
+        status: "saved",
+        path: "C:\Users\test\Belgeler\rapor.xlsx",
+        filename: "rapor.xlsx",
+      });
+      mockedOpener.revealItemInDir.mockRejectedValue(new Error("nope"));
+      const exportButton = await goToStep3WithExportButton(user);
+      await user.click(exportButton);
+
+      await user.click(await screen.findByRole("button", { name: "Klasörü Aç" }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent("Klasör açılamadı");
+    });
+
+    it("shows no error when opening succeeds", async () => {
+      const user = userEvent.setup();
+      mockedExcelUtils.exportScheduleToExcel.mockResolvedValue({
+        status: "saved",
+        path: "C:\Users\test\Belgeler\rapor.xlsx",
+        filename: "rapor.xlsx",
+      });
+      mockedOpener.openPath.mockResolvedValue(undefined);
+      const exportButton = await goToStep3WithExportButton(user);
+      await user.click(exportButton);
+
+      await user.click(await screen.findByRole("button", { name: "Dosyayı Aç" }));
+
+      await waitFor(() => expect(mockedOpener.openPath).toHaveBeenCalledTimes(1));
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
+  });
 });
