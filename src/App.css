@@ -35,7 +35,6 @@
   --warning: #ea580c;
   --warning-light: rgba(234, 88, 12, 0.06);
   --warning-text: #7c2d12;
-  --select-arrow: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
 
   /* Slate neutral scale (used for chrome/badges/disabled states outside the semantic tokens above) */
   --slate-50: #f8fafc;
@@ -104,7 +103,6 @@
   --warning: #f59e0b;
   --warning-light: rgba(245, 158, 11, 0.06);
   --warning-text: #fde047;
-  --select-arrow: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
 
   /* Slate neutral scale, inverted to the Zinc dark palette (mirrors how --border/--text-* invert above) */
   --slate-50: #18181b;
@@ -442,29 +440,21 @@ html, body, #root {
   box-sizing: border-box;
   transition: all 0.2s;
   background-color: var(--bg-card); /* subtle translucent dark tint inside forms */
-  
-  /* Custom select dropdown styling */
-  appearance: none;
-  -webkit-appearance: none;
-  -moz-appearance: none;
-  background-image: var(--select-arrow);
-  background-repeat: no-repeat;
-  background-position: right 14px center;
-  background-size: 14px;
-  padding-right: 40px !important;
 }
+
+/* No select styling here on purpose. This class is shared by three real
+   <input>s and by CustomSelect's combobox, and it used to apply a chevron
+   background image, `appearance: none` and `padding-right: 40px !important`
+   to all of them. Nothing wanted it: the app has no <select> element at all,
+   CustomSelect draws its caret as a JSX element, and the inputs were left
+   showing a dropdown arrow that does nothing while losing the number spinner
+   that works. If a dropdown affordance is ever needed again, give it its own
+   modifier class rather than putting it back on the shared base. */
 
 .form-control:focus {
   outline: none;
   border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
-}
-
-/* Custom styled select box when an option is pinned */
-select.form-control.pinned-select {
-  background-color: var(--warning-light) !important;
-  border-color: var(--warning) !important;
-  color: var(--warning-text) !important;
 }
 
 /* Settings Toggle Button with High Contrast Hover */
