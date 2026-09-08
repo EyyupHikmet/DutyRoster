@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- DutyRoster app icon. Source of truth for every generated icon size:
+       regenerate the set with `npm run tauri icon app-icon.svg`.
+
+       The letterforms are drawn as paths, not <text>. The rasteriser used by
+       the icon generator cannot be relied on to have any particular font
+       installed, and missing-font text fails silently or substitutes something
+       else. A monogram is the one thing that must not be left to chance.
+
+       Geometry, so this stays editable:
+         cap height  216 (y 148 to 364)
+         stem width   44
+         D  outer semicircle radius 108, counter radius 64
+         R  bowl 150 tall (radius 75), counter radius 31, leg 50 wide
+       The leg springs from inside the bowl (top edge at y=282, above the bowl
+       bottom at 298). Butting it against the underside instead left a visible
+       nick at the junction.
+       The R bowl is deliberately tall: at a shorter height the counter closes
+       up to a pinhole and the letter reads as a filled blob at small sizes.
+
+       Counters are painted in the ground colour rather than punched out with
+       fill-rule, so the shapes stay simple and predictable when scaled to 16px.
+
+       Colours are the app's own: primary #0f172a and slate-50 #f8fafc.
+       Note for editors: XML comments cannot contain a double hyphen, which is
+       why the CSS custom-property names are written without their prefix. -->
+
+  <rect width="512" height="512" rx="112" fill="#0f172a"/>
+
+  <!-- nudged left so the pair sits optically centred, not just mathematically -->
+  <g transform="translate(-5,0)">
+    <g fill="#f8fafc">
+      <!-- D -->
+      <path d="M96,148 L160,148 A108,108 0 0 1 160,364 L96,364 Z"/>
+      <!-- R: stem, bowl, leg -->
+      <rect x="300" y="148" width="44" height="216"/>
+      <path d="M300,148 L350,148 A75,75 0 0 1 350,298 L300,298 Z"/>
+      <path d="M330,282 L392,282 L432,364 L382,364 Z"/>
+    </g>
+
+    <g fill="#0f172a">
+      <!-- counters, inset by the stem width -->
+      <path d="M140,192 L160,192 A64,64 0 0 1 160,320 L140,320 Z"/>
+      <path d="M344,192 L350,192 A31,31 0 0 1 350,254 L344,254 Z"/>
+    </g>
+  </g>
+</svg>
