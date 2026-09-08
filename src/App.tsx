@@ -768,58 +768,6 @@ export default function App() {
         </div>
       </header>
 
-      {/* role="status" (implicit aria-live="polite") — WCAG 2.2 AA 4.1.3
-          Status Messages. This is used for import success, schedule
-          generation success, and DB reset success, none of which previously
-          had any non-visual announcement. */}
-      {successMessage && (
-        <div className="alert alert-success" role="status">{successMessage}</div>
-      )}
-
-      {/* Post-save export confirmation, replacing the old silent
-          browser-style download. role="status" (implicit aria-live="polite"),
-          matching the pattern above — announced to screen-reader users
-          without needing focus to move here, and the two action buttons are
-          plain, natively-focusable <button>s so they're keyboard-reachable
-          via normal Tab order. */}
-      {exportToast && (
-        <div className="alert alert-success" role="status">
-          <span>📥 Nöbet raporu kaydedildi: <strong>{exportToast.filename}</strong></span>
-          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-            <button
-              className="btn btn-secondary"
-              style={{ padding: "6px 12px", fontSize: "0.78rem" }}
-              onClick={handleOpenExportedFile}
-            >
-              Dosyayı Aç
-            </button>
-            <button
-              className="btn btn-secondary"
-              style={{ padding: "6px 12px", fontSize: "0.78rem" }}
-              onClick={handleOpenExportedFolder}
-            >
-              Klasörü Aç
-            </button>
-            <button
-              className="btn btn-secondary"
-              style={{ padding: "6px 12px", fontSize: "0.78rem" }}
-              onClick={handleDismissExportToast}
-              aria-label="Bildirimi kapat"
-            >
-              ✕
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Write-failure feedback (e.g. disk error). role="alert" (implicit
-          aria-live="assertive"), matching Step3Solver's solverError pattern,
-          since this is an unexpected-failure message the user needs to
-          notice promptly. */}
-      {exportErrorMessage && (
-        <div className="alert alert-danger" role="alert">{exportErrorMessage}</div>
-      )}
-
       <main className="content-area">
         {activeStep === 1 && (
           <Step1Roster
@@ -887,6 +835,77 @@ export default function App() {
           />
         )}
       </main>
+
+      {/* Floating status stack. These three banners used to render here,
+          between the header and <main>, in normal flow -- so each one
+          pushed the whole wizard down as it appeared and let it snap back
+          as it went. They now sit in one viewport-fixed stack at the
+          bottom, closer to where attention already is after pressing a
+          button, and the layout no longer moves.
+
+          It MUST stay outside <main>: .content-area carries a
+          backdrop-filter, which creates a containing block for fixed
+          descendants and would pin the stack inside the wizard pane
+          instead of the viewport.
+
+          Roles are unchanged -- role="status" (polite) for the two
+          success banners, role="alert" (assertive) for the failure -- and
+          the toast's buttons are still plain <button>s in normal tab
+          order, so moving them costs nothing in accessibility terms. */}
+      <div className="toast-stack">
+
+        {/* role="status" (implicit aria-live="polite") — WCAG 2.2 AA 4.1.3
+            Status Messages. This is used for import success, schedule
+            generation success, and DB reset success, none of which previously
+            had any non-visual announcement. */}
+        {successMessage && (
+          <div className="alert alert-success" role="status">{successMessage}</div>
+        )}
+
+        {/* Post-save export confirmation, replacing the old silent
+            browser-style download. role="status" (implicit aria-live="polite"),
+            matching the pattern above — announced to screen-reader users
+            without needing focus to move here, and the two action buttons are
+            plain, natively-focusable <button>s so they're keyboard-reachable
+            via normal Tab order. */}
+        {exportToast && (
+          <div className="alert alert-success" role="status">
+            <span>📥 Nöbet raporu kaydedildi: <strong>{exportToast.filename}</strong></span>
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              <button
+                className="btn btn-secondary"
+                style={{ padding: "6px 12px", fontSize: "0.78rem" }}
+                onClick={handleOpenExportedFile}
+              >
+                Dosyayı Aç
+              </button>
+              <button
+                className="btn btn-secondary"
+                style={{ padding: "6px 12px", fontSize: "0.78rem" }}
+                onClick={handleOpenExportedFolder}
+              >
+                Klasörü Aç
+              </button>
+              <button
+                className="btn btn-secondary"
+                style={{ padding: "6px 12px", fontSize: "0.78rem" }}
+                onClick={handleDismissExportToast}
+                aria-label="Bildirimi kapat"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Write-failure feedback (e.g. disk error). role="alert" (implicit
+            aria-live="assertive"), matching Step3Solver's solverError pattern,
+            since this is an unexpected-failure message the user needs to
+            notice promptly. */}
+        {exportErrorMessage && (
+          <div className="alert alert-danger" role="alert">{exportErrorMessage}</div>
+        )}
+      </div>
 
       {/* Custom React Dialog Box Modal for Database Reset Confirmation */}
       {isResetConfirmOpen && (
