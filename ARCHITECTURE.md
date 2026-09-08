@@ -75,6 +75,19 @@ Four strategies are exposed: distribute evenly, weight by seniority, honour
 manually pinned assignments, and random fill. They change the order in which
 candidates are considered, not the correctness of the result.
 
+Orthogonal to all four is the `respectTargets` flag. By default a teacher's
+monthly duty target is only a sort key — the search has to fill every slot or
+fail, so it will hand someone a fourth duty when their target is two. With the
+flag on, the target becomes a hard constraint, and the search is allowed to
+give up on a day (adding it to a `skipped` set) rather than on the month:
+the result is a partly filled schedule plus an `unfilled` report of every day
+that came out short. Pinned assignments are exempt, since they are placed
+before the search begins; the cap only stops the solver adding more on top.
+
+That trade is deliberate. A hard cap makes most months genuinely unsolvable,
+and a principal is far better served by a roster with two open Fridays they can
+see and fix than by an empty screen.
+
 ## Data model
 
 Three tables, all local:
@@ -84,8 +97,8 @@ Three tables, all local:
   (`preferred` / `available` / `unavailable`).
 - **`schedules`** — one row per `(year, month)`, holding the generated
   `assignments` map plus everything needed to reproduce it: `holidays`,
-  `weekend_duty_days`, and a `config` blob (strategy, teachers per day, pinned
-  assignments, extra days, day-specific counts).
+  `weekend_duty_days`, and a `config` blob (strategy, target-cap flag, teachers
+  per day, pinned assignments, extra days, day-specific counts).
 
 `schedules` has a **unique index on `(year, month)`** and is written with
 `INSERT OR REPLACE`, so a month has exactly one row that is replaced in place.

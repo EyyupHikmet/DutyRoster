@@ -62,3 +62,49 @@ export const getMonthDatesWithPadding = (year: number, month: number): (Date | n
 
   return paddedList;
 };
+
+/**
+ * The duty days of a month, in chronological order: every weekday except the
+ * ones marked as holidays, plus any weekend day explicitly opted in.
+ *
+ * This is the single source of truth for "which days were supposed to be
+ * covered." The solver run and the pre-export gap check both read it, so they
+ * cannot drift apart about what counts as an open day.
+ */
+export const getDutyDates = (
+  year: number,
+  month: number,
+  holidays: string[],
+  weekendDutyDays: string[]
+): string[] => {
+  return getDaysInMonth(year, month)
+    .map((d) => formatDateYYYYMMDD(d))
+    .filter((dateStr) => {
+      const d = new Date(dateStr);
+      const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+      return isWeekend ? weekendDutyDays.includes(dateStr) : !holidays.includes(dateStr);
+    });
+};
+
+/**
+ * The duty days that came out short, given a generated schedule and how many
+ * teachers each day asked for. Deliberately derived from the schedule itself
+ * rather than from the solver's own report, so it is equally correct for gaps
+ * the solver never saw — days emptied by pinning, or a month whose schedule
+ * was never generated at all.
+ */
+export const findUnfilledDays = (
+  dutyDates: string[],
+  schedule: Record<string, string[]>,
+  requiredOn: (dateStr: string) => number
+): Array<{ date: string; required: number; assigned: number }> => {
+  const gaps: Array<{ date: string; required: number; assigned: number }> = [];
+  for (const date of dutyDates) {
+    const required = requiredOn(date);
+    const assigned = (schedule[date] ?? []).length;
+    if (assigned < required) {
+      gaps.push({ date, required, assigned });
+    }
+  }
+  return gaps;
+};
