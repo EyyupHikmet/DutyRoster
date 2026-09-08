@@ -181,8 +181,13 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
           justifyContent: "space-between",
           alignItems: "center",
           cursor: "pointer",
-          paddingRight: "14px !important", // normal padding since we render arrow as JSX element!
-          backgroundImage: "none", // completely strip default select-arrow background
+          // The two overrides that used to live here (backgroundImage: "none"
+          // and paddingRight: "14px !important") existed to fight select
+          // styling on the shared .form-control class. That styling is gone,
+          // so they are unnecessary. The padding one never worked anyway:
+          // React drops "!important" from inline styles, and a stylesheet
+          // !important outranks an inline declaration regardless, so the
+          // caret below actually sat 40px from the edge.
           backgroundColor: isPinned ? "var(--warning-light)" : "var(--bg-card)",
           borderColor: isPinned ? "var(--warning)" : "var(--border)",
           color: isPinned ? "var(--warning-text)" : "var(--text-primary)",
