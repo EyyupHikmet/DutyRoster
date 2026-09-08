@@ -34,6 +34,10 @@ example, that a given Tuesday has nobody marked available.
   column of names — in which case target and seniority take their defaults.
 - **Four solving strategies**: distribute duties evenly, weight by seniority,
   pin specific teachers to specific days, or fill remaining days randomly.
+- **Hard monthly targets** — optionally guarantee that no teacher is ever
+  given more duties than their monthly target. If the roster cannot cover the
+  month, days are left open rather than targets exceeded; open days are
+  reported when the schedule is generated, and confirmed before you export.
 - **Flexible month shape** — weekdays by default; toggle individual weekend
   days or holidays in or out, and set a different number of teachers on
   different days.
