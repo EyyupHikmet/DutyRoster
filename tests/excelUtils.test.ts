@@ -93,7 +93,7 @@ describe("Excel Yardımcı Programı Testleri (excelUtils)", () => {
       "Ayşe Kaya",
       "Mehmet Demir",
     ]);
-    expect(result[0].target_hours, "Hedef saat varsayılanı 4 olmalı").toBe(4);
+    expect(result[0].target_hours, "Hedef saat varsayılanı 1 olmalı").toBe(1);
     expect(result[0].priority, "Kıdem varsayılanı 1 (Standart) olmalı").toBe(1);
   });
 
@@ -142,7 +142,7 @@ describe("Excel Yardımcı Programı Testleri (excelUtils)", () => {
     const result = parseExcelRoster(sheetFrom([["Ad"], ["Feryal Özel"], ["Ali Kuşçu"]]));
 
     expect(result.map((t) => t.name)).toEqual(["Feryal Özel", "Ali Kuşçu"]);
-    expect(result[0].target_hours).toBe(4);
+    expect(result[0].target_hours).toBe(1);
   });
 });
 

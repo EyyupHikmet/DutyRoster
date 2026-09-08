@@ -492,7 +492,7 @@ export default function App() {
       setSelectedTeacherId(null);
       setEditingTeacherId(null);
       setTeacherName("");
-      setTeacherTarget(4);
+      setTeacherTarget(1);
       setTeacherPriority(1);
       
       // Load empty roster from SQLite

@@ -6,7 +6,7 @@ export function useTeachers() {
   const [selectedTeacherId, setSelectedTeacherId] = useState<string | null>(null);
   const [editingTeacherId, setEditingTeacherId] = useState<string | null>(null);
   const [teacherName, setTeacherName] = useState<string>("");
-  const [teacherTarget, setTeacherTarget] = useState<number>(4);
+  const [teacherTarget, setTeacherTarget] = useState<number>(1);
   const [teacherPriority, setTeacherPriority] = useState<number>(1); // 1: Standart, 2: Orta, 3: Yüksek
 
   const loadTeachers = async () => {

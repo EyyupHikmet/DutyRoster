@@ -81,7 +81,7 @@ export interface ExportScheduleDeps {
 /** Defaults applied to a teacher imported from a bare name list. Same values
  * the "add teacher" form starts with, so a single-column import lands the user
  * in exactly the state they would be in had they typed the names by hand. */
-const DEFAULT_TARGET_HOURS = 4;
+const DEFAULT_TARGET_HOURS = 1;
 const DEFAULT_PRIORITY = 1;
 
 /** Case/diacritic-insensitive fold for header matching. Turkish needs the
@@ -170,7 +170,7 @@ export const parseExcelRoster = (
   for (const row of rows) {
     // Robust column parsing supporting exact Turkish headers or common synonyms
     const name = row["Ad"] || row["Adı"] || row["Öğretmen Adı"] || row["Name"] || row["Teacher"];
-    const target = row["Hedef Saat"] || row["Hedef"] || row["Saat"] || row["Target Hours"] || row["Hours"] || 4;
+    const target = row["Hedef Saat"] || row["Hedef"] || row["Saat"] || row["Target Hours"] || row["Hours"] || DEFAULT_TARGET_HOURS;
     const priorityStr = row["Öncelik"] || row["Kıdem"] || row["Priority"] || 1;
 
     if (name) {
