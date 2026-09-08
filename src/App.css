@@ -875,6 +875,22 @@ select.form-control.pinned-select {
   border-color: var(--border);
 }
 
+/* Used for outcomes that are incomplete but not errors — e.g. a schedule that
+   generated fine but left days open because the monthly-target cap is on.
+   Uses --warning-text rather than the --warning accent for the same reason
+   --success-text/--danger-text exist: the accent tokens are tuned for borders
+   and icons and don't clear 4.5:1 as body text in either theme. */
+.alert-warning {
+  background-color: var(--warning-light);
+  border: 1px solid var(--border);
+  color: var(--warning-text);
+}
+
+[data-theme="dark"] .alert-warning {
+  color: var(--warning-text);
+  border-color: var(--border);
+}
+
 .alert-info {
   background-color: var(--primary-light);
   border: 1px solid var(--border);

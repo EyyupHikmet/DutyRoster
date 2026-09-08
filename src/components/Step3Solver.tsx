@@ -11,6 +11,8 @@ interface Step3SolverProps {
   weekendDutyDays: string[];
   solverMode: "fairness" | "priority" | "strict" | "random";
   setSolverMode: (m: "fairness" | "priority" | "strict" | "random") => void;
+  respectTargets: boolean;
+  setRespectTargets: (v: boolean) => void;
   teachersPerDay: number;
   setTeachersPerDay: (n: number) => void;
   pinnedAssignments: Record<string, string[]>;
@@ -22,6 +24,7 @@ interface Step3SolverProps {
   handleClearPins: (dateStr: string) => void;
   handleGenerateSchedule: () => void;
   handleExportSchedule: () => void;
+  unfilledDays: Array<{ date: string; required: number; assigned: number }>;
 }
 
 export const Step3Solver: React.FC<Step3SolverProps> = ({
@@ -32,6 +35,8 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
   weekendDutyDays,
   solverMode,
   setSolverMode,
+  respectTargets,
+  setRespectTargets,
   teachersPerDay,
   setTeachersPerDay,
   pinnedAssignments,
@@ -42,7 +47,8 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
   solverError,
   handleClearPins,
   handleGenerateSchedule,
-  handleExportSchedule
+  handleExportSchedule,
+  unfilledDays
 }) => {
   const paddedDates = getMonthDatesWithPadding(selectedYear, selectedMonth);
 
@@ -141,6 +147,43 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
                 );
               })}
             </div>
+
+            {/* Hard cap on each teacher's monthly duty target. Deliberately a
+                checkbox and not a fifth radio: it is orthogonal to the four
+                rules above (which only order candidates), so it has to be
+                combinable with any of them. A real <input type="checkbox">
+                rather than another ARIA-annotated <div>, so it comes with
+                native keyboard, focus and screen-reader behavior for free. */}
+            <div
+              style={{
+                marginTop: "12px",
+                paddingTop: "12px",
+                borderTop: "1.5px solid var(--border)",
+                display: "flex",
+                alignItems: "flex-start",
+                gap: "8px"
+              }}
+            >
+              <input
+                type="checkbox"
+                id="respect-targets-checkbox"
+                checked={respectTargets}
+                onChange={(e) => setRespectTargets(e.target.checked)}
+                style={{ marginTop: "2px", width: "15px", height: "15px", cursor: "pointer", flexShrink: 0 }}
+                aria-describedby="respect-targets-desc"
+              />
+              <label htmlFor="respect-targets-checkbox" style={{ cursor: "pointer" }}>
+                <div style={{ fontSize: "0.82rem", fontWeight: "700", color: "var(--text-primary)" }}>
+                  Aylık hedefleri kesinlikle aşma
+                </div>
+                <div
+                  id="respect-targets-desc"
+                  style={{ fontSize: "0.72rem", lineHeight: "1.05rem", color: "var(--text-secondary)", marginTop: "2px" }}
+                >
+                  Hiçbir öğretmene aylık nöbet hedefinden fazla görev verilmez. Kadro yetmezse günler boş bırakılır.
+                </div>
+              </label>
+            </div>
           </div>
 
           {/* Configuration Card */}
@@ -191,6 +234,21 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
             <div className="alert alert-danger" role="alert" style={{ padding: "10px 14px", fontSize: "0.78rem", margin: 0 }}>
               <strong>Sıkışma Hatası:</strong>
               {solverError}
+            </div>
+          )}
+
+          {/* Open days are a normal, expected outcome once the hard cap is on,
+              so this is a warning and not the red "Sıkışma Hatası" above — the
+              schedule is usable, it is just incomplete. role="status" (a polite
+              live region) announces it to screen-reader users after a generate
+              without stealing focus, per WCAG 2.2 AA 4.1.3. */}
+          {unfilledDays.length > 0 && (
+            <div className="alert alert-warning" role="status" style={{ padding: "10px 14px", fontSize: "0.78rem", margin: 0 }}>
+              <strong>{unfilledDays.length} gün boş kaldı.</strong>{" "}
+              Toplam {unfilledDays.reduce((sum, g) => sum + (g.required - g.assigned), 0)} nöbet
+              yeri doldurulamadı. Öğretmenlerin aylık nöbet hedeflerini yükseltebilir, kadroya
+              öğretmen ekleyebilir veya "Aylık hedefleri kesinlikle aşma" seçeneğini
+              kapatabilirsiniz.
             </div>
           )}
         </div>

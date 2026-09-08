@@ -35,6 +35,10 @@ günü için uygun işaretlenmiş hiç öğretmen bulunmadığını.
 - **Dört farklı planlama yöntemi**: nöbetleri eşit dağıtma, kıdeme göre
   ağırlıklandırma, belirli öğretmenleri belirli günlere sabitleme, kalan
   günleri rastgele doldurma.
+- **Aylık hedeflere kesin uyum** — istediğinizde hiçbir öğretmene aylık nöbet
+  hedefinden fazla görev verilmemesini sağlayabilirsiniz. Kadro yetmezse günler
+  boş bırakılır; boş kalan günler hem çizelge hazırlandığında bildirilir hem de
+  Excel'e aktarmadan önce onayınız istenir.
 - **Esnek ay yapısı** — varsayılan olarak hafta içi günler planlanır; hafta
   sonu ve tatil günlerini tek tıkla çizelgeye dahil edebilir veya çıkarabilir,
   istediğiniz güne farklı sayıda nöbetçi atayabilirsiniz.

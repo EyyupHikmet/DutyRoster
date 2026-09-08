@@ -11,11 +11,27 @@ export interface SolverConfig {
   mode: "fairness" | "priority" | "strict" | "random";
   teachersPerDay: number | Record<string, number>;
   pinnedAssignments: Record<string, string[]>; // date (YYYY-MM-DD) -> list of teacher IDs
+  // When true, `target_hours` stops being a mere sort key and becomes a hard
+  // constraint: nobody is assigned beyond their monthly target, even if that
+  // means a duty day goes unfilled. Off (the default) preserves the original
+  // all-or-nothing behavior exactly, so previously saved months are unaffected.
+  respectTargets?: boolean;
+}
+
+// One duty day that ended up with fewer teachers than it asked for.
+export interface UnfilledSlot {
+  date: string;     // YYYY-MM-DD
+  required: number; // teachers the day asked for
+  assigned: number; // teachers it actually got
 }
 
 export interface SolverResult {
   success: boolean;
   schedule?: Record<string, string[]>; // date (YYYY-MM-DD) -> list of teacher IDs
+  // Days left short. Empty on a fully filled month; only ever non-empty when
+  // `respectTargets` is on, since otherwise the solver fails rather than
+  // returning a partial answer.
+  unfilled?: UnfilledSlot[];
   error_message?: string;
   error_date?: string;
 }
@@ -37,7 +53,7 @@ export function solve(
   config: SolverConfig
 ): SolverResult {
   if (dates.length === 0) {
-    return { success: true, schedule: {} };
+    return { success: true, schedule: {}, unfilled: [] };
   }
 
   if (teachers.length === 0) {
@@ -47,7 +63,7 @@ export function solve(
     };
   }
 
-  const { mode, teachersPerDay, pinnedAssignments } = config;
+  const { mode, teachersPerDay, pinnedAssignments, respectTargets = false } = config;
 
   // Initialize assignments map
   const assignments: Record<string, string[]> = {};
@@ -70,15 +86,24 @@ export function solve(
     }
   }
 
+  const requiredOn = (date: string): number =>
+    typeof teachersPerDay === "number" ? teachersPerDay : (teachersPerDay[date] ?? 1);
+
   // Diagnostic tracking for finding bottlenecks
   let deepestFailureDate: string | null = null;
   let deepestFailureLevel = -1;
+
+  // Dates the search has given up on because every remaining teacher has hit
+  // their monthly target. Only ever populated when `respectTargets` is on;
+  // it is what turns an unsolvable month into a partly filled one instead of
+  // no answer at all.
+  const skipped = new Set<string>();
 
   // The backtracking recursive function
   function backtrack(): boolean {
     // Find unassigned dates (dates that need more teachers)
     const unassignedDates = dates.filter(
-      (d) => assignments[d].length < (typeof teachersPerDay === "number" ? teachersPerDay : (teachersPerDay[d] ?? 1))
+      (d) => !skipped.has(d) && assignments[d].length < requiredOn(d)
     );
 
     // Base case: all slots are filled
@@ -101,6 +126,13 @@ export function solve(
         const status = availabilities[t.id]?.[date] || "available";
         if (status === "unavailable") return false;
 
+        // 3. With respectTargets on, the monthly target is a ceiling, not a
+        //    preference. Pinned assignments are exempt because they are
+        //    already in `assignments` before the search starts — an explicit
+        //    pin is the principal's decision, and the cap only stops the
+        //    solver from adding MORE duties on top of it.
+        if (respectTargets && assignmentCounts[t.id] >= t.target_hours) return false;
+
         return true;
       });
 
@@ -117,6 +149,15 @@ export function solve(
 
     // If a date has 0 valid options, we reached an unsolvable constraint
     if (minOptionCount === 0) {
+      // With a hard target cap, running out of eligible teachers is the
+      // expected outcome, not an error: leave this day short and carry on
+      // filling the rest. The gap is reported back so the UI can warn.
+      if (respectTargets) {
+        skipped.add(bestDate);
+        if (backtrack()) return true;
+        skipped.delete(bestDate);
+      }
+
       const level = dates.length - unassignedDates.length;
       if (level > deepestFailureLevel) {
         deepestFailureLevel = level;
@@ -209,7 +250,15 @@ export function solve(
   const success = backtrack();
 
   if (success) {
-    return { success: true, schedule: assignments };
+    const unfilled: UnfilledSlot[] = [];
+    for (const date of dates) {
+      const required = requiredOn(date);
+      const assigned = assignments[date].length;
+      if (assigned < required) {
+        unfilled.push({ date, required, assigned });
+      }
+    }
+    return { success: true, schedule: assignments, unfilled };
   } else {
     // Formulate a very helpful diagnostic error message in Turkish
     let friendlyDateStr = deepestFailureDate || "bir gün";

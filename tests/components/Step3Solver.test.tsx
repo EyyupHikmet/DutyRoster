@@ -16,6 +16,9 @@ function baseProps(overrides: Partial<React.ComponentProps<typeof Step3Solver>> 
     weekendDutyDays: [] as string[],
     solverMode: "fairness" as const,
     setSolverMode: vi.fn(),
+    respectTargets: false,
+    setRespectTargets: vi.fn(),
+    unfilledDays: [] as Array<{ date: string; required: number; assigned: number }>,
     teachersPerDay: 1,
     setTeachersPerDay: vi.fn(),
     pinnedAssignments: {} as Record<string, string[]>,
@@ -99,5 +102,82 @@ describe("Step3Solver", () => {
     const pinnedHeader = screen.getByText("Ahmet Yılmaz").closest(".form-control") as HTMLElement;
     expect(pinnedHeader).toBeTruthy();
     expect(pinnedHeader.style.backgroundColor).toBe("var(--warning-light)");
+  });
+
+  describe("aylık hedefleri kesinlikle aşma", () => {
+    it("renders as a real checkbox, unchecked by default", () => {
+      render(<Step3Solver {...baseProps()} />);
+      const checkbox = screen.getByRole("checkbox", { name: /Aylık hedefleri kesinlikle aşma/ });
+      expect(checkbox).toBeInTheDocument();
+      expect(checkbox).not.toBeChecked();
+    });
+
+    it("reflects the respectTargets prop", () => {
+      render(<Step3Solver {...baseProps({ respectTargets: true })} />);
+      expect(screen.getByRole("checkbox", { name: /Aylık hedefleri kesinlikle aşma/ })).toBeChecked();
+    });
+
+    it("clicking it calls setRespectTargets with the new value", async () => {
+      const user = userEvent.setup();
+      const props = baseProps();
+      render(<Step3Solver {...props} />);
+      await user.click(screen.getByRole("checkbox", { name: /Aylık hedefleri kesinlikle aşma/ }));
+      expect(props.setRespectTargets).toHaveBeenCalledWith(true);
+    });
+
+    it("is independent of the four distribution rules, which stay selectable", async () => {
+      const user = userEvent.setup();
+      const props = baseProps({ respectTargets: true });
+      render(<Step3Solver {...props} />);
+      await user.click(screen.getByText("Kıdem Öncelikli"));
+      expect(props.setSolverMode).toHaveBeenCalledWith("priority");
+      expect(props.setRespectTargets).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("open-day summary", () => {
+    it("is absent when nothing is left open", () => {
+      render(<Step3Solver {...baseProps()} />);
+      expect(screen.queryByText(/gün boş kaldı/)).not.toBeInTheDocument();
+    });
+
+    it("reports the day count and the total number of open slots", () => {
+      render(
+        <Step3Solver
+          {...baseProps({
+            unfilledDays: [
+              { date: "2026-10-01", required: 2, assigned: 0 },
+              { date: "2026-10-02", required: 1, assigned: 0 },
+            ],
+          })}
+        />
+      );
+      const summary = screen.getByRole("status");
+      expect(summary).toHaveTextContent("2 gün boş kaldı");
+      expect(summary).toHaveTextContent("3 nöbet");
+    });
+
+    it("is a warning, not the red solver-error alert", () => {
+      render(
+        <Step3Solver
+          {...baseProps({ unfilledDays: [{ date: "2026-10-01", required: 1, assigned: 0 }] })}
+        />
+      );
+      expect(screen.getByRole("status")).toHaveClass("alert-warning");
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
+
+    it("coexists with a solver error without either replacing the other", () => {
+      render(
+        <Step3Solver
+          {...baseProps({
+            solverError: "Sıkıştı",
+            unfilledDays: [{ date: "2026-10-01", required: 1, assigned: 0 }],
+          })}
+        />
+      );
+      expect(screen.getByRole("alert")).toHaveTextContent("Sıkıştı");
+      expect(screen.getByRole("status")).toHaveTextContent("1 gün boş kaldı");
+    });
   });
 });

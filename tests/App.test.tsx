@@ -1,10 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import App from "../src/App";
 import * as db from "../src/db";
 import * as excelUtils from "../src/utils/excelUtils";
 import * as opener from "@tauri-apps/plugin-opener";
+import { getDutyDates } from "../src/utils/dateUtils";
 
 // App.tsx (via its own import and via the 3 hooks it uses) touches db.ts for every
 // piece of initial data. Mock the whole module so App can mount in jsdom without a
@@ -249,16 +250,40 @@ describe("App — unsaved month-draft navigation prompt", () => {
 // it render the right thing for each of the 3 possible outcomes, and does it
 // call openPath/revealItemInDir with the right path.
 describe("App — Excel export save dialog and confirmation", () => {
+  // App defaults the selected month to `new Date()`, while getSchedule is a
+  // static mock that always answers with September 2026. Freeze the clock so
+  // the seeded month and the selected month agree — otherwise these tests
+  // start failing on their own the moment the real calendar moves on, and the
+  // incomplete-export dialog (which compares the schedule against the SELECTED
+  // month's duty days) would intercept every export.
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date(2026, 8, 8)); // 8 September 2026
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   // Step3Solver only renders the "Excel'e Aktar" button once
   // Object.keys(generatedSchedule).length > 0, so seed a saved schedule with a
   // non-empty assignments map (loaded by the mount-time useEffect regardless
   // of which (year, month) it actually asks for, since this is a static mock).
-  function mockSavedScheduleWithAssignments() {
+  //
+  // `assignments` defaults to a COMPLETE month — every duty day covered — so
+  // these export-mechanics tests reach the export call directly. A month with
+  // open days is intercepted by the incomplete-export confirmation instead,
+  // which is what the `describe` block further down covers.
+  function mockSavedScheduleWithAssignments(assignments?: Record<string, string[]>) {
+    const fullMonth: Record<string, string[]> = {};
+    for (const date of getDutyDates(2026, 9, [], [])) {
+      fullMonth[date] = ["T1"];
+    }
     mockedDb.getSchedule.mockResolvedValue({
       id: "sched-1",
       year: 2026,
       month: 9,
-      assignments: JSON.stringify({ "2026-09-01": ["T1"] }),
+      assignments: JSON.stringify(assignments ?? fullMonth),
       holidays: "[]",
       weekend_duty_days: "[]",
       config: JSON.stringify({
@@ -271,8 +296,11 @@ describe("App — Excel export save dialog and confirmation", () => {
     });
   }
 
-  async function goToStep3WithExportButton(user: ReturnType<typeof userEvent.setup>) {
-    mockSavedScheduleWithAssignments();
+  async function goToStep3WithExportButton(
+    user: ReturnType<typeof userEvent.setup>,
+    assignments?: Record<string, string[]>
+  ) {
+    mockSavedScheduleWithAssignments(assignments);
     render(<App />);
     await waitFor(() => expect(screen.getByText(/Adım 1: Öğretmen Kadrosu/)).toBeInTheDocument());
     await user.click(screen.getByText("Planla & Dışa Aktar"));
@@ -342,5 +370,102 @@ describe("App — Excel export save dialog and confirmation", () => {
     );
     expect(screen.queryByRole("button", { name: "Dosyayı Aç" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Klasörü Aç" })).not.toBeInTheDocument();
+  });
+
+  // Exporting a roster with holes in it is a legitimate thing to want — the
+  // principal may intend to fill the rest by hand — so the app asks instead of
+  // blocking, and never writes a partial sheet without saying so first.
+  describe("incomplete schedule confirmation", () => {
+    // Only 1 of September 2026's 22 duty days is covered.
+    const partialMonth = { "2026-09-01": ["T1"] };
+
+    it("asks for confirmation instead of exporting when duty days are still open", async () => {
+      const user = userEvent.setup();
+      mockedExcelUtils.exportScheduleToExcel.mockResolvedValue({ status: "canceled" });
+      const exportButton = await goToStep3WithExportButton(user, partialMonth);
+
+      await user.click(exportButton);
+
+      const dialog = await screen.findByRole("dialog");
+      expect(dialog).toHaveAccessibleName("Çizelge Eksik");
+      expect(dialog).toHaveTextContent("21 gün");
+      // Nothing is written until the user says so.
+      expect(mockedExcelUtils.exportScheduleToExcel).not.toHaveBeenCalled();
+    });
+
+    it("'Yine de Aktar' closes the dialog and performs the real export", async () => {
+      const user = userEvent.setup();
+      mockedExcelUtils.exportScheduleToExcel.mockResolvedValue({
+        status: "saved",
+        path: "C:\Users\test\Belgeler\2026_Eylül_Nobet_Raporu_v1.xlsx",
+        filename: "2026_Eylül_Nobet_Raporu_v1.xlsx",
+      });
+      const exportButton = await goToStep3WithExportButton(user, partialMonth);
+
+      await user.click(exportButton);
+      await user.click(await screen.findByRole("button", { name: "Yine de Aktar" }));
+
+      await waitFor(() =>
+        expect(mockedExcelUtils.exportScheduleToExcel).toHaveBeenCalledTimes(1)
+      );
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(await screen.findByText(/2026_Eylül_Nobet_Raporu_v1\.xlsx/)).toBeInTheDocument();
+    });
+
+    it("'Vazgeç' closes the dialog and writes nothing", async () => {
+      const user = userEvent.setup();
+      mockedExcelUtils.exportScheduleToExcel.mockResolvedValue({ status: "canceled" });
+      const exportButton = await goToStep3WithExportButton(user, partialMonth);
+
+      await user.click(exportButton);
+      await user.click(await screen.findByRole("button", { name: "Vazgeç" }));
+
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(mockedExcelUtils.exportScheduleToExcel).not.toHaveBeenCalled();
+    });
+
+    it("Escape cancels rather than falling through to the export", async () => {
+      const user = userEvent.setup();
+      mockedExcelUtils.exportScheduleToExcel.mockResolvedValue({ status: "canceled" });
+      const exportButton = await goToStep3WithExportButton(user, partialMonth);
+
+      await user.click(exportButton);
+      await screen.findByRole("dialog");
+      await user.keyboard("{Escape}");
+
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(mockedExcelUtils.exportScheduleToExcel).not.toHaveBeenCalled();
+    });
+
+    it("lists the specific open days so they can be acted on", async () => {
+      const user = userEvent.setup();
+      mockedExcelUtils.exportScheduleToExcel.mockResolvedValue({ status: "canceled" });
+      // Everything covered except 3 September.
+      const assignments: Record<string, string[]> = {};
+      for (const date of getDutyDates(2026, 9, [], [])) {
+        if (date !== "2026-09-03") assignments[date] = ["T1"];
+      }
+      const exportButton = await goToStep3WithExportButton(user, assignments);
+
+      await user.click(exportButton);
+
+      const dialog = await screen.findByRole("dialog");
+      expect(dialog).toHaveTextContent("1 gün");
+      expect(dialog).toHaveTextContent("3 Eylül Perşembe");
+      expect(dialog).toHaveTextContent("0/1 nöbetçi");
+    });
+
+    it("exports straight away, with no dialog, when every duty day is covered", async () => {
+      const user = userEvent.setup();
+      mockedExcelUtils.exportScheduleToExcel.mockResolvedValue({ status: "canceled" });
+      const exportButton = await goToStep3WithExportButton(user); // full month
+
+      await user.click(exportButton);
+
+      await waitFor(() =>
+        expect(mockedExcelUtils.exportScheduleToExcel).toHaveBeenCalledTimes(1)
+      );
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
   });
 });

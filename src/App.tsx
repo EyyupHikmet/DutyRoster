@@ -3,7 +3,7 @@ import { useTeachers } from "./hooks/useTeachers";
 import { useAvailabilities } from "./hooks/useAvailabilities";
 import { useScheduleState } from "./hooks/useScheduleState";
 import { parseExcelRoster, exportScheduleToExcel } from "./utils/excelUtils";
-import { getDaysInMonth, formatDateYYYYMMDD, MONTHS_TR } from "./utils/dateUtils";
+import { getDutyDates, findUnfilledDays, MONTHS_TR } from "./utils/dateUtils";
 import { solve, Teacher, SolverConfig, SolverResult } from "./solver";
 import { saveTeacher, resetDb } from "./db";
 import { openPath, revealItemInDir, openUrl } from "@tauri-apps/plugin-opener";
@@ -45,6 +45,12 @@ export default function App() {
   // action buttons ("Dosyayı Aç"/"Klasörü Aç"), not just plain text.
   const [exportToast, setExportToast] = useState<{ path: string; filename: string } | null>(null);
   const [exportErrorMessage, setExportErrorMessage] = useState<string | null>(null);
+
+  // Confirmation before exporting a month that still has open duty slots.
+  // Exporting an incomplete roster is legitimate — a principal may well want
+  // the partial sheet to fill in by hand — so this warns rather than blocks.
+  const [isIncompleteExportConfirmOpen, setIsIncompleteExportConfirmOpen] = useState<boolean>(false);
+  const incompleteExportModalRef = useRef<HTMLDivElement>(null);
 
   // Close the settings popover on outside click or Escape —
   // matches the click-outside behavior CustomSelect already had; a popover
@@ -175,6 +181,51 @@ export default function App() {
     };
   }, [isUnsavedConfirmOpen]);
 
+  // Incomplete-export confirmation modal: the same role="dialog"/aria-modal/
+  // focus-trap/focus-return contract as the two modals above. The control that
+  // opens it ("Excel'e Aktar") stays mounted throughout, so focus returns
+  // straight to it; the wizard-tab fallback is only for the unlikely case that
+  // element is gone by the time the dialog closes.
+  useEffect(() => {
+    if (!isIncompleteExportConfirmOpen) return;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    incompleteExportModalRef.current?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        // Escape is the least-destructive outcome: cancel the export, write
+        // nothing. It must never fall through to exporting the partial file.
+        setIsIncompleteExportConfirmOpen(false);
+        return;
+      }
+      if (event.key === "Tab" && incompleteExportModalRef.current) {
+        const focusable = incompleteExportModalRef.current.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      const stillUsable =
+        previouslyFocused &&
+        previouslyFocused !== document.body &&
+        document.body.contains(previouslyFocused);
+      const fallback = document.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]');
+      (stillUsable ? previouslyFocused : fallback)?.focus();
+    };
+  }, [isIncompleteExportConfirmOpen]);
+
   // Synchronize data-theme attribute on documentElement for CSS mapping
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
@@ -222,6 +273,8 @@ export default function App() {
     setDaySpecificTeachers,
     solverMode,
     setSolverMode,
+    respectTargets,
+    setRespectTargets,
     teachersPerDay,
     setTeachersPerDay,
     pinnedAssignments,
@@ -345,23 +398,30 @@ export default function App() {
     e.target.value = ""; // Clear input
   };
 
+  // Duty days of the currently selected month that came out short. Recomputed
+  // from live state (not cached from the last solve) so it stays honest after
+  // a pin is cleared, a day's required count is raised, or a saved month is
+  // loaded from disk. Drives both the Step 3 warning and the export dialog.
+  // A month with no schedule at all isn't "full of gaps", it's just not
+  // planned yet — same condition that gates the export button, so the two
+  // stay consistent.
+  const unfilledDays =
+    Object.keys(generatedSchedule).length === 0
+      ? []
+      : findUnfilledDays(
+          getDutyDates(selectedYear, selectedMonth, holidays, weekendDutyDays),
+          generatedSchedule,
+          (dateStr) => daySpecificTeachers[dateStr] ?? Number(teachersPerDay)
+        );
+
   // Generate Schedule Action
   const handleGenerateSchedule = async () => {
     setSolverError(null);
 
-    // Collect target dates for solving: weekdays (excluding holidays) + weekend duty days
-    const daysInMonth = getDaysInMonth(selectedYear, selectedMonth);
-    const targetDates = daysInMonth
-      .map((d) => formatDateYYYYMMDD(d))
-      .filter((dateStr) => {
-        const d = new Date(dateStr);
-        const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-        if (isWeekend) {
-          return weekendDutyDays.includes(dateStr);
-        } else {
-          return !holidays.includes(dateStr);
-        }
-      });
+    // Weekdays (excluding holidays) + weekend duty days. Shared with the
+    // pre-export gap check so the two can never disagree about which days
+    // were supposed to be covered.
+    const targetDates = getDutyDates(selectedYear, selectedMonth, holidays, weekendDutyDays);
 
     if (targetDates.length === 0) {
       setSolverError("Planlanacak hiç nöbet günü seçilmedi! Lütfen Adım 2'ye giderek aktif günleri seçin.");
@@ -389,7 +449,8 @@ export default function App() {
     const config: SolverConfig = {
       mode: solverMode,
       teachersPerDay: solverTeachersPerDay,
-      pinnedAssignments: pinnedAssignments
+      pinnedAssignments: pinnedAssignments,
+      respectTargets: respectTargets
     };
 
     const result: SolverResult = solve(targetDates, solverTeachers, availabilities, config);
@@ -397,7 +458,15 @@ export default function App() {
     if (result.success && result.schedule) {
       setGeneratedSchedule(result.schedule);
       await saveGeneratedScheduleToDb(result.schedule);
-      setSuccessMessage("Nöbet çizelgesi başarıyla oluşturuldu.");
+      // A partly filled month is a success, not a failure — but say so plainly
+      // rather than reporting an unqualified "başarıyla oluşturuldu" over a
+      // sheet with holes in it. The detail lives in Step3Solver's warning.
+      const gapCount = result.unfilled?.length ?? 0;
+      setSuccessMessage(
+        gapCount > 0
+          ? `Nöbet çizelgesi oluşturuldu, ancak ${gapCount} gün boş kaldı.`
+          : "Nöbet çizelgesi başarıyla oluşturuldu."
+      );
       setTimeout(() => setSuccessMessage(null), 3000);
     } else {
       setSolverError(result.error_message || "Çizelge planlanırken bilinmeyen bir hata oluştu.");
@@ -413,6 +482,22 @@ export default function App() {
   //  - error (e.g. disk write failure): surface a Turkish error message,
   //    never a false "saved" confirmation.
   const handleExportSchedule = async () => {
+    // Warn before writing a sheet that still has open duty slots. Derived from
+    // the schedule itself rather than from the solver's last run, so it is
+    // equally right for gaps the solver never produced — days emptied by
+    // pinning, or a month whose schedule was loaded from disk and never
+    // regenerated. Exporting anyway is a valid choice, so this asks.
+    if (unfilledDays.length > 0) {
+      setIsIncompleteExportConfirmOpen(true);
+      return;
+    }
+    await performExportSchedule();
+  };
+
+  // The actual write. Split out of handleExportSchedule so both the
+  // no-gaps path and the "Yine de Aktar" confirmation reach identical
+  // behavior — there is one export implementation, not two.
+  const performExportSchedule = async () => {
     setExportErrorMessage(null);
     const result = await exportScheduleToExcel(
       selectedYear,
@@ -777,6 +862,9 @@ export default function App() {
             generatedSchedule={generatedSchedule}
             solverError={solverError}
             handleClearPins={handleClearPins}
+            respectTargets={respectTargets}
+            setRespectTargets={setRespectTargets}
+            unfilledDays={unfilledDays}
             handleGenerateSchedule={handleGenerateSchedule}
             handleExportSchedule={handleExportSchedule}
           />
@@ -852,6 +940,108 @@ export default function App() {
                 }}
               >
                 Evet, Tümünü Sıfırla
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Incomplete-export confirmation. Same role="dialog"/aria-modal/
+          accessible-name/focus-trap contract as the two modals around it.
+          Two outcomes only: export the partial sheet anyway, or back out and
+          write nothing. Never silently exports a roster with holes in it. */}
+      {isIncompleteExportConfirmOpen && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100vw",
+            height: "100vh",
+            backgroundColor: "rgba(0, 0, 0, 0.4)",
+            backdropFilter: "blur(6px)",
+            WebkitBackdropFilter: "blur(6px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999
+          }}
+        >
+          <div
+            ref={incompleteExportModalRef}
+            className="card surface-solid"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="incomplete-export-title"
+            aria-describedby="incomplete-export-desc"
+            tabIndex={-1}
+            style={{
+              width: "100%",
+              maxWidth: "440px",
+              padding: "24px",
+              borderRadius: "16px",
+              border: "1.5px solid var(--border)",
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.15), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
+              display: "flex",
+              flexDirection: "column",
+              gap: "16px"
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", borderBottom: "1.5px solid var(--border)", paddingBottom: "12px" }}>
+              <span style={{ fontSize: "1.5rem" }} aria-hidden="true">📋</span>
+              <h3 id="incomplete-export-title" style={{ margin: 0, color: "var(--warning-text)", fontWeight: "850", fontSize: "1.15rem" }}>
+                Çizelge Eksik
+              </h3>
+            </div>
+
+            <p id="incomplete-export-desc" style={{ margin: 0, fontSize: "0.9rem", color: "var(--text-secondary)", lineHeight: "1.45rem" }}>
+              {MONTHS_TR[selectedMonth - 1]} {selectedYear} çizelgesinde{" "}
+              <strong style={{ color: "var(--text-primary)" }}>{unfilledDays.length} gün</strong> eksik.
+              Toplam{" "}
+              <strong style={{ color: "var(--text-primary)" }}>
+                {unfilledDays.reduce((sum, g) => sum + (g.required - g.assigned), 0)} nöbet yeri
+              </strong>{" "}
+              doldurulamadı.
+            </p>
+
+            {/* The specific dates, so the principal can act on them without
+                hunting through the calendar. Capped at 8 with a "+N more"
+                tail: a fully open month would otherwise push the buttons off
+                the screen. */}
+            <ul style={{ margin: 0, paddingLeft: "20px", fontSize: "0.85rem", color: "var(--text-secondary)", lineHeight: "1.4rem", maxHeight: "160px", overflowY: "auto" }}>
+              {unfilledDays.slice(0, 8).map((gap) => (
+                <li key={gap.date}>
+                  {new Date(gap.date).toLocaleDateString("tr-TR", { day: "numeric", month: "long", weekday: "long" })}
+                  {" — "}
+                  {gap.assigned}/{gap.required} nöbetçi
+                </li>
+              ))}
+              {unfilledDays.length > 8 && (
+                <li style={{ fontStyle: "italic" }}>ve {unfilledDays.length - 8} gün daha…</li>
+              )}
+            </ul>
+
+            <p style={{ margin: 0, fontSize: "0.9rem", color: "var(--text-primary)", fontWeight: "700" }}>
+              Eksik hâliyle Excel'e aktarmak istiyor musunuz?
+            </p>
+
+            <div style={{ display: "flex", gap: "12px", marginTop: "4px" }}>
+              <button
+                className="btn btn-secondary"
+                style={{ flexGrow: 1 }}
+                onClick={() => setIsIncompleteExportConfirmOpen(false)}
+              >
+                Vazgeç
+              </button>
+              <button
+                className="btn btn-primary"
+                style={{ flexGrow: 1 }}
+                onClick={async () => {
+                  setIsIncompleteExportConfirmOpen(false);
+                  await performExportSchedule();
+                }}
+              >
+                Yine de Aktar
               </button>
             </div>
           </div>

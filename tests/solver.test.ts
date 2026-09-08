@@ -161,4 +161,164 @@ describe("Nöbet Çözücü Motor Testleri (solver)", () => {
       "Normal günler için gereken öğretmen sayısı varsayılan 1 olmalı"
     ).toBe(1);
   });
+
+  // --- Aylık hedefleri kesinlikle aşma (respectTargets) ---
+  //
+  // Without this flag `target_hours` is only a sort key: the backtracker has to
+  // fill EVERY slot or fail outright, so it happily assigns a teacher a 5th
+  // duty when their target is 2. With the flag on, the target becomes a hard
+  // constraint and days are allowed to stay open instead.
+
+  it("Test 6: respectTargets kapalıyken hedefler aşılabilir (mevcut davranış korunur)", () => {
+    // 4 teachers, targets 4/4/2/4 = 14 slots against 10 days is plenty, so
+    // force scarcity: only T3 (target 2) may work at all.
+    for (const d of mockDates) {
+      mockAvailabilities["T1"][d] = "unavailable";
+      mockAvailabilities["T2"][d] = "unavailable";
+      mockAvailabilities["T4"][d] = "unavailable";
+    }
+
+    const config: SolverConfig = {
+      mode: "fairness",
+      teachersPerDay: 1,
+      pinnedAssignments: {},
+    };
+
+    const result = solve(mockDates, mockTeachers, mockAvailabilities, config);
+
+    expect(result.success, "Bayrak kapalıyken çözüm bulunmalı").toBe(true);
+    const schedule = result.schedule!;
+    for (const d of mockDates) {
+      expect(schedule[d], `${d} günü doldurulmuş olmalı`).toEqual(["T3"]);
+    }
+    expect(result.unfilled, "Bayrak kapalıyken boş gün raporu olmamalı").toEqual([]);
+  });
+
+  it("Test 7: respectTargets açıkken hiçbir öğretmen aylık hedefini aşmaz", () => {
+    const config: SolverConfig = {
+      mode: "fairness",
+      teachersPerDay: 1,
+      pinnedAssignments: {},
+      respectTargets: true,
+    };
+
+    const result = solve(mockDates, mockTeachers, mockAvailabilities, config);
+
+    expect(result.success, "Kısmi de olsa sonuç dönmeli").toBe(true);
+    const schedule = result.schedule!;
+
+    const counts: Record<string, number> = { T1: 0, T2: 0, T3: 0, T4: 0 };
+    for (const d of mockDates) {
+      for (const id of schedule[d] ?? []) counts[id]++;
+    }
+
+    for (const t of mockTeachers) {
+      expect(
+        counts[t.id] <= t.target_hours,
+        `${t.name} hedefi ${t.target_hours} olmasına rağmen ${counts[t.id]} nöbet almış`
+      ).toBe(true);
+    }
+  });
+
+  it("Test 8: Kapasite yetmediğinde ay tamamen boş dönmez, günler açık kalır", () => {
+    // The user's reported scenario, scaled down: every teacher's target is 2,
+    // so total capacity is 8 duties against 10 days needing 1 each.
+    const lowTargets: Teacher[] = mockTeachers.map((t) => ({ ...t, target_hours: 2 }));
+
+    const config: SolverConfig = {
+      mode: "fairness",
+      teachersPerDay: 1,
+      pinnedAssignments: {},
+      respectTargets: true,
+    };
+
+    const result = solve(mockDates, lowTargets, mockAvailabilities, config);
+
+    expect(result.success, "Kapasite yetmese de kısmi çizelge dönmeli").toBe(true);
+    const schedule = result.schedule!;
+
+    const filled = mockDates.filter((d) => (schedule[d] ?? []).length === 1);
+    const empty = mockDates.filter((d) => (schedule[d] ?? []).length === 0);
+
+    expect(filled.length, "Kapasite kadar gün doldurulmalı").toBe(8);
+    expect(empty.length, "Kalan günler boş bırakılmalı").toBe(2);
+
+    // Every open slot must be reported, so the UI can warn about it.
+    expect(result.unfilled, "Boş gün raporu dönmeli").toBeDefined();
+    expect(result.unfilled!.length).toBe(2);
+    for (const gap of result.unfilled!) {
+      expect(empty).toContain(gap.date);
+      expect(gap.required).toBe(1);
+      expect(gap.assigned).toBe(0);
+    }
+  });
+
+  it("Test 9: Kısmi doldurma slot bazındadır, gün bazında değil", () => {
+    // Oct 1st needs 3 teachers but only T1 and T2 are available that day —
+    // the day must keep those 2 rather than being abandoned entirely.
+    mockAvailabilities["T3"]["2026-10-01"] = "unavailable";
+    mockAvailabilities["T4"]["2026-10-01"] = "unavailable";
+
+    const config: SolverConfig = {
+      mode: "fairness",
+      teachersPerDay: { "2026-10-01": 3 },
+      pinnedAssignments: {},
+      respectTargets: true,
+    };
+
+    const result = solve(["2026-10-01"], mockTeachers, mockAvailabilities, config);
+
+    expect(result.success).toBe(true);
+    expect(result.schedule!["2026-10-01"].length, "Gün 2 nöbetçiyle kalmalı").toBe(2);
+    expect(result.unfilled).toEqual([
+      { date: "2026-10-01", required: 3, assigned: 2 },
+    ]);
+  });
+
+  it("Test 10: Manuel sabitleme hedef sınırını geçersiz kılar", () => {
+    // T3's target is 2, but the principal pinned them onto 3 days by hand.
+    // An explicit pin is a decision, not a suggestion — it must be honoured,
+    // and the cap then blocks any FURTHER duty for that teacher.
+    const config: SolverConfig = {
+      mode: "fairness",
+      teachersPerDay: 1,
+      pinnedAssignments: {
+        "2026-10-01": ["T3"],
+        "2026-10-02": ["T3"],
+        "2026-10-05": ["T3"],
+      },
+      respectTargets: true,
+    };
+
+    const result = solve(mockDates, mockTeachers, mockAvailabilities, config);
+
+    expect(result.success).toBe(true);
+    const schedule = result.schedule!;
+    expect(schedule["2026-10-01"]).toEqual(["T3"]);
+    expect(schedule["2026-10-02"]).toEqual(["T3"]);
+    expect(schedule["2026-10-05"]).toEqual(["T3"]);
+
+    // ...but T3 gets nothing beyond the three pins.
+    const t3Count = mockDates.filter((d) => (schedule[d] ?? []).includes("T3")).length;
+    expect(t3Count, "T3 sabitlenen 3 günün ötesine geçmemeli").toBe(3);
+  });
+
+  it("Test 11: Hedefi 0 olan öğretmen respectTargets açıkken hiç nöbet almaz", () => {
+    const withZero: Teacher[] = mockTeachers.map((t) =>
+      t.id === "T1" ? { ...t, target_hours: 0 } : t
+    );
+
+    const config: SolverConfig = {
+      mode: "fairness",
+      teachersPerDay: 1,
+      pinnedAssignments: {},
+      respectTargets: true,
+    };
+
+    const result = solve(mockDates, withZero, mockAvailabilities, config);
+
+    expect(result.success).toBe(true);
+    const t1Count = mockDates.filter((d) => (result.schedule![d] ?? []).includes("T1")).length;
+    expect(t1Count, "Hedefi 0 olan öğretmen nöbet almamalı").toBe(0);
+  });
 });

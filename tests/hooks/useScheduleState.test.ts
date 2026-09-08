@@ -313,4 +313,89 @@ describe("useScheduleState", () => {
       expect(result.current.generatedSchedule).toEqual({ "2026-11-02": ["T1"] });
     });
   });
+
+  describe("respectTargets (aylık hedefleri kesinlikle aşma)", () => {
+    it("defaults to off", () => {
+      const { result } = renderHook(() => useScheduleState());
+      expect(result.current.respectTargets).toBe(false);
+    });
+
+    it("hydrates from the stored config", async () => {
+      mockedDb.getSchedule.mockResolvedValue({
+        id: "s1",
+        year: 2026,
+        month: 10,
+        assignments: JSON.stringify({}),
+        holidays: JSON.stringify([]),
+        weekend_duty_days: JSON.stringify([]),
+        config: JSON.stringify({ mode: "fairness", respectTargets: true }),
+      });
+
+      const { result } = renderHook(() => useScheduleState());
+      await act(async () => {
+        await result.current.loadScheduleData(2026, 10);
+      });
+
+      expect(result.current.respectTargets).toBe(true);
+    });
+
+    it("stays off for months saved before the flag existed", async () => {
+      mockedDb.getSchedule.mockResolvedValue({
+        id: "s1",
+        year: 2026,
+        month: 10,
+        assignments: JSON.stringify({}),
+        holidays: JSON.stringify([]),
+        weekend_duty_days: JSON.stringify([]),
+        config: JSON.stringify({ mode: "priority", teachersPerDay: 2 }),
+      });
+
+      const { result } = renderHook(() => useScheduleState());
+      await act(async () => {
+        await result.current.loadScheduleData(2026, 10);
+      });
+
+      expect(result.current.respectTargets).toBe(false);
+    });
+
+    it("is persisted into the saved config blob", async () => {
+      mockedDb.getSchedule.mockResolvedValue(null);
+      mockedDb.saveSchedule.mockResolvedValue(undefined as never);
+
+      const { result } = renderHook(() => useScheduleState());
+      await act(async () => {
+        await result.current.loadScheduleData(2026, 10);
+      });
+      act(() => {
+        result.current.setRespectTargets(true);
+      });
+      await act(async () => {
+        await result.current.saveDraftToDb();
+      });
+
+      const saved = mockedDb.saveSchedule.mock.calls[0][0];
+      expect(JSON.parse(saved.config).respectTargets).toBe(true);
+    });
+
+    it("counts as an unsaved change, and saving clears it", async () => {
+      mockedDb.getSchedule.mockResolvedValue(null);
+      mockedDb.saveSchedule.mockResolvedValue(undefined as never);
+
+      const { result } = renderHook(() => useScheduleState());
+      await act(async () => {
+        await result.current.loadScheduleData(2026, 10);
+      });
+      expect(result.current.isDirty).toBe(false);
+
+      act(() => {
+        result.current.setRespectTargets(true);
+      });
+      expect(result.current.isDirty).toBe(true);
+
+      await act(async () => {
+        await result.current.saveDraftToDb();
+      });
+      expect(result.current.isDirty).toBe(false);
+    });
+  });
 });

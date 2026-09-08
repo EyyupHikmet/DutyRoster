@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { getDaysInMonth, formatDateYYYYMMDD, getMonthDatesWithPadding } from "../src/utils/dateUtils";
+import {
+  getDaysInMonth,
+  formatDateYYYYMMDD,
+  getMonthDatesWithPadding,
+  getDutyDates,
+} from "../src/utils/dateUtils";
 
 // Migrated from the original hand-rolled tsx-executed assert script onto vitest.
 // Assertions/conditions preserved verbatim from the pre-migration version.
@@ -41,5 +46,38 @@ describe("Tarih Yardımcı Programı Testleri (dateUtils)", () => {
 
     // Padding list length must be multiple of 7 (complete weeks rows)
     expect(sept2026Padded.length % 7, "Takvim grid hücre sayısı 7'nin katı olmalı").toBe(0);
+  });
+
+  // getDutyDates is the single definition of "which days of this month are
+  // duty days" — weekdays minus holidays, plus any weekend explicitly opted
+  // in. Both the solver run and the export gap check read it, so they can
+  // never disagree about which days were supposed to be covered.
+  it("Test 4: getDutyDates - hafta içi günler, tatiller hariç", () => {
+    // September 2026 starts on a Tuesday and has 22 weekdays.
+    const dates = getDutyDates(2026, 9, [], []);
+    expect(dates.length, "Eylül 2026'da 22 hafta içi gün var").toBe(22);
+    expect(dates, "Hafta sonu dahil edilmemeli").not.toContain("2026-09-05"); // Saturday
+    expect(dates, "Hafta sonu dahil edilmemeli").not.toContain("2026-09-06"); // Sunday
+    expect(dates[0], "İlk nöbet günü 1 Eylül olmalı").toBe("2026-09-01");
+  });
+
+  it("Test 5: getDutyDates - tatil olarak işaretlenen hafta içi gün çıkarılır", () => {
+    const dates = getDutyDates(2026, 9, ["2026-09-01", "2026-09-02"], []);
+    expect(dates.length, "İki tatil düşülmeli").toBe(20);
+    expect(dates).not.toContain("2026-09-01");
+    expect(dates).not.toContain("2026-09-02");
+  });
+
+  it("Test 6: getDutyDates - nöbet günü seçilen hafta sonu eklenir", () => {
+    const dates = getDutyDates(2026, 9, [], ["2026-09-05"]);
+    expect(dates.length, "Bir hafta sonu eklenmeli").toBe(23);
+    expect(dates, "Nöbet günü seçilen cumartesi dahil olmalı").toContain("2026-09-05");
+    expect(dates, "Seçilmeyen pazar hariç kalmalı").not.toContain("2026-09-06");
+  });
+
+  it("Test 7: getDutyDates - sonuç kronolojik sırada döner", () => {
+    const dates = getDutyDates(2026, 9, [], ["2026-09-05"]);
+    const sorted = [...dates].sort();
+    expect(dates, "Günler tarih sırasında olmalı").toEqual(sorted);
   });
 });
