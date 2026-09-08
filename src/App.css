@@ -828,6 +828,53 @@ html, body, #root {
   flex-shrink: 0;
 }
 
+/* Floating status stack (issue #3). The export toast, the generic success
+   banner and the export failure banner all used to sit in normal flow between
+   the header and <main>, so each one pushed the wizard down on appear and let
+   it snap back on dismiss. Fixed to the viewport instead: no layout shift, and
+   the message lands near where the user just clicked rather than at the top of
+   the window.
+
+   Bottom-RIGHT rather than centre so the toast does not sit over the middle of
+   the calendar the user is reading, and capped in width so a long Windows file
+   path cannot stretch it across the whole window.
+
+   `align-items: flex-end` keeps each banner only as wide as it needs to be
+   (.alert is a flex column, which would otherwise stretch them all to the cap).
+   column-reverse puts the newest banner nearest the bottom edge. */
+.toast-stack {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 900; /* above the wizard, below the modals at 9999 */
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: flex-end;
+  gap: 10px;
+  width: min(420px, calc(100vw - 48px));
+  pointer-events: none; /* never block clicks on the wizard behind an empty stack */
+}
+
+.toast-stack > * {
+  pointer-events: auto;
+  width: 100%;
+  margin-bottom: 0; /* .alert's flow margin is replaced by the stack's gap */
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.12), 0 4px 6px -2px rgba(0, 0, 0, 0.06);
+}
+
+/* The stack is fixed, so on a short window it would otherwise sit on top of
+   the wizard's own controls. Below the 1200px breakpoint the layout already
+   becomes a normal scrolling page, so the stack spans the width with margins
+   instead of hugging a corner that may not be where the content is. */
+@media (max-width: 1200px) {
+  .toast-stack {
+    left: 16px;
+    right: 16px;
+    bottom: 16px;
+    width: auto;
+  }
+}
+
 /* Alerts (100% WCAG AAA-Compliant High Contrast) */
 .alert {
   padding: 12px 20px;

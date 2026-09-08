@@ -522,4 +522,78 @@ describe("App — Excel export save dialog and confirmation", () => {
       expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     });
   });
+
+  // Issue #3: these banners used to render between the header and <main>, so
+  // every one of them pushed the wizard down as it appeared and let it snap
+  // back as it went. They now float in one fixed stack at the bottom.
+  describe("floating toast stack", () => {
+    const stack = () => document.querySelector(".toast-stack");
+
+    it("puts the export toast in a viewport-fixed stack, so it cannot shift the layout", async () => {
+      const user = userEvent.setup();
+      mockedExcelUtils.exportScheduleToExcel.mockResolvedValue({
+        status: "saved",
+        path: "C:\Users\test\Belgeler\rapor.xlsx",
+        filename: "rapor.xlsx",
+      });
+      const exportButton = await goToStep3WithExportButton(user);
+      await user.click(exportButton);
+
+      const toast = await screen.findByText(/rapor\.xlsx/);
+      const container = stack();
+      expect(container, "the stack should be rendered").not.toBeNull();
+      expect(container).toContainElement(toast);
+      expect(getComputedStyle(container!).position).toBe("fixed");
+    });
+
+    // .content-area carries backdrop-filter, which WOULD create a containing
+    // block for a fixed descendant and pin the stack inside the wizard pane
+    // instead of the viewport. Keeping the stack outside <main> is what makes
+    // position: fixed mean what it says here.
+    it("renders outside <main>, which would otherwise trap position: fixed", async () => {
+      const user = userEvent.setup();
+      mockedExcelUtils.exportScheduleToExcel.mockResolvedValue({
+        status: "saved",
+        path: "C:\Users\test\Belgeler\rapor.xlsx",
+        filename: "rapor.xlsx",
+      });
+      const exportButton = await goToStep3WithExportButton(user);
+      await user.click(exportButton);
+
+      await screen.findByText(/rapor\.xlsx/);
+      const container = stack();
+      expect(container, "the stack should be rendered").not.toBeNull();
+      expect(document.querySelector("main")).not.toContainElement(container as HTMLElement);
+    });
+
+    it("keeps the toast's live region and its keyboard-reachable action buttons", async () => {
+      const user = userEvent.setup();
+      mockedExcelUtils.exportScheduleToExcel.mockResolvedValue({
+        status: "saved",
+        path: "C:\Users\test\Belgeler\rapor.xlsx",
+        filename: "rapor.xlsx",
+      });
+      const exportButton = await goToStep3WithExportButton(user);
+      await user.click(exportButton);
+
+      const toast = await screen.findByRole("status");
+      expect(toast).toHaveTextContent("rapor.xlsx");
+      for (const name of ["Dosyayı Aç", "Klasörü Aç", "Bildirimi kapat"]) {
+        expect(screen.getByRole("button", { name }).tagName).toBe("BUTTON");
+      }
+    });
+
+    it("the error banner joins the same stack and keeps role=alert", async () => {
+      const user = userEvent.setup();
+      mockedExcelUtils.exportScheduleToExcel.mockResolvedValue({
+        status: "error",
+        message: "disk full",
+      });
+      const exportButton = await goToStep3WithExportButton(user);
+      await user.click(exportButton);
+
+      const alert = await screen.findByRole("alert");
+      expect(stack()).toContainElement(alert);
+    });
+  });
 });
