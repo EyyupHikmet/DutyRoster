@@ -18,6 +18,8 @@ function baseProps(overrides: Partial<React.ComponentProps<typeof Step3Solver>> 
     setSolverMode: vi.fn(),
     respectTargets: false,
     setRespectTargets: vi.fn(),
+    avoidConsecutiveDays: false,
+    setAvoidConsecutiveDays: vi.fn(),
     unfilledDays: [] as Array<{ date: string; required: number; assigned: number }>,
     teachersPerDay: 1,
     setTeachersPerDay: vi.fn(),
@@ -135,6 +137,43 @@ describe("Step3Solver", () => {
     });
   });
 
+  describe("üst üste iki gün nöbet verme", () => {
+    it("renders as a real checkbox, unchecked by default", () => {
+      render(<Step3Solver {...baseProps()} />);
+      const checkbox = screen.getByRole("checkbox", { name: /üst üste iki gün/i });
+      expect(checkbox).toBeInTheDocument();
+      expect(checkbox).not.toBeChecked();
+    });
+
+    it("reflects the avoidConsecutiveDays prop", () => {
+      render(<Step3Solver {...baseProps({ avoidConsecutiveDays: true })} />);
+      expect(screen.getByRole("checkbox", { name: /üst üste iki gün/i })).toBeChecked();
+    });
+
+    it("clicking it calls setAvoidConsecutiveDays with the new value", async () => {
+      const user = userEvent.setup();
+      const props = baseProps();
+      render(<Step3Solver {...props} />);
+      await user.click(screen.getByRole("checkbox", { name: /üst üste iki gün/i }));
+      expect(props.setAvoidConsecutiveDays).toHaveBeenCalledWith(true);
+    });
+
+    it("is independent of the hard target cap — both can be checked at once", () => {
+      render(<Step3Solver {...baseProps({ respectTargets: true, avoidConsecutiveDays: true })} />);
+      expect(screen.getByRole("checkbox", { name: /Aylık hedefleri kesinlikle aşma/ })).toBeChecked();
+      expect(screen.getByRole("checkbox", { name: /üst üste iki gün/i })).toBeChecked();
+    });
+
+    it("toggling it leaves the distribution rule and the target cap alone", async () => {
+      const user = userEvent.setup();
+      const props = baseProps();
+      render(<Step3Solver {...props} />);
+      await user.click(screen.getByRole("checkbox", { name: /üst üste iki gün/i }));
+      expect(props.setSolverMode).not.toHaveBeenCalled();
+      expect(props.setRespectTargets).not.toHaveBeenCalled();
+    });
+  });
+
   describe("open-day summary", () => {
     it("is absent when nothing is left open", () => {
       render(<Step3Solver {...baseProps()} />);
@@ -165,6 +204,60 @@ describe("Step3Solver", () => {
       );
       expect(screen.getByRole("status")).toHaveClass("alert-warning");
       expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
+
+    it("names the hard target cap as a possible cause when that rule is on", () => {
+      render(
+        <Step3Solver
+          {...baseProps({
+            respectTargets: true,
+            unfilledDays: [{ date: "2026-10-01", required: 1, assigned: 0 }],
+          })}
+        />
+      );
+      const summary = screen.getByRole("status");
+      expect(summary).toHaveTextContent(/Aylık hedefleri kesinlikle aşma/);
+      expect(summary).not.toHaveTextContent(/üst üste iki gün/i);
+    });
+
+    it("names the back-to-back rule as a possible cause when that rule is on", () => {
+      render(
+        <Step3Solver
+          {...baseProps({
+            avoidConsecutiveDays: true,
+            unfilledDays: [{ date: "2026-10-01", required: 1, assigned: 0 }],
+          })}
+        />
+      );
+      const summary = screen.getByRole("status");
+      expect(summary).toHaveTextContent(/üst üste iki gün/i);
+      expect(summary).not.toHaveTextContent(/Aylık hedefleri kesinlikle aşma/);
+    });
+
+    it("names both rules when both are on", () => {
+      render(
+        <Step3Solver
+          {...baseProps({
+            respectTargets: true,
+            avoidConsecutiveDays: true,
+            unfilledDays: [{ date: "2026-10-01", required: 1, assigned: 0 }],
+          })}
+        />
+      );
+      const summary = screen.getByRole("status");
+      expect(summary).toHaveTextContent(/Aylık hedefleri kesinlikle aşma/);
+      expect(summary).toHaveTextContent(/üst üste iki gün/i);
+    });
+
+    it("blames neither rule when neither is on", () => {
+      render(
+        <Step3Solver
+          {...baseProps({ unfilledDays: [{ date: "2026-10-01", required: 1, assigned: 0 }] })}
+        />
+      );
+      const summary = screen.getByRole("status");
+      expect(summary).not.toHaveTextContent(/Aylık hedefleri kesinlikle aşma/);
+      expect(summary).not.toHaveTextContent(/üst üste iki gün/i);
     });
 
     it("coexists with a solver error without either replacing the other", () => {

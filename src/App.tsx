@@ -275,6 +275,8 @@ export default function App() {
     setSolverMode,
     respectTargets,
     setRespectTargets,
+    avoidConsecutiveDays,
+    setAvoidConsecutiveDays,
     teachersPerDay,
     setTeachersPerDay,
     pinnedAssignments,
@@ -450,7 +452,8 @@ export default function App() {
       mode: solverMode,
       teachersPerDay: solverTeachersPerDay,
       pinnedAssignments: pinnedAssignments,
-      respectTargets: respectTargets
+      respectTargets: respectTargets,
+      avoidConsecutiveDays: avoidConsecutiveDays
     };
 
     const result: SolverResult = solve(targetDates, solverTeachers, availabilities, config);
@@ -828,6 +831,8 @@ export default function App() {
             solverError={solverError}
             handleClearPins={handleClearPins}
             respectTargets={respectTargets}
+            avoidConsecutiveDays={avoidConsecutiveDays}
+            setAvoidConsecutiveDays={setAvoidConsecutiveDays}
             setRespectTargets={setRespectTargets}
             unfilledDays={unfilledDays}
             handleGenerateSchedule={handleGenerateSchedule}

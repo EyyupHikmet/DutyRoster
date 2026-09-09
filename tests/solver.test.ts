@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { solve, Teacher, AvailabilityStatus, SolverConfig } from "../src/solver/index";
+import { shiftDate } from "../src/utils/dateUtils";
 
 // Migrated from the original hand-rolled tsx-executed assert script onto vitest.
 // Every assertion/condition below is preserved verbatim from the pre-migration
@@ -320,5 +321,205 @@ describe("Nöbet Çözücü Motor Testleri (solver)", () => {
     expect(result.success).toBe(true);
     const t1Count = mockDates.filter((d) => (result.schedule![d] ?? []).includes("T1")).length;
     expect(t1Count, "Hedefi 0 olan öğretmen nöbet almamalı").toBe(0);
+  });
+
+  // --- Üst üste iki gün nöbet verme (avoidConsecutiveDays) ---
+  //
+  // A second hard rule, orthogonal to respectTargets: a teacher must never be
+  // on duty on two ADJACENT CALENDAR days. A weekend or a holiday in between
+  // counts as a real gap, so Friday→Monday and Tuesday→Thursday-over-a-holiday
+  // both stay legal.
+
+  it("Test 12: avoidConsecutiveDays kapalıyken ardışık günler serbesttir (mevcut davranış korunur)", () => {
+    // "Kıdem Öncelikli" always reaches for the highest-priority teacher first,
+    // so T1 (priority 3) sweeps the whole month — including the adjacent
+    // 1–2 October pair. This is the behavior the new flag has to change, and
+    // the behavior it must leave alone when off.
+    const config: SolverConfig = {
+      mode: "priority",
+      teachersPerDay: 1,
+      pinnedAssignments: {},
+    };
+
+    const result = solve(mockDates, mockTeachers, mockAvailabilities, config);
+
+    expect(result.success).toBe(true);
+    const schedule = result.schedule!;
+    expect(schedule["2026-10-01"], "1 Ekim en kıdemliye gitmeli").toEqual(["T1"]);
+    expect(schedule["2026-10-02"], "Bayrak kapalıyken ertesi gün de aynı kişiye verilebilir").toEqual(["T1"]);
+  });
+
+  it("Test 13: avoidConsecutiveDays açıkken hiçbir öğretmen ardışık iki gün nöbet tutmaz", () => {
+    // Same priority-driven setup as Test 12, which without the flag hands T1
+    // every single day. With it on, nobody may take two adjacent dates.
+    const config: SolverConfig = {
+      mode: "priority",
+      teachersPerDay: 1,
+      pinnedAssignments: {},
+      avoidConsecutiveDays: true,
+    };
+
+    const result = solve(mockDates, mockTeachers, mockAvailabilities, config);
+
+    expect(result.success, "4 öğretmenle 10 gün rahatlıkla çözülmeli").toBe(true);
+    const schedule = result.schedule!;
+
+    expect(schedule["2026-10-02"], "2 Ekim artık T1'e verilemez").not.toContain("T1");
+
+    for (const d of mockDates) {
+      const next = shiftDate(d, 1);
+      for (const id of schedule[d] ?? []) {
+        expect(
+          (schedule[next] ?? []).includes(id),
+          `${id} hem ${d} hem ${next} gününde nöbetçi yazılmış`
+        ).toBe(false);
+      }
+    }
+  });
+
+  it("Test 14: Cuma–Pazartesi ardışık sayılmaz, aradaki hafta sonu boşluktur", () => {
+    // 2 Oct 2026 is a Friday, 5 Oct is the following Monday. Only T1 can work,
+    // so the rule must allow both days or the month cannot be filled.
+    const dates = ["2026-10-02", "2026-10-05"];
+    for (const d of dates) {
+      mockAvailabilities["T2"][d] = "unavailable";
+      mockAvailabilities["T3"][d] = "unavailable";
+      mockAvailabilities["T4"][d] = "unavailable";
+    }
+
+    const config: SolverConfig = {
+      mode: "fairness",
+      teachersPerDay: 1,
+      pinnedAssignments: {},
+      avoidConsecutiveDays: true,
+    };
+
+    const result = solve(dates, mockTeachers, mockAvailabilities, config);
+
+    expect(result.success).toBe(true);
+    expect(result.schedule!["2026-10-02"]).toEqual(["T1"]);
+    expect(result.schedule!["2026-10-05"]).toEqual(["T1"]);
+    expect(result.unfilled).toEqual([]);
+  });
+
+  it("Test 15: Aradaki tatil günü boşluk sayılır", () => {
+    // 7 Oct is not a duty day at all, so 6 Oct and 8 Oct are not back to back.
+    const dates = ["2026-10-06", "2026-10-08"];
+    for (const d of dates) {
+      mockAvailabilities["T2"][d] = "unavailable";
+      mockAvailabilities["T3"][d] = "unavailable";
+      mockAvailabilities["T4"][d] = "unavailable";
+    }
+
+    const config: SolverConfig = {
+      mode: "fairness",
+      teachersPerDay: 1,
+      pinnedAssignments: {},
+      avoidConsecutiveDays: true,
+    };
+
+    const result = solve(dates, mockTeachers, mockAvailabilities, config);
+
+    expect(result.success).toBe(true);
+    expect(result.schedule!["2026-10-06"]).toEqual(["T1"]);
+    expect(result.schedule!["2026-10-08"]).toEqual(["T1"]);
+  });
+
+  it("Test 16: Manuel sabitleme korunur ama komşu günlerini kapatır", () => {
+    // Like the hard target cap, an explicit pin is the principal's decision:
+    // the rule never removes it, it only stops the solver ADDING a duty on
+    // either side of it. T3 is the only teacher who can work 5 and 7 October,
+    // so with the pin on the 6th both neighbours must go unfilled.
+    const dates = ["2026-10-05", "2026-10-06", "2026-10-07"];
+    for (const d of ["2026-10-05", "2026-10-07"]) {
+      mockAvailabilities["T1"][d] = "unavailable";
+      mockAvailabilities["T2"][d] = "unavailable";
+      mockAvailabilities["T4"][d] = "unavailable";
+    }
+
+    const config: SolverConfig = {
+      mode: "fairness",
+      teachersPerDay: 1,
+      pinnedAssignments: { "2026-10-06": ["T3"] },
+      avoidConsecutiveDays: true,
+    };
+
+    const result = solve(dates, mockTeachers, mockAvailabilities, config);
+
+    expect(result.success).toBe(true);
+    const schedule = result.schedule!;
+    expect(schedule["2026-10-06"], "Sabitlenen gün korunmalı").toEqual(["T3"]);
+    expect(schedule["2026-10-05"], "Sabitlemenin bir öncesi kapalı").toEqual([]);
+    expect(schedule["2026-10-07"], "Sabitlemenin bir sonrası kapalı").toEqual([]);
+    expect(result.unfilled!.map((g) => g.date).sort()).toEqual(["2026-10-05", "2026-10-07"]);
+  });
+
+  it("Test 17: Kural yüzünden doldurulamayan gün hata vermez, açık kalır ve raporlanır", () => {
+    // Two adjacent days, exactly one eligible teacher. With the rule on this is
+    // unsatisfiable — but that must degrade to an open day plus a warning, the
+    // way the hard target cap does, not to a red "Sıkışma Hatası".
+    const dates = ["2026-10-01", "2026-10-02"];
+    for (const d of dates) {
+      mockAvailabilities["T2"][d] = "unavailable";
+      mockAvailabilities["T3"][d] = "unavailable";
+      mockAvailabilities["T4"][d] = "unavailable";
+    }
+
+    const config: SolverConfig = {
+      mode: "fairness",
+      teachersPerDay: 1,
+      pinnedAssignments: {},
+      avoidConsecutiveDays: true,
+    };
+
+    const result = solve(dates, mockTeachers, mockAvailabilities, config);
+
+    expect(result.success, "Kısmi de olsa sonuç dönmeli").toBe(true);
+    expect(result.error_message, "Sıkışma hatası verilmemeli").toBeUndefined();
+
+    const schedule = result.schedule!;
+    const filled = dates.filter((d) => (schedule[d] ?? []).length === 1);
+    const empty = dates.filter((d) => (schedule[d] ?? []).length === 0);
+    expect(filled.length, "İki günden yalnız biri doldurulabilir").toBe(1);
+    expect(empty.length).toBe(1);
+
+    expect(result.unfilled!.length).toBe(1);
+    expect(result.unfilled![0]).toEqual({ date: empty[0], required: 1, assigned: 0 });
+  });
+
+  it("Test 18: İki katı kural birlikte çalışır — ne hedef aşılır ne ardışık gün verilir", () => {
+    const config: SolverConfig = {
+      mode: "priority",
+      teachersPerDay: 1,
+      pinnedAssignments: {},
+      respectTargets: true,
+      avoidConsecutiveDays: true,
+    };
+
+    const result = solve(mockDates, mockTeachers, mockAvailabilities, config);
+
+    expect(result.success).toBe(true);
+    const schedule = result.schedule!;
+
+    const counts: Record<string, number> = { T1: 0, T2: 0, T3: 0, T4: 0 };
+    for (const d of mockDates) {
+      for (const id of schedule[d] ?? []) counts[id]++;
+    }
+    for (const t of mockTeachers) {
+      expect(
+        counts[t.id] <= t.target_hours,
+        `${t.name} hedefi ${t.target_hours} iken ${counts[t.id]} nöbet almış`
+      ).toBe(true);
+    }
+
+    for (const d of mockDates) {
+      const next = shiftDate(d, 1);
+      for (const id of schedule[d] ?? []) {
+        expect(
+          (schedule[next] ?? []).includes(id),
+          `${id} hem ${d} hem ${next} gününde nöbetçi yazılmış`
+        ).toBe(false);
+      }
+    }
   });
 });

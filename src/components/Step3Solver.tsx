@@ -13,6 +13,8 @@ interface Step3SolverProps {
   setSolverMode: (m: "fairness" | "priority" | "strict" | "random") => void;
   respectTargets: boolean;
   setRespectTargets: (v: boolean) => void;
+  avoidConsecutiveDays: boolean;
+  setAvoidConsecutiveDays: (v: boolean) => void;
   teachersPerDay: number;
   setTeachersPerDay: (n: number) => void;
   pinnedAssignments: Record<string, string[]>;
@@ -27,6 +29,52 @@ interface Step3SolverProps {
   unfilledDays: Array<{ date: string; required: number; assigned: number }>;
 }
 
+// The hard rules that sit under the four distribution modes. Deliberately
+// checkboxes and not extra radios: each one is orthogonal to the modes (which
+// only ORDER candidates) and to each other, so every combination is valid and
+// they must all be independently toggleable. Real <input type="checkbox">
+// elements rather than ARIA-annotated <div>s, so native keyboard, focus and
+// screen-reader behavior comes for free.
+const HardRuleCheckbox: React.FC<{
+  id: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  title: string;
+  description: string;
+  isFirst: boolean;
+}> = ({ id, checked, onChange, title, description, isFirst }) => (
+  <div
+    style={{
+      marginTop: isFirst ? "12px" : "10px",
+      paddingTop: isFirst ? "12px" : 0,
+      borderTop: isFirst ? "1.5px solid var(--border)" : undefined,
+      display: "flex",
+      alignItems: "flex-start",
+      gap: "8px"
+    }}
+  >
+    <input
+      type="checkbox"
+      id={id}
+      checked={checked}
+      onChange={(e) => onChange(e.target.checked)}
+      style={{ marginTop: "2px", width: "15px", height: "15px", cursor: "pointer", flexShrink: 0 }}
+      aria-describedby={`${id}-desc`}
+    />
+    <label htmlFor={id} style={{ cursor: "pointer" }}>
+      <div style={{ fontSize: "0.82rem", fontWeight: "700", color: "var(--text-primary)" }}>
+        {title}
+      </div>
+      <div
+        id={`${id}-desc`}
+        style={{ fontSize: "0.72rem", lineHeight: "1.05rem", color: "var(--text-secondary)", marginTop: "2px" }}
+      >
+        {description}
+      </div>
+    </label>
+  </div>
+);
+
 export const Step3Solver: React.FC<Step3SolverProps> = ({
   teachers,
   selectedYear,
@@ -37,6 +85,8 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
   setSolverMode,
   respectTargets,
   setRespectTargets,
+  avoidConsecutiveDays,
+  setAvoidConsecutiveDays,
   teachersPerDay,
   setTeachersPerDay,
   pinnedAssignments,
@@ -95,6 +145,14 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
     return { dateFriendly, isWeekend };
   };
 
+  // Which hard rules are currently narrowing the search. Used to word the
+  // open-day warning honestly: before the second rule existed the banner always
+  // blamed the target cap, which is wrong when the cap is off (a day can also
+  // be left open by pinning alone).
+  const activeHardRules: string[] = [];
+  if (respectTargets) activeHardRules.push("“Aylık hedefleri kesinlikle aşma”");
+  if (avoidConsecutiveDays) activeHardRules.push("“Aynı öğretmene üst üste iki gün verme”");
+
   const selectedDateDetails = getSelectedDateDetails();
   const requiredCount = selectedDateStr ? (daySpecificTeachers[selectedDateStr] ?? teachersPerDay) : teachersPerDay;
   const pinnedIds = selectedDateStr ? (pinnedAssignments[selectedDateStr] || []) : [];
@@ -148,42 +206,23 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
               })}
             </div>
 
-            {/* Hard cap on each teacher's monthly duty target. Deliberately a
-                checkbox and not a fifth radio: it is orthogonal to the four
-                rules above (which only order candidates), so it has to be
-                combinable with any of them. A real <input type="checkbox">
-                rather than another ARIA-annotated <div>, so it comes with
-                native keyboard, focus and screen-reader behavior for free. */}
-            <div
-              style={{
-                marginTop: "12px",
-                paddingTop: "12px",
-                borderTop: "1.5px solid var(--border)",
-                display: "flex",
-                alignItems: "flex-start",
-                gap: "8px"
-              }}
-            >
-              <input
-                type="checkbox"
-                id="respect-targets-checkbox"
-                checked={respectTargets}
-                onChange={(e) => setRespectTargets(e.target.checked)}
-                style={{ marginTop: "2px", width: "15px", height: "15px", cursor: "pointer", flexShrink: 0 }}
-                aria-describedby="respect-targets-desc"
-              />
-              <label htmlFor="respect-targets-checkbox" style={{ cursor: "pointer" }}>
-                <div style={{ fontSize: "0.82rem", fontWeight: "700", color: "var(--text-primary)" }}>
-                  Aylık hedefleri kesinlikle aşma
-                </div>
-                <div
-                  id="respect-targets-desc"
-                  style={{ fontSize: "0.72rem", lineHeight: "1.05rem", color: "var(--text-secondary)", marginTop: "2px" }}
-                >
-                  Hiçbir öğretmene aylık nöbet hedefinden fazla görev verilmez. Kadro yetmezse günler boş bırakılır.
-                </div>
-              </label>
-            </div>
+            <HardRuleCheckbox
+              id="respect-targets-checkbox"
+              checked={respectTargets}
+              onChange={setRespectTargets}
+              title="Aylık hedefleri kesinlikle aşma"
+              description="Hiçbir öğretmene aylık nöbet hedefinden fazla görev verilmez. Kadro yetmezse günler boş bırakılır."
+              isFirst
+            />
+
+            <HardRuleCheckbox
+              id="avoid-consecutive-days-checkbox"
+              checked={avoidConsecutiveDays}
+              onChange={setAvoidConsecutiveDays}
+              title="Aynı öğretmene üst üste iki gün verme"
+              description="Bir öğretmen arka arkaya gelen iki takvim gününde nöbet tutmaz. Araya hafta sonu veya tatil girdiğinde Cuma–Pazartesi gibi günler serbest kalır."
+              isFirst={false}
+            />
           </div>
 
           {/* Configuration Card */}
@@ -246,9 +285,12 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
             <div className="alert alert-warning" role="status" style={{ padding: "10px 14px", fontSize: "0.78rem", margin: 0 }}>
               <strong>{unfilledDays.length} gün boş kaldı.</strong>{" "}
               Toplam {unfilledDays.reduce((sum, g) => sum + (g.required - g.assigned), 0)} nöbet
-              yeri doldurulamadı. Öğretmenlerin aylık nöbet hedeflerini yükseltebilir, kadroya
-              öğretmen ekleyebilir veya "Aylık hedefleri kesinlikle aşma" seçeneğini
-              kapatabilirsiniz.
+              yeri doldurulamadı. Kadroya öğretmen ekleyebilir, öğretmenlerin uygunluk
+              işaretlerini gözden geçirebilir
+              {respectTargets ? ", aylık nöbet hedeflerini yükseltebilir" : ""}
+              {activeHardRules.length > 0
+                ? ` veya ${activeHardRules.join(" ve ")} ${activeHardRules.length > 1 ? "kurallarını" : "kuralını"} kapatabilirsiniz.`
+                : " veya günlere sabitlediğiniz öğretmenleri değiştirebilirsiniz."}
             </div>
           )}
         </div>

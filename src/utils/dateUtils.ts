@@ -108,3 +108,21 @@ export const findUnfilledDays = (
   }
   return gaps;
 };
+
+/**
+ * The date `delta` days away from `dateStr`, as another YYYY-MM-DD string.
+ *
+ * Deliberately does its arithmetic in UTC rather than through the local-time
+ * Date constructor: the only thing that matters here is calendar adjacency,
+ * and a DST boundary in the user's timezone must not make "the next day" land
+ * on the same date twice or skip one. Rolls over month, year and leap-day
+ * boundaries because Date.UTC normalizes out-of-range day numbers.
+ */
+export const shiftDate = (dateStr: string, delta: number): string => {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const shifted = new Date(Date.UTC(year, month - 1, day + delta));
+  const y = shifted.getUTCFullYear();
+  const m = String(shifted.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(shifted.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
