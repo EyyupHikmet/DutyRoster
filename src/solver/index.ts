@@ -1,3 +1,5 @@
+import { shiftDate } from "../utils/dateUtils";
+
 export interface Teacher {
   id: string;
   name: string;
@@ -16,6 +18,12 @@ export interface SolverConfig {
   // means a duty day goes unfilled. Off (the default) preserves the original
   // all-or-nothing behavior exactly, so previously saved months are unaffected.
   respectTargets?: boolean;
+  // When true, a teacher may never be on duty on two ADJACENT CALENDAR days.
+  // Adjacency is measured on the calendar, not on the duty list, so a weekend
+  // or a holiday in between counts as a real rest gap (Friday→Monday stays
+  // legal). Orthogonal to `respectTargets`; both can be on at once. Off by
+  // default, so previously saved months are unaffected.
+  avoidConsecutiveDays?: boolean;
 }
 
 // One duty day that ended up with fewer teachers than it asked for.
@@ -29,8 +37,8 @@ export interface SolverResult {
   success: boolean;
   schedule?: Record<string, string[]>; // date (YYYY-MM-DD) -> list of teacher IDs
   // Days left short. Empty on a fully filled month; only ever non-empty when
-  // `respectTargets` is on, since otherwise the solver fails rather than
-  // returning a partial answer.
+  // `respectTargets` or `avoidConsecutiveDays` is on, since otherwise the
+  // solver fails rather than returning a partial answer.
   unfilled?: UnfilledSlot[];
   error_message?: string;
   error_date?: string;
@@ -63,7 +71,13 @@ export function solve(
     };
   }
 
-  const { mode, teachersPerDay, pinnedAssignments, respectTargets = false } = config;
+  const {
+    mode,
+    teachersPerDay,
+    pinnedAssignments,
+    respectTargets = false,
+    avoidConsecutiveDays = false,
+  } = config;
 
   // Initialize assignments map
   const assignments: Record<string, string[]> = {};
@@ -89,12 +103,23 @@ export function solve(
   const requiredOn = (date: string): number =>
     typeof teachersPerDay === "number" ? teachersPerDay : (teachersPerDay[date] ?? 1);
 
+  // Is this teacher already on duty the calendar day before or after `date`?
+  // Reads the live `assignments` map rather than a precomputed index, so it
+  // stays correct as the backtracker pushes and pops candidates. Both
+  // directions are checked because MRV visits dates out of chronological
+  // order. Neighbouring days that aren't duty days at all (weekends, holidays,
+  // the adjacent month) simply have no entry, so they never conflict.
+  const hasAdjacentDuty = (teacherId: string, date: string): boolean =>
+    (assignments[shiftDate(date, -1)] ?? []).includes(teacherId) ||
+    (assignments[shiftDate(date, 1)] ?? []).includes(teacherId);
+
   // Diagnostic tracking for finding bottlenecks
   let deepestFailureDate: string | null = null;
   let deepestFailureLevel = -1;
 
-  // Dates the search has given up on because every remaining teacher has hit
-  // their monthly target. Only ever populated when `respectTargets` is on;
+  // Dates the search has given up on because no teacher is left eligible —
+  // every remaining one has hit their monthly target, or is on duty the day
+  // before or after. Only ever populated when one of the two hard rules is on;
   // it is what turns an unsolvable month into a partly filled one instead of
   // no answer at all.
   const skipped = new Set<string>();
@@ -133,6 +158,12 @@ export function solve(
         //    solver from adding MORE duties on top of it.
         if (respectTargets && assignmentCounts[t.id] >= t.target_hours) return false;
 
+        // 4. With avoidConsecutiveDays on, back-to-back duties are forbidden.
+        //    Pinned assignments are exempt in the same sense the cap exempts
+        //    them: they are already in `assignments` and are never removed,
+        //    but they DO block the solver from adding a duty on either side.
+        if (avoidConsecutiveDays && hasAdjacentDuty(t.id, date)) return false;
+
         return true;
       });
 
@@ -149,10 +180,10 @@ export function solve(
 
     // If a date has 0 valid options, we reached an unsolvable constraint
     if (minOptionCount === 0) {
-      // With a hard target cap, running out of eligible teachers is the
+      // Under either hard rule, running out of eligible teachers is the
       // expected outcome, not an error: leave this day short and carry on
       // filling the rest. The gap is reported back so the UI can warn.
-      if (respectTargets) {
+      if (respectTargets || avoidConsecutiveDays) {
         skipped.add(bestDate);
         if (backtrack()) return true;
         skipped.delete(bestDate);

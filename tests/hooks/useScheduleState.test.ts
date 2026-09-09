@@ -314,6 +314,91 @@ describe("useScheduleState", () => {
     });
   });
 
+  describe("avoidConsecutiveDays (üst üste iki gün nöbet verme)", () => {
+    it("defaults to off", () => {
+      const { result } = renderHook(() => useScheduleState());
+      expect(result.current.avoidConsecutiveDays).toBe(false);
+    });
+
+    it("hydrates from the stored config", async () => {
+      mockedDb.getSchedule.mockResolvedValue({
+        id: "s1",
+        year: 2026,
+        month: 10,
+        assignments: JSON.stringify({}),
+        holidays: JSON.stringify([]),
+        weekend_duty_days: JSON.stringify([]),
+        config: JSON.stringify({ mode: "fairness", avoidConsecutiveDays: true }),
+      });
+
+      const { result } = renderHook(() => useScheduleState());
+      await act(async () => {
+        await result.current.loadScheduleData(2026, 10);
+      });
+
+      expect(result.current.avoidConsecutiveDays).toBe(true);
+    });
+
+    it("stays off for months saved before the flag existed", async () => {
+      mockedDb.getSchedule.mockResolvedValue({
+        id: "s1",
+        year: 2026,
+        month: 10,
+        assignments: JSON.stringify({}),
+        holidays: JSON.stringify([]),
+        weekend_duty_days: JSON.stringify([]),
+        config: JSON.stringify({ mode: "priority", respectTargets: true }),
+      });
+
+      const { result } = renderHook(() => useScheduleState());
+      await act(async () => {
+        await result.current.loadScheduleData(2026, 10);
+      });
+
+      expect(result.current.avoidConsecutiveDays).toBe(false);
+    });
+
+    it("is persisted into the saved config blob", async () => {
+      mockedDb.getSchedule.mockResolvedValue(null);
+      mockedDb.saveSchedule.mockResolvedValue(undefined as never);
+
+      const { result } = renderHook(() => useScheduleState());
+      await act(async () => {
+        await result.current.loadScheduleData(2026, 10);
+      });
+      act(() => {
+        result.current.setAvoidConsecutiveDays(true);
+      });
+      await act(async () => {
+        await result.current.saveDraftToDb();
+      });
+
+      const saved = mockedDb.saveSchedule.mock.calls[0][0];
+      expect(JSON.parse(saved.config).avoidConsecutiveDays).toBe(true);
+    });
+
+    it("counts as an unsaved change, and saving clears it", async () => {
+      mockedDb.getSchedule.mockResolvedValue(null);
+      mockedDb.saveSchedule.mockResolvedValue(undefined as never);
+
+      const { result } = renderHook(() => useScheduleState());
+      await act(async () => {
+        await result.current.loadScheduleData(2026, 10);
+      });
+      expect(result.current.isDirty).toBe(false);
+
+      act(() => {
+        result.current.setAvoidConsecutiveDays(true);
+      });
+      expect(result.current.isDirty, "Kural değişikliği kaydedilmemiş sayılmalı").toBe(true);
+
+      await act(async () => {
+        await result.current.saveDraftToDb();
+      });
+      expect(result.current.isDirty).toBe(false);
+    });
+  });
+
   describe("respectTargets (aylık hedefleri kesinlikle aşma)", () => {
     it("defaults to off", () => {
       const { result } = renderHook(() => useScheduleState());

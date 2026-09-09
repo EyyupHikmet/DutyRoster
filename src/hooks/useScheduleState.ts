@@ -13,6 +13,7 @@ interface ScheduleSnapshot {
   daySpecificTeachers: Record<string, number>;
   solverMode: "fairness" | "priority" | "strict" | "random";
   respectTargets: boolean;
+  avoidConsecutiveDays: boolean;
   teachersPerDay: number;
   pinnedAssignments: Record<string, string[]>;
   generatedSchedule: Record<string, string[]>;
@@ -60,6 +61,9 @@ export function useScheduleState() {
   // target, even if that leaves days open. Orthogonal to solverMode, which
   // only decides the order candidates are considered in.
   const [respectTargets, setRespectTargets] = useState<boolean>(false);
+  // Second hard rule: when on, no teacher is given duty on two adjacent
+  // calendar days. Orthogonal to both solverMode and respectTargets.
+  const [avoidConsecutiveDays, setAvoidConsecutiveDays] = useState<boolean>(false);
   const [teachersPerDay, setTeachersPerDay] = useState<number>(1);
   const [pinnedAssignments, setPinnedAssignments] = useState<Record<string, string[]>>({}); // date -> teacherIds
 
@@ -81,6 +85,7 @@ export function useScheduleState() {
     daySpecificTeachers,
     solverMode,
     respectTargets,
+    avoidConsecutiveDays,
     teachersPerDay,
     pinnedAssignments,
     generatedSchedule,
@@ -103,6 +108,9 @@ export function useScheduleState() {
         // Months saved before the hard cap existed have no such key; they must
         // keep behaving exactly as they did, so the default is off.
         const loadedRespectTargets = configObj.respectTargets ?? false;
+        // Same reasoning as respectTargets: months saved before this rule
+        // existed have no such key and must keep behaving as they did.
+        const loadedAvoidConsecutiveDays = configObj.avoidConsecutiveDays ?? false;
         const loadedTeachersPerDay = configObj.teachersPerDay || 1;
         const loadedPinnedAssignments = configObj.pinnedAssignments || {};
         const loadedExtraDays = configObj.extraDays || defaultWeekends;
@@ -113,6 +121,7 @@ export function useScheduleState() {
         setWeekendDutyDays(loadedWeekendDutyDays);
         setSolverMode(loadedSolverMode);
         setRespectTargets(loadedRespectTargets);
+        setAvoidConsecutiveDays(loadedAvoidConsecutiveDays);
         setTeachersPerDay(loadedTeachersPerDay);
         setPinnedAssignments(loadedPinnedAssignments);
         setExtraDays(loadedExtraDays);
@@ -130,6 +139,7 @@ export function useScheduleState() {
           daySpecificTeachers: loadedDaySpecificTeachers,
           solverMode: loadedSolverMode,
           respectTargets: loadedRespectTargets,
+          avoidConsecutiveDays: loadedAvoidConsecutiveDays,
           teachersPerDay: loadedTeachersPerDay,
           pinnedAssignments: loadedPinnedAssignments,
           generatedSchedule: loadedSchedule,
@@ -157,6 +167,7 @@ export function useScheduleState() {
           daySpecificTeachers: {},
           solverMode,
           respectTargets,
+          avoidConsecutiveDays,
           teachersPerDay,
           pinnedAssignments: {},
           generatedSchedule: {},
@@ -219,6 +230,7 @@ export function useScheduleState() {
         config: JSON.stringify({
           mode: solverMode,
           respectTargets: respectTargets,
+          avoidConsecutiveDays: avoidConsecutiveDays,
           teachersPerDay: teachersPerDay,
           pinnedAssignments: pinnedAssignments,
           extraDays: extraDays,
@@ -238,6 +250,7 @@ export function useScheduleState() {
         daySpecificTeachers,
         solverMode,
         respectTargets,
+        avoidConsecutiveDays,
         teachersPerDay,
         pinnedAssignments,
         generatedSchedule: scheduleResult,
@@ -277,6 +290,8 @@ export function useScheduleState() {
     setSolverMode,
     respectTargets,
     setRespectTargets,
+    avoidConsecutiveDays,
+    setAvoidConsecutiveDays,
     teachersPerDay,
     setTeachersPerDay,
     pinnedAssignments,

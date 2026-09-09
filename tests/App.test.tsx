@@ -6,6 +6,7 @@ import * as db from "../src/db";
 import * as excelUtils from "../src/utils/excelUtils";
 import * as opener from "@tauri-apps/plugin-opener";
 import { getDutyDates } from "../src/utils/dateUtils";
+import * as solver from "../src/solver/index";
 
 // App.tsx (via its own import and via the 3 hooks it uses) touches db.ts for every
 // piece of initial data. Mock the whole module so App can mount in jsdom without a
@@ -45,6 +46,15 @@ vi.mock("@tauri-apps/plugin-opener", () => ({
   openUrl: vi.fn().mockResolvedValue(undefined),
 }));
 
+// Wrap the real solver so its behavior is unchanged but the config App hands
+// it is observable — the two hard-rule checkboxes are only useful if their
+// state actually reaches solve().
+vi.mock("../src/solver/index", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/solver/index")>();
+  return { ...actual, solve: vi.fn(actual.solve) };
+});
+
+const mockedSolve = vi.mocked(solver.solve);
 const mockedDb = vi.mocked(db);
 const mockedExcelUtils = vi.mocked(excelUtils);
 const mockedOpener = vi.mocked(opener);
@@ -595,5 +605,61 @@ describe("App — Excel export save dialog and confirmation", () => {
       const alert = await screen.findByRole("alert");
       expect(stack()).toContainElement(alert);
     });
+  });
+});
+
+// The two hard rules live in Step 3 as checkboxes; App owns their state and is
+// the only thing that forwards them into SolverConfig.
+describe("App — hard planning rules reach the solver", () => {
+  beforeEach(() => {
+    mockedDb.getTeachers.mockResolvedValue([
+      { id: "T1", name: "Ahmet Yılmaz", target_hours: 4, priority: 1 },
+    ]);
+  });
+
+  async function goToStepThree(user: ReturnType<typeof userEvent.setup>) {
+    render(<App />);
+    await waitFor(() => expect(screen.getByText(/Adım 1: Öğretmen Kadrosu/)).toBeInTheDocument());
+    await user.click(screen.getByText("Planla & Dışa Aktar"));
+    expect(screen.getByText(/Adım 3: Planlama Seçenekleri/)).toBeInTheDocument();
+  }
+
+  it("passes both rules as off by default", async () => {
+    const user = userEvent.setup();
+    await goToStepThree(user);
+
+    await user.click(screen.getByText("⚡ Programı Hazırla"));
+
+    await waitFor(() => expect(mockedSolve).toHaveBeenCalled());
+    const config = mockedSolve.mock.calls[0][3];
+    expect(config.respectTargets).toBe(false);
+    expect(config.avoidConsecutiveDays).toBe(false);
+  });
+
+  it("forwards the back-to-back rule once its checkbox is ticked", async () => {
+    const user = userEvent.setup();
+    await goToStepThree(user);
+
+    await user.click(screen.getByRole("checkbox", { name: /üst üste iki gün/i }));
+    await user.click(screen.getByText("⚡ Programı Hazırla"));
+
+    await waitFor(() => expect(mockedSolve).toHaveBeenCalled());
+    const config = mockedSolve.mock.calls[0][3];
+    expect(config.avoidConsecutiveDays, "Kural çözücüye iletilmeli").toBe(true);
+    expect(config.respectTargets, "Diğer kural etkilenmemeli").toBe(false);
+  });
+
+  it("forwards both rules when both checkboxes are ticked", async () => {
+    const user = userEvent.setup();
+    await goToStepThree(user);
+
+    await user.click(screen.getByRole("checkbox", { name: /Aylık hedefleri kesinlikle aşma/ }));
+    await user.click(screen.getByRole("checkbox", { name: /üst üste iki gün/i }));
+    await user.click(screen.getByText("⚡ Programı Hazırla"));
+
+    await waitFor(() => expect(mockedSolve).toHaveBeenCalled());
+    const config = mockedSolve.mock.calls[0][3];
+    expect(config.respectTargets).toBe(true);
+    expect(config.avoidConsecutiveDays).toBe(true);
   });
 });

@@ -4,6 +4,7 @@ import {
   formatDateYYYYMMDD,
   getMonthDatesWithPadding,
   getDutyDates,
+  shiftDate,
 } from "../src/utils/dateUtils";
 
 // Migrated from the original hand-rolled tsx-executed assert script onto vitest.
@@ -79,5 +80,29 @@ describe("Tarih Yardımcı Programı Testleri (dateUtils)", () => {
     const dates = getDutyDates(2026, 9, [], ["2026-09-05"]);
     const sorted = [...dates].sort();
     expect(dates, "Günler tarih sırasında olmalı").toEqual(sorted);
+  });
+
+  // shiftDate underpins the "no back-to-back duties" rule: the solver asks
+  // "is this teacher on duty the day before/after?", which is a question about
+  // adjacent CALENDAR days, so the arithmetic has to survive month, year and
+  // leap-day boundaries — and must not drift by a day in any timezone.
+  it("Test 8: shiftDate - günü bir ileri ve bir geri kaydırır", () => {
+    expect(shiftDate("2026-10-14", 1)).toBe("2026-10-15");
+    expect(shiftDate("2026-10-14", -1)).toBe("2026-10-13");
+  });
+
+  it("Test 9: shiftDate - ay sınırını aşar", () => {
+    expect(shiftDate("2026-10-31", 1), "Ay sonundan sonraki ayın 1'ine").toBe("2026-11-01");
+    expect(shiftDate("2026-11-01", -1), "Ay başından önceki ayın sonuna").toBe("2026-10-31");
+  });
+
+  it("Test 10: shiftDate - yıl sınırını aşar", () => {
+    expect(shiftDate("2026-12-31", 1)).toBe("2027-01-01");
+    expect(shiftDate("2027-01-01", -1)).toBe("2026-12-31");
+  });
+
+  it("Test 11: shiftDate - artık yılın 29 Şubat'ını atlamaz", () => {
+    expect(shiftDate("2028-02-28", 1), "2028 artık yıl, 29 Şubat var").toBe("2028-02-29");
+    expect(shiftDate("2026-02-28", 1), "2026 artık yıl değil").toBe("2026-03-01");
   });
 });

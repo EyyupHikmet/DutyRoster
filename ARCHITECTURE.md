@@ -88,6 +88,16 @@ That trade is deliberate. A hard cap makes most months genuinely unsolvable,
 and a principal is far better served by a roster with two open Fridays they can
 see and fix than by an empty screen.
 
+A second, independent flag is `avoidConsecutiveDays`: with it on, no teacher may
+be on duty on two **adjacent calendar days**. Adjacency is measured on the
+calendar rather than on the duty list, so a weekend or a holiday in between is a
+real rest gap — Friday→Monday stays legal, and so does Tuesday→Thursday when
+Wednesday is a holiday. Pins are exempt the same way the cap exempts them: the
+rule never removes a pinned duty, but a pin does block the solver from adding
+one on either side of it. It shares the cap's give-up-on-a-day behaviour, so
+turning on a rule that tightens the search yields open days and a warning rather
+than a hard error.
+
 ## Data model
 
 Three tables, all local:
@@ -97,8 +107,9 @@ Three tables, all local:
   (`preferred` / `available` / `unavailable`).
 - **`schedules`** — one row per `(year, month)`, holding the generated
   `assignments` map plus everything needed to reproduce it: `holidays`,
-  `weekend_duty_days`, and a `config` blob (strategy, target-cap flag, teachers
-  per day, pinned assignments, extra days, day-specific counts).
+  `weekend_duty_days`, and a `config` blob (strategy, target-cap flag,
+  back-to-back flag, teachers per day, pinned assignments, extra days,
+  day-specific counts).
 
 `schedules` has a **unique index on `(year, month)`** and is written with
 `INSERT OR REPLACE`, so a month has exactly one row that is replaced in place.
