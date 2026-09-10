@@ -126,6 +126,7 @@ export function placePartnerGroups(
       (a, b) => b.memberIds.length - a.memberIds.length || a.id.localeCompare(b.id)
     );
     for (const group of ordered) {
+      if (group.memberIds.length === 0) continue;
       if (!group.memberIds.every((m) => present.has(m))) continue;
       if (here.some((id) => groupsOverlap(group, byId.get(id)!))) continue;
       here.push(group.id);
@@ -136,7 +137,17 @@ export function placePartnerGroups(
   const remaining = new Map<string, number>();
   for (const group of groups) {
     placed[group.id] = preCredited[group.id] ?? 0;
-    remaining.set(group.id, Math.max(0, group.goalDays - placed[group.id]));
+    // A group with no members can never be "placed" — there is no one to put
+    // on duty together. Without this, every check below (availability,
+    // overlap, capacity) is vacuously satisfied for zero members, so the
+    // search would otherwise happily place a phantom group up to its
+    // goalDays. Forcing its remaining need to 0 keeps it out of the main
+    // loop's selection entirely, matching creditPartnerGroups, which never
+    // credits an empty group a single day.
+    remaining.set(
+      group.id,
+      group.memberIds.length === 0 ? 0 : Math.max(0, group.goalDays - placed[group.id])
+    );
   }
 
   // Live state, mutated as groups are placed.

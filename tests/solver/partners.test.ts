@@ -175,6 +175,9 @@ describe("placePartnerGroups", () => {
     for (const d of DATES) {
       expect(membersOn(result, d).length).toBeLessThanOrEqual(1);
     }
+    // Kapasite kısıtı günleri paylaştırmalı ama ilerlemeyi durdurmamalı: 5 gün
+    // var ve her gün en fazla bir grubu barındırabildiğinden toplam 5 yerleşir.
+    expect(result.placed.g1 + result.placed.g2).toBe(5);
   });
 
   it("ortak üyesi olan iki grup aynı güne konmaz", () => {
@@ -215,11 +218,50 @@ describe("placePartnerGroups", () => {
     const groups = [g("g2", ["T3", "T4"], 5), g("g1", ["T1", "T2"], 1)];
     const result = placePartnerGroups(DATES, groups, avail, () => 2, {});
     expect(result.placed.g1).toBe(1);
+    // g1'i kazandırmak g2'yi aç bırakmamalı: g1 tek günü aldıktan sonra g2'ye
+    // kalan 4 gün hâlâ yerleşmeli (5. gün g1'e gittiği için 1 eksik kalır).
+    expect(result.placed.g2).toBe(4);
   });
 
   it("grup yoksa boş sonuç döndürür", () => {
     const result = placePartnerGroups(DATES, [], allAvailable(["T1"]), () => 1, {});
     expect(result.placements).toEqual({});
     expect(result.placed).toEqual({});
+  });
+
+  it("üyesi olmayan bir grup asla yerleştirilmez", () => {
+    // Bir müdür grubu kaydedip tüm üyelerini kaldırırsa memberIds boş kalır.
+    // Boş bir grup hiçbir güne "yerleştirilemez" — creditPartnerGroups zaten
+    // böyle bir grubu asla saymaz, placePartnerGroups de aynı fikirde olmalı.
+    const groups = [g("empty", [], 3), g("g1", ["T1", "T2"], 1)];
+    const result = placePartnerGroups(
+      DATES,
+      groups,
+      allAvailable(["T1", "T2"]),
+      () => 1,
+      {}
+    );
+    expect(result.placed.empty).toBe(0);
+    for (const d of DATES) {
+      expect(membersOn(result, d)).not.toContain("empty");
+    }
+  });
+
+  it("sabitlenmiş bir günde üyesiz grup hiçbir tarihe ayrılmaz", () => {
+    // Sabitlenmiş bir gün varken bile boş grup, creditPartnerGroups'un
+    // ürettiği preCredited değeriyle çelişmemeli: ikisi de 0 vermeli ve
+    // groupsOnDay üzerinden başka bir tarihi de bloke etmemeli.
+    const groups = [g("empty", [], 2), g("g1", ["T1", "T2"], 1)];
+    const result = placePartnerGroups(
+      DATES,
+      groups,
+      allAvailable(["T1", "T2"]),
+      () => 2,
+      { "2026-10-01": ["T1", "T2"] }
+    );
+    expect(result.placed.empty).toBe(0);
+    for (const d of DATES) {
+      expect(membersOn(result, d)).not.toContain("empty");
+    }
   });
 });
