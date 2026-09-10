@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PartnerGroups } from "../../src/components/PartnerGroups";
 import { DbTeacher } from "../../src/db";
+import { PartnerGroup } from "../../src/solver/partners";
 
 const teachers: DbTeacher[] = [
   { id: "T1", name: "Ali", target_hours: 4, priority: 1 },
@@ -106,6 +107,108 @@ describe("PartnerGroups", () => {
     expect(onChangeGroups).toHaveBeenCalledWith([
       { id: "g2", memberIds: ["T2", "T3"], goalDays: 1 },
     ]);
+  });
+
+  // Important 3 (final review): groups could previously only be deleted and
+  // rebuilt from scratch — changing a goal from 2 days to 3 meant re-entering
+  // every member. These prove the edit-in-place path: same id, same gate.
+  describe("grubu düzenleme", () => {
+    it("bir grubu düzenler ve aynı id ile, aynı grup sayısıyla kaydeder", async () => {
+      const user = userEvent.setup();
+      // T3 (Can, hedef 3) her iki grupta da olduğundan, g1'in günü grubun
+      // kendi üyelerinin hedefini aşmayacak şekilde seçildi (2 -> 3, Can için
+      // g1(3)+g2(1)=4 olurdu — bu yüzden g2'siz, tek grupla test ediliyor;
+      // "diğer grup etkilenmez" ayrı bir durumla aşağıda kanıtlanıyor).
+      const { onChangeGroups } = renderCard({
+        partnerGroups: [{ id: "g1", memberIds: ["T1", "T3"], goalDays: 2 }],
+      });
+
+      await user.click(screen.getByRole("button", { name: /Grubu Düzenle/i }));
+      const goal = screen.getByLabelText(/Ortak nöbet günü/i);
+      await user.clear(goal);
+      await user.type(goal, "3");
+      await user.click(screen.getByRole("button", { name: /Grubu Güncelle/i }));
+
+      expect(onChangeGroups).toHaveBeenCalledTimes(1);
+      const saved = onChangeGroups.mock.calls[0][0];
+      // Same length: replaced in place, not appended as a new group.
+      expect(saved).toHaveLength(1);
+      expect(saved[0].id).toBe("g1");
+      expect(saved[0].goalDays).toBe(3);
+      expect(saved[0].memberIds.sort()).toEqual(["T1", "T3"]);
+    });
+
+    it("bir grubu düzenlerken diğer gruplar etkilenmez", async () => {
+      const user = userEvent.setup();
+      const { onChangeGroups } = renderCard({
+        partnerGroups: [
+          { id: "g1", memberIds: ["T1", "T2"], goalDays: 1 },
+          { id: "g2", memberIds: ["T1", "T3"], goalDays: 1 },
+        ],
+      });
+
+      // Edit g1 (first row) without changing its goal — proves the SECOND
+      // group is passed through untouched, not just that the first survives.
+      await user.click(screen.getAllByRole("button", { name: /Grubu Düzenle/i })[0]);
+      await user.click(screen.getByRole("button", { name: /Grubu Güncelle/i }));
+
+      expect(onChangeGroups).toHaveBeenCalledTimes(1);
+      const saved = onChangeGroups.mock.calls[0][0];
+      expect(saved).toHaveLength(2);
+      expect(saved.find((g: PartnerGroup) => g.id === "g2")).toEqual({
+        id: "g2",
+        memberIds: ["T1", "T3"],
+        goalDays: 1,
+      });
+    });
+
+    it("düzenlenen grup bir üyeyi aşırı taahhüt ettirirse reddedilir ve öğretmeni adıyla uyarır", async () => {
+      const user = userEvent.setup();
+      // Ali'nin hedefi 4, Can'ınki 3. g1'in gününü 4'e çıkarmak Ali'yi tam
+      // hedefinde bırakır ama Can'ı aşırı taahhüt ettirir — tek bir öğretmen
+      // adı beklenebilsin diye bilerek böyle seçildi.
+      const { onChangeGroups } = renderCard({
+        partnerGroups: [{ id: "g1", memberIds: ["T1", "T3"], goalDays: 2 }],
+      });
+
+      await user.click(screen.getByRole("button", { name: /Grubu Düzenle/i }));
+      const goal = screen.getByLabelText(/Ortak nöbet günü/i);
+      await user.clear(goal);
+      await user.type(goal, "4");
+      await user.click(screen.getByRole("button", { name: /Grubu Güncelle/i }));
+
+      expect(onChangeGroups).not.toHaveBeenCalled();
+      expect(screen.getByRole("alert")).toHaveTextContent(/Can/);
+    });
+
+    it("düzenlemeyi iptal eder ve formu sıfırlar", async () => {
+      const user = userEvent.setup();
+      const { onChangeGroups } = renderCard({
+        partnerGroups: [{ id: "g1", memberIds: ["T1", "T3"], goalDays: 2 }],
+      });
+
+      await user.click(screen.getByRole("button", { name: /Grubu Düzenle/i }));
+      expect(screen.getByRole("button", { name: /Grubu Güncelle/i })).toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: "İptal" }));
+
+      expect(screen.getByRole("button", { name: /Grubu Kaydet/i })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Grubu Güncelle/i })).not.toBeInTheDocument();
+      expect(onChangeGroups).not.toHaveBeenCalled();
+    });
+
+    it("düzenlenmekte olan grup silinirse form yeni-grup durumuna döner", async () => {
+      const user = userEvent.setup();
+      renderCard({
+        partnerGroups: [{ id: "g1", memberIds: ["T1", "T3"], goalDays: 2 }],
+      });
+
+      await user.click(screen.getByRole("button", { name: /Grubu Düzenle/i }));
+      await user.click(screen.getByRole("button", { name: /Grubu Sil/i }));
+
+      expect(screen.getByRole("button", { name: /Grubu Kaydet/i })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Grubu Güncelle/i })).not.toBeInTheDocument();
+    });
   });
 
   it("kopyalanacak ay yoksa kopyalama seçeneğini göstermez", () => {

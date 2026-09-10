@@ -17,6 +17,7 @@ function setup(overrides: Partial<React.ComponentProps<typeof TeacherForm>> = {}
     onCancel: vi.fn(),
     monthLabel: "Ekim 2026",
     usualTarget: null as number | null,
+    error: null as string | null,
     ...overrides,
   };
   render(<TeacherForm {...props} />);
@@ -69,5 +70,22 @@ describe("TeacherForm", () => {
   it("aylık hedef genel hedeften farklıysa bunu belirtir", () => {
     setup({ monthLabel: "Ekim 2026", usualTarget: 4, teacherTarget: 6 });
     expect(screen.getByText(/genel hedefi 4/i)).toBeInTheDocument();
+  });
+
+  // Important 1 (final review): useTeachers already computed this message —
+  // it just had nowhere to render. This is the leaf that actually shows it.
+  describe("blocked-save error (teacherError)", () => {
+    it("shows nothing when there is no error", () => {
+      setup({ error: null });
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
+
+    it("renders a refused-save message as a visible alert", () => {
+      setup({
+        error: "Ali: bu ay gruplarda toplam 3 ortak nöbet günü tanımlı, hedefi 2 yapamazsınız.",
+      });
+      expect(screen.getByRole("alert")).toHaveTextContent(/Ali/);
+      expect(screen.getByRole("alert")).toHaveTextContent(/3 ortak nöbet günü/);
+    });
   });
 });

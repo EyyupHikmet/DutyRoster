@@ -556,6 +556,9 @@ describe("aylık nöbet grupları ve hedefleri", () => {
     await act(async () => {
       await result.current.loadScheduleData(2026, 10);
     });
+    // Prove a flip, not just that it ends up true — matches the sibling
+    // partnerGroups test above.
+    expect(result.current.isDirty).toBe(false);
 
     act(() => {
       result.current.setMonthlyTargets({ T1: 3 });
@@ -643,5 +646,108 @@ describe("aylık nöbet grupları ve hedefleri", () => {
     expect(result.current.partnerGroups).toHaveLength(1);
     expect(result.current.partnerGroups[0].memberIds).toEqual(["T1", "T2"]);
     expect(result.current.monthlyTargets).toEqual({ T1: 5 });
+  });
+
+  // Important 2 (final review): db.ts's deleteTeacher() cascade already
+  // strips a deleted id out of every SAVED month's row. This mirrors that,
+  // in memory, for whichever month is currently loaded — otherwise a save
+  // right after the delete would write the stale groups straight back over
+  // the row the cascade just cleaned.
+  describe("pruneTeacherFromMonth", () => {
+    async function loadMonthWithGroups() {
+      vi.mocked(getSchedule).mockResolvedValue({
+        id: "s1",
+        year: 2026,
+        month: 10,
+        assignments: "{}",
+        holidays: "[]",
+        weekend_duty_days: "[]",
+        config: JSON.stringify({
+          partnerGroups: [
+            { id: "g1", memberIds: ["T1", "T2"], goalDays: 2 }, // 2 members -> dies with T1
+            { id: "g2", memberIds: ["T1", "T3", "T4"], goalDays: 1 }, // 3 members -> survives without T1
+          ],
+          monthlyTargets: { T1: 5, T2: 3 },
+        }),
+      });
+      const { result } = renderHook(() => useScheduleState());
+      await act(async () => {
+        await result.current.loadScheduleData(2026, 10);
+      });
+      return result;
+    }
+
+    it("removes the deleted teacher from every group's memberIds", async () => {
+      const result = await loadMonthWithGroups();
+
+      act(() => result.current.pruneTeacherFromMonth("T1"));
+
+      for (const group of result.current.partnerGroups) {
+        expect(group.memberIds).not.toContain("T1");
+      }
+    });
+
+    it("drops a group left with fewer than 2 members entirely", async () => {
+      const result = await loadMonthWithGroups();
+
+      act(() => result.current.pruneTeacherFromMonth("T1"));
+
+      expect(result.current.partnerGroups.find((g) => g.id === "g1")).toBeUndefined();
+      const survivor = result.current.partnerGroups.find((g) => g.id === "g2");
+      expect(survivor?.memberIds).toEqual(["T3", "T4"]);
+    });
+
+    it("removes their monthlyTargets entry, leaving other teachers' untouched", async () => {
+      const result = await loadMonthWithGroups();
+
+      act(() => result.current.pruneTeacherFromMonth("T1"));
+
+      expect(result.current.monthlyTargets).toEqual({ T2: 3 });
+    });
+  });
+
+  // Minor (final review): copying the current month into itself would only
+  // regenerate every group's id for no reason — the "other than the one
+  // currently selected" comment on the caller's copyMonths must actually
+  // hold.
+  describe("availablePartnerMonths", () => {
+    it("excludes the currently selected (year, month) even if it has groups", async () => {
+      vi.mocked(getAllSchedules).mockResolvedValue([
+        {
+          id: "current",
+          year: 2026,
+          month: 10,
+          assignments: "{}",
+          holidays: "[]",
+          weekend_duty_days: "[]",
+          config: JSON.stringify({
+            partnerGroups: [{ id: "g1", memberIds: ["T1", "T2"], goalDays: 1 }],
+          }),
+        },
+        {
+          id: "other",
+          year: 2026,
+          month: 9,
+          assignments: "{}",
+          holidays: "[]",
+          weekend_duty_days: "[]",
+          config: JSON.stringify({
+            partnerGroups: [{ id: "g2", memberIds: ["T1", "T2"], goalDays: 1 }],
+          }),
+        },
+      ]);
+      vi.mocked(getSchedule).mockResolvedValue(null);
+
+      const { result } = renderHook(() => useScheduleState());
+      await act(async () => {
+        await result.current.loadScheduleData(2026, 10);
+        result.current.setSelectedYear(2026);
+        result.current.setSelectedMonth(10);
+      });
+
+      const months = await result.current.availablePartnerMonths();
+
+      expect(months).toEqual([{ year: 2026, month: 9 }]);
+    });
   });
 });

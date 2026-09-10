@@ -1,5 +1,5 @@
 import { effectiveTarget } from "../utils/targets";
-import { PartnerGroup, memberSetKey } from "./partners";
+import { PartnerGroup, memberSetKey, committedGroupDays } from "./partners";
 
 export type ValidationCode =
   | "too_few_members"
@@ -78,18 +78,16 @@ export function validatePartnerGroups(
     }
   }
 
-  // Over-commitment: a teacher can't owe more joint days than their month allows.
-  const committed = new Map<string, number>();
-  for (const group of groups) {
-    const goal = Number.isFinite(group.goalDays) ? Math.max(0, group.goalDays) : 0;
-    for (const memberId of new Set(group.memberIds)) {
-      committed.set(memberId, (committed.get(memberId) ?? 0) + goal);
-    }
-  }
-
-  for (const [teacherId, total] of committed) {
+  // Over-commitment: a teacher can't owe more joint days than their month
+  // allows. committedGroupDays is the single source of truth for this sum —
+  // it dedupes a member appearing twice in one group and clamps a
+  // non-finite/negative goalDays the same way this validator itself must.
+  const memberIds = new Set(groups.flatMap((group) => group.memberIds));
+  for (const teacherId of memberIds) {
     const teacher = byId.get(teacherId);
     if (!teacher) continue; // already reported as unknown_member
+    const total = committedGroupDays(teacherId, groups);
+    if (total <= 0) continue;
     const target = effectiveTarget(teacher, monthlyTargets);
     if (total > target) {
       issues.push({

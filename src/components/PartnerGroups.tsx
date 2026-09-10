@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { DbTeacher } from "../db";
-import { PartnerGroup } from "../solver/partners";
+import { PartnerGroup, committedGroupDays } from "../solver/partners";
 import { validatePartnerGroups } from "../solver/validation";
 import { effectiveTarget } from "../utils/targets";
 import { MONTHS_TR } from "../utils/dateUtils";
@@ -28,6 +28,9 @@ export const PartnerGroups: React.FC<PartnerGroupsProps> = ({
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [goalDays, setGoalDays] = useState<number>(1);
   const [error, setError] = useState<string | null>(null);
+  // Non-null while the form below is editing an EXISTING group in place
+  // (rather than building a new one) — the id that will be kept on save.
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [copySelection, setCopySelection] = useState<string>(
     copyMonths.length > 0 ? `${copyMonths[0].year}-${copyMonths[0].month}` : ""
   );
@@ -58,9 +61,7 @@ export const PartnerGroups: React.FC<PartnerGroupsProps> = ({
   // next to their checkbox so the principal can see why a save would be refused
   // before they attempt it, rather than only after.
   const committedDays = (teacherId: string): number =>
-    partnerGroups
-      .filter((group) => group.memberIds.includes(teacherId))
-      .reduce((sum, group) => sum + group.goalDays, 0);
+    committedGroupDays(teacherId, partnerGroups);
 
   const toggleMember = (id: string) => {
     setSelectedIds((prev) =>
@@ -68,25 +69,36 @@ export const PartnerGroups: React.FC<PartnerGroupsProps> = ({
     );
   };
 
+  const resetForm = () => {
+    setSelectedIds([]);
+    setGoalDays(1);
+    setEditingGroupId(null);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
+    // Editing keeps the same id (in place, not append-a-new-one); creating
+    // mints a fresh one.
     const candidate: PartnerGroup = {
-      id: crypto.randomUUID(),
+      id: editingGroupId ?? crypto.randomUUID(),
       memberIds: [...selectedIds],
       goalDays: Number(goalDays),
     };
 
-    // Validate the whole month, not just this group: over-commitment is a
-    // property of every group a teacher belongs to, so it can only be judged
-    // against the full set. Only issues this group is responsible for are
-    // reported back, though — the principal is trying to save THIS group.
-    const issues = validatePartnerGroups(
-      [...partnerGroups, candidate],
-      teachers,
-      monthlyTargets
-    );
+    // Validate the whole month WITH the edit applied, not just this group:
+    // over-commitment is a property of every group a teacher belongs to, so
+    // it can only be judged against the full set. `others` excludes the
+    // group being edited so it isn't validated against its own pre-edit
+    // self; for a brand new group candidate.id never matches an existing
+    // one, so this is a no-op there. Only issues this group is responsible
+    // for are reported back, though — the principal is trying to save THIS
+    // group. Editing a goal upward is exactly how a principal would push a
+    // teacher into over-commitment, so this must be the same gate as
+    // creation, never a weaker one.
+    const others = partnerGroups.filter((group) => group.id !== candidate.id);
+    const issues = validatePartnerGroups([...others, candidate], teachers, monthlyTargets);
     const blocking = issues.find(
       (issue) =>
         issue.groupId === candidate.id ||
@@ -98,14 +110,33 @@ export const PartnerGroups: React.FC<PartnerGroupsProps> = ({
       return;
     }
 
-    onChangeGroups([...partnerGroups, candidate]);
-    setSelectedIds([]);
-    setGoalDays(1);
+    onChangeGroups(
+      editingGroupId
+        ? partnerGroups.map((group) => (group.id === editingGroupId ? candidate : group))
+        : [...partnerGroups, candidate]
+    );
+    resetForm();
+  };
+
+  const handleEditClick = (group: PartnerGroup) => {
+    setError(null);
+    setSelectedIds([...group.memberIds]);
+    setGoalDays(group.goalDays);
+    setEditingGroupId(group.id);
+  };
+
+  const handleCancelEdit = () => {
+    setError(null);
+    resetForm();
   };
 
   const handleDelete = (id: string) => {
     setError(null);
     onChangeGroups(partnerGroups.filter((group) => group.id !== id));
+    // Deleting the group currently loaded into the form leaves nothing to
+    // save "in place" anymore — fall back to a normal, empty new-group form
+    // rather than silently turning the next save into a resurrection of it.
+    if (id === editingGroupId) resetForm();
   };
 
   const handleCopy = () => {
@@ -158,20 +189,42 @@ export const PartnerGroups: React.FC<PartnerGroupsProps> = ({
               <span style={{ fontSize: "0.78rem", color: "var(--slate-500)" }}>
                 {group.goalDays} gün
               </span>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                style={{ padding: "4px 10px", fontSize: "0.75rem" }}
-                onClick={() => handleDelete(group.id)}
-              >
-                Grubu Sil
-              </button>
+              <div style={{ display: "flex", gap: "6px" }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ padding: "4px 10px", fontSize: "0.75rem" }}
+                  onClick={() => handleEditClick(group)}
+                >
+                  Grubu Düzenle
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ padding: "4px 10px", fontSize: "0.75rem" }}
+                  onClick={() => handleDelete(group.id)}
+                >
+                  Grubu Sil
+                </button>
+              </div>
             </li>
           ))}
         </ul>
       )}
 
       <form onSubmit={handleSubmit}>
+        {editingGroupId && (
+          <p
+            style={{
+              margin: "0 0 10px 0",
+              fontSize: "0.78rem",
+              fontWeight: 700,
+              color: "var(--primary)",
+            }}
+          >
+            Grup düzenleniyor
+          </p>
+        )}
         <fieldset style={{ border: "none", padding: 0, margin: "0 0 12px 0" }}>
           <legend style={{ fontSize: "0.82rem", fontWeight: 700, padding: 0 }}>
             Gruba girecek öğretmenler
@@ -230,9 +283,16 @@ export const PartnerGroups: React.FC<PartnerGroupsProps> = ({
           </div>
         )}
 
-        <button type="submit" className="btn btn-primary" style={{ width: "100%" }}>
-          Grubu Kaydet
-        </button>
+        <div style={{ display: "flex", gap: "8px" }}>
+          <button type="submit" className="btn btn-primary" style={{ flexGrow: 1 }}>
+            {editingGroupId ? "Grubu Güncelle" : "Grubu Kaydet"}
+          </button>
+          {editingGroupId && (
+            <button type="button" className="btn btn-secondary" onClick={handleCancelEdit}>
+              İptal
+            </button>
+          )}
+        </div>
       </form>
 
       {copyMonths.length > 0 && (

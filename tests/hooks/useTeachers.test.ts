@@ -127,13 +127,18 @@ describe("useTeachers", () => {
     );
   });
 
+  // Minimal context for delete tests that don't care about pruning the
+  // loaded month's in-memory state (covered separately below) — just that
+  // the delete flow itself still works.
+  const emptyDeleteCtx = () => ({ pruneTeacherFromMonth: vi.fn() });
+
   it("handleDeleteTeacherClick() asks for confirmation and, if declined, does not delete", async () => {
     vi.spyOn(window, "confirm").mockReturnValue(false);
     const { result } = renderHook(() => useTeachers());
 
     let returned: boolean | undefined;
     await act(async () => {
-      returned = await result.current.handleDeleteTeacherClick("T1");
+      returned = await result.current.handleDeleteTeacherClick("T1", emptyDeleteCtx());
     });
 
     expect(returned).toBe(false);
@@ -156,11 +161,42 @@ describe("useTeachers", () => {
     expect(result.current.selectedTeacherId).toBe("T1");
 
     await act(async () => {
-      await result.current.handleDeleteTeacherClick("T1");
+      await result.current.handleDeleteTeacherClick("T1", emptyDeleteCtx());
     });
 
     expect(mockedDb.deleteTeacher).toHaveBeenCalledWith("T1");
     await waitFor(() => expect(result.current.selectedTeacherId).toBe("T2"));
+  });
+
+  // Important 2 (final review): db.ts's deleteTeacher() cascades the id out
+  // of every SAVED month's partnerGroups/monthlyTargets, but the CURRENTLY
+  // LOADED month's in-memory copies live in useScheduleState, not here. A
+  // successful delete must tell that state to prune itself too, or a save
+  // right after would write the stale in-memory groups straight back over
+  // the row the cascade just cleaned.
+  it("handleDeleteTeacherClick() prunes the deleted teacher from the loaded month's in-memory state on success", async () => {
+    mockedDb.deleteTeacher.mockResolvedValue(undefined);
+    mockedDb.getTeachers.mockResolvedValue([]);
+    const { result } = renderHook(() => useTeachers());
+
+    const pruneTeacherFromMonth = vi.fn();
+    await act(async () => {
+      await result.current.handleDeleteTeacherClick("T1", { pruneTeacherFromMonth });
+    });
+
+    expect(pruneTeacherFromMonth).toHaveBeenCalledWith("T1");
+  });
+
+  it("handleDeleteTeacherClick() does NOT prune the in-memory state when the delete itself fails", async () => {
+    mockedDb.deleteTeacher.mockRejectedValue(new Error("db down"));
+    const { result } = renderHook(() => useTeachers());
+
+    const pruneTeacherFromMonth = vi.fn();
+    await act(async () => {
+      await result.current.handleDeleteTeacherClick("T1", { pruneTeacherFromMonth });
+    });
+
+    expect(pruneTeacherFromMonth).not.toHaveBeenCalled();
   });
 });
 
@@ -195,6 +231,14 @@ describe("aylık nöbet hedefi", () => {
     });
 
     expect(context.applyMonthlyTarget).toHaveBeenCalledWith("T1", 5);
+    // The whole point of this branch: an EXISTING teacher's stored
+    // target_hours (their USUAL target) is left exactly as it was — the
+    // field on this screen edited THIS MONTH's target (via
+    // applyMonthlyTarget above), never the general default. Previously
+    // nothing asserted this distinction at all.
+    expect(mockedDb.saveTeacher).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "T1", target_hours: 4 })
+    );
   });
 
   it("grup taahhüdünün altına inen hedefi reddeder", async () => {

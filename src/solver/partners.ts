@@ -26,6 +26,26 @@ export function memberSetKey(group: PartnerGroup): string {
 }
 
 /**
+ * How many joint duty days a teacher is committed to across every group that
+ * contains them, this month. The single source of truth for that sum —
+ * `validatePartnerGroups`, `useTeachers`, `PartnerGroups` and `TeacherList`
+ * all need the exact same number, and only dedupe+clamp gets it right:
+ * a teacher listed twice in one group's `memberIds` must not double-count
+ * that group's goal, and a non-finite/negative `goalDays` (which shouldn't
+ * happen, but nothing upstream guarantees it) must not corrupt the total.
+ *
+ * Pure: no React, no database, no I/O.
+ */
+export function committedGroupDays(teacherId: string, groups: PartnerGroup[]): number {
+  let total = 0;
+  for (const group of groups) {
+    if (!new Set(group.memberIds).has(teacherId)) continue;
+    total += Number.isFinite(group.goalDays) ? Math.max(0, group.goalDays) : 0;
+  }
+  return total;
+}
+
+/**
  * How many days each group actually served together, read off a FINISHED
  * schedule rather than off what the placement phase intended.
  *
@@ -129,15 +149,17 @@ export function placePartnerGroups(
   const preCredited = creditPartnerGroups(pinnedOnDutyDays, groups);
 
   // Days consumed by a pin-credited group are off limits to groups sharing a
-  // member with it, exactly as if the group had been placed there.
+  // member with it, exactly as if the group had been placed there. Sort order
+  // doesn't depend on `date`, so it's computed once outside the loop below
+  // rather than re-sorted on every pinned date.
   const reservedByPins: Record<string, string[]> = {};
+  const orderedByGroupSize = [...groups].sort(
+    (a, b) => b.memberIds.length - a.memberIds.length || a.id.localeCompare(b.id)
+  );
   for (const [date, assigned] of Object.entries(pinnedOnDutyDays)) {
     const present = new Set(assigned);
     const here: string[] = [];
-    const ordered = [...groups].sort(
-      (a, b) => b.memberIds.length - a.memberIds.length || a.id.localeCompare(b.id)
-    );
-    for (const group of ordered) {
+    for (const group of orderedByGroupSize) {
       if (group.memberIds.length === 0) continue;
       if (!group.memberIds.every((m) => present.has(m))) continue;
       if (here.some((id) => groupsOverlap(group, byId.get(id)!))) continue;

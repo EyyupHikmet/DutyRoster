@@ -3,6 +3,7 @@ import { DbTeacher } from "../db";
 import { DAYS_TR, getMonthDatesWithPadding, formatDateYYYYMMDD } from "../utils/dateUtils";
 import { CustomSelect } from "./CustomSelect";
 import { PartnerGroup, creditPartnerGroups } from "../solver/partners";
+import { turkishPossessiveSuffix } from "../utils/turkishNumberSuffix";
 
 interface Step3SolverProps {
   teachers: DbTeacher[];
@@ -331,7 +332,7 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
               <ul style={{ margin: "6px 0 0 0", paddingLeft: "18px" }}>
                 {unfilledGroups.map(({ group, placed, names }) => (
                   <li key={group.id}>
-                    {names}: {group.goalDays} günün {placed}'i yerleştirildi. Kalan
+                    {names}: {group.goalDays} günün {placed}{turkishPossessiveSuffix(placed)} yerleştirildi. Kalan
                     günlerde üyelerin tamamı birden uygun değil.
                   </li>
                 ))}

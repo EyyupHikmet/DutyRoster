@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { PartnerGroup, creditPartnerGroups, placePartnerGroups } from "../../src/solver/partners";
+import {
+  PartnerGroup,
+  creditPartnerGroups,
+  placePartnerGroups,
+  committedGroupDays,
+} from "../../src/solver/partners";
 import { AvailabilityStatus } from "../../src/solver/index";
 
 const g = (id: string, memberIds: string[], goalDays: number): PartnerGroup => ({
@@ -70,6 +75,38 @@ describe("creditPartnerGroups", () => {
       "2026-10-03": ["T4"],
     };
     expect(creditPartnerGroups(schedule, [g("empty", [], 1)])).toEqual({ empty: 0 });
+  });
+});
+
+describe("committedGroupDays", () => {
+  it("sums goalDays across every group containing the teacher", () => {
+    const groups = [g("g1", ["T1", "T2"], 2), g("g2", ["T1", "T3"], 3)];
+    expect(committedGroupDays("T1", groups)).toBe(5);
+    expect(committedGroupDays("T2", groups)).toBe(2);
+  });
+
+  it("ignores groups the teacher does not belong to", () => {
+    expect(committedGroupDays("T9", [g("g1", ["T1", "T2"], 4)])).toBe(0);
+  });
+
+  // The one case the four raw `filter().reduce()` copies this replaces all
+  // got wrong in different ways: a member id repeated within a single
+  // group's memberIds must not inflate that group's contribution beyond its
+  // own goalDays.
+  it("counts a group only once even if the teacher's id is duplicated within its memberIds", () => {
+    const groups = [g("g1", ["T1", "T1", "T2"], 3)];
+    expect(committedGroupDays("T1", groups)).toBe(3);
+  });
+
+  it("clamps a non-finite goalDays to 0 rather than propagating NaN/Infinity", () => {
+    const nonFinite = g("g1", ["T1", "T2"], NaN);
+    const infinite = g("g2", ["T1", "T2"], Infinity);
+    expect(committedGroupDays("T1", [nonFinite])).toBe(0);
+    expect(committedGroupDays("T1", [infinite])).toBe(0);
+  });
+
+  it("clamps a negative goalDays to 0", () => {
+    expect(committedGroupDays("T1", [g("g1", ["T1", "T2"], -3)])).toBe(0);
   });
 });
 

@@ -166,8 +166,17 @@ Runs before the backtracker. For each group, find days where:
 - the day has room under the capacity rule above.
 
 Groups are placed **most-constrained-first** — fewest feasible days relative to
-goal — with backtracking *between groups*, so a group with two possible days
-does not lose them to a group that had ten options.
+goal — in a single greedy pass, not with backtracking between groups: at each
+step, whichever group has the least slack (feasible days remaining minus days
+still needed) claims its least-contested feasible day, so a group with two
+possible days does not lose them to a group that had ten options. If a group
+runs out of feasible days it is simply left short — abandoned, not
+backtracked over — and the shortfall is reported to the principal rather than
+the whole placement phase unwinding to try a different order. A partial
+answer plus an honest "these days couldn't be covered" is far more useful
+here than either failing outright or paying for exhaustive backtracking to
+possibly do a little better; it is the same trade `respectTargets` and
+`avoidConsecutiveDays` already make in the main search.
 
 Days already pinned with a group's full membership are counted first, reducing
 what has to be placed.

@@ -1,12 +1,24 @@
 import { useState } from "react";
 import { getTeachers, saveTeacher, deleteTeacher, DbTeacher } from "../db";
 import { effectiveTarget } from "../utils/targets";
-import { PartnerGroup } from "../solver/partners";
+import { PartnerGroup, committedGroupDays } from "../solver/partners";
 
 export interface SaveTeacherContext {
   partnerGroups: PartnerGroup[];
   monthlyTargets: Record<string, number>;
   applyMonthlyTarget: (teacherId: string, target: number) => void;
+}
+
+/**
+ * What useTeachers needs from useScheduleState to keep the currently loaded
+ * month's in-memory partnerGroups/monthlyTargets from disagreeing with what
+ * db.ts's deleteTeacher() cascade just did to every SAVED month's row.
+ * useTeachers deliberately does not own that state itself — it is passed in,
+ * the same way handleSaveTeacherSubmit already takes SaveTeacherContext,
+ * rather than reaching into useScheduleState or duplicating its state.
+ */
+export interface DeleteTeacherContext {
+  pruneTeacherFromMonth: (teacherId: string) => void;
 }
 
 export function useTeachers() {
@@ -47,9 +59,7 @@ export function useTeachers() {
     // committed to in groups. Lowering it below that would leave the month
     // over-committed the moment it is saved, which is exactly what creating
     // such a group is refused for — so refuse it here too, symmetrically.
-    const committed = ctx.partnerGroups
-      .filter((group) => group.memberIds.includes(id))
-      .reduce((sum, group) => sum + group.goalDays, 0);
+    const committed = committedGroupDays(id, ctx.partnerGroups);
 
     if (committed > target) {
       setTeacherError(
@@ -93,16 +103,26 @@ export function useTeachers() {
   };
 
   const handleEditTeacherClick = (t: DbTeacher, monthlyTargets: Record<string, number> = {}) => {
+    // Starting a fresh edit must not leave a stale refusal from a previous,
+    // unrelated save lingering on screen.
+    setTeacherError(null);
     setEditingTeacherId(t.id);
     setTeacherName(t.name);
     setTeacherTarget(effectiveTarget(t, monthlyTargets));
     setTeacherPriority(t.priority);
   };
 
-  const handleDeleteTeacherClick = async (id: string) => {
+  const handleDeleteTeacherClick = async (id: string, ctx: DeleteTeacherContext) => {
     if (!window.confirm("Bu öğretmeni ve tüm uygunluk kayıtlarını silmek istediğinize emin misiniz?")) return false;
     try {
       await deleteTeacher(id);
+      // db.ts's deleteTeacher() already cascaded this id out of every SAVED
+      // month's partnerGroups/monthlyTargets. The currently loaded month's
+      // in-memory copies of those same fields live in useScheduleState, not
+      // here — without this, a save right after this delete would write the
+      // stale in-memory groups straight back over the row db.ts just cleaned,
+      // resurrecting the deleted teacher for that month.
+      ctx.pruneTeacherFromMonth(id);
       const list = await loadTeachers();
       if (selectedTeacherId === id) {
         setSelectedTeacherId(list.length > 0 ? list[0].id : null);
@@ -128,6 +148,7 @@ export function useTeachers() {
     teacherPriority,
     setTeacherPriority,
     teacherError,
+    setTeacherError,
     loadTeachers,
     handleSaveTeacherSubmit,
     handleEditTeacherClick,

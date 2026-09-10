@@ -251,6 +251,8 @@ export default function App() {
     setTeacherTarget,
     teacherPriority,
     setTeacherPriority,
+    teacherError,
+    setTeacherError,
     handleSaveTeacherSubmit,
     handleEditTeacherClick,
     handleDeleteTeacherClick
@@ -300,7 +302,8 @@ export default function App() {
     monthlyTargets,
     setMonthlyTargets,
     copyPartnersFromMonth,
-    availablePartnerMonths
+    availablePartnerMonths,
+    pruneTeacherFromMonth
   } = useScheduleState();
 
   // Months (other than the one currently selected) that already have partner
@@ -826,7 +829,9 @@ export default function App() {
             setTeacherPriority={setTeacherPriority}
             handleSaveTeacher={(e) => handleSaveTeacherSubmit(e, saveTeacherContext)}
             handleEditTeacherClick={(t) => handleEditTeacherClick(t, monthlyTargets)}
-            handleDeleteTeacher={handleDeleteTeacherClick}
+            handleDeleteTeacher={(id) => handleDeleteTeacherClick(id, { pruneTeacherFromMonth })}
+            teacherError={teacherError}
+            setTeacherError={setTeacherError}
             handleFileImport={handleFileImport}
             selectedYear={selectedYear}
             setSelectedYear={requestYearChange}

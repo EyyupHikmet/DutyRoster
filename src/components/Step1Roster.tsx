@@ -23,6 +23,13 @@ interface Step1RosterProps {
   handleSaveTeacher: (e: React.FormEvent) => void;
   handleEditTeacherClick: (t: DbTeacher) => void;
   handleDeleteTeacher: (id: string) => void;
+  /** A blocked-save refusal from useTeachers, in Turkish, or null. See
+   * TeacherForm's `error` prop — this is threaded straight through to it. */
+  teacherError: string | null;
+  /** Clears teacherError. Called when the "İptal" button below backs out of
+   * an edit, so a stale refusal from that edit doesn't linger once the form
+   * has moved on to something else. */
+  setTeacherError: (v: string | null) => void;
   handleFileImport: (e: React.ChangeEvent<HTMLInputElement>) => void;
   selectedYear: number;
   setSelectedYear: (y: number) => void;
@@ -59,6 +66,8 @@ export const Step1Roster: React.FC<Step1RosterProps> = ({
   handleSaveTeacher,
   handleEditTeacherClick,
   handleDeleteTeacher,
+  teacherError,
+  setTeacherError,
   handleFileImport,
   selectedYear,
   setSelectedYear,
@@ -139,9 +148,11 @@ export const Step1Roster: React.FC<Step1RosterProps> = ({
               setTeacherName("");
               setTeacherTarget(4);
               setTeacherPriority(1);
+              setTeacherError(null);
             }}
             monthLabel={monthLabel}
             usualTarget={teachers.find((t) => t.id === editingTeacherId)?.target_hours ?? null}
+            error={teacherError}
           />
           <PartnerGroups
             teachers={teachers}

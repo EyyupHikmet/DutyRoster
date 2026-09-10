@@ -301,12 +301,18 @@ export function useScheduleState() {
     return saveGeneratedScheduleToDb(generatedSchedule);
   };
 
-  /** Months that already have partner groups defined, newest first. */
+  /**
+   * Months (other than the one currently selected) that already have partner
+   * groups defined, newest first. Copying the current month into itself would
+   * only regenerate every group's id for no reason, so it is excluded here —
+   * not just by convention in the caller's comment.
+   */
   const availablePartnerMonths = async (): Promise<{ year: number; month: number }[]> => {
     try {
       const rows = await getAllSchedules();
       return rows
         .filter((row) => {
+          if (row.year === selectedYear && row.month === selectedMonth) return false;
           try {
             const config = JSON.parse(row.config);
             return Array.isArray(config.partnerGroups) && config.partnerGroups.length > 0;
@@ -320,6 +326,32 @@ export function useScheduleState() {
       console.error("Gruplu aylar okunamadı:", err);
       return [];
     }
+  };
+
+  /**
+   * Mirrors, in memory, what db.ts's deleteTeacher() cascade already did to
+   * every SAVED month's row: strip the id from every group's memberIds
+   * (dropping any group left with fewer than 2 members) and remove their
+   * monthlyTargets entry. Without this, the currently loaded month's
+   * in-memory state would keep the dead id and a subsequent save would write
+   * it straight back over the row deleteTeacher() just cleaned — undoing the
+   * cascade for exactly the month open on screen.
+   */
+  const pruneTeacherFromMonth = (teacherId: string) => {
+    setPartnerGroups((prev) =>
+      prev
+        .map((group) => ({
+          ...group,
+          memberIds: group.memberIds.filter((m) => m !== teacherId),
+        }))
+        .filter((group) => group.memberIds.length >= 2)
+    );
+    setMonthlyTargets((prev) => {
+      if (!Object.prototype.hasOwnProperty.call(prev, teacherId)) return prev;
+      const next = { ...prev };
+      delete next[teacherId];
+      return next;
+    });
   };
 
   /**
@@ -406,6 +438,7 @@ export function useScheduleState() {
     saveDraftToDb,
     copyPartnersFromMonth,
     availablePartnerMonths,
+    pruneTeacherFromMonth,
     isDirty
   };
 }

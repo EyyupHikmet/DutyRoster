@@ -1,6 +1,6 @@
 import React from "react";
 import { DbTeacher } from "../db";
-import { PartnerGroup } from "../solver/partners";
+import { PartnerGroup, committedGroupDays } from "../solver/partners";
 import { effectiveTarget } from "../utils/targets";
 
 interface TeacherListProps {
@@ -51,9 +51,7 @@ export const TeacherList: React.FC<TeacherListProps> = ({
         >
           {teachers.map((t) => {
             const target = effectiveTarget(t, monthlyTargets);
-            const committed = partnerGroups
-              .filter((group) => group.memberIds.includes(t.id))
-              .reduce((sum, group) => sum + group.goalDays, 0);
+            const committed = committedGroupDays(t.id, partnerGroups);
             // Only mark a teacher whose groups actually account for the whole
             // month's target — a 0/0 teacher (no target, no groups) isn't
             // "fully committed" to anything.

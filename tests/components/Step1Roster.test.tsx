@@ -23,6 +23,8 @@ function baseProps(overrides: Partial<React.ComponentProps<typeof Step1Roster>> 
     handleSaveTeacher: vi.fn(),
     handleEditTeacherClick: vi.fn(),
     handleDeleteTeacher: vi.fn(),
+    teacherError: null as string | null,
+    setTeacherError: vi.fn(),
     handleFileImport: vi.fn(),
     selectedYear: 2026,
     setSelectedYear: vi.fn(),
@@ -143,6 +145,19 @@ describe("Step1Roster", () => {
       // AND monthlyTargets reached TeacherList as real values.
       expect(screen.getByTitle(/tamamı gruplara ayrılmış/i)).toBeInTheDocument();
       expect(screen.getByText(/Hedef: 2 Nöbet/)).toBeInTheDocument();
+    });
+
+    // Important 1 (final review): App.tsx never destructured teacherError,
+    // so it never reached this far down at all — the wiring gap, not the
+    // message text, was the bug. This proves the prop actually threads
+    // through to TeacherForm's rendered alert.
+    it("threads teacherError through to TeacherForm's visible alert", () => {
+      render(
+        <Step1Roster
+          {...baseProps({ teacherError: "Ahmet Yılmaz: bu ay gruplarda toplam 3 ortak nöbet günü tanımlı." })}
+        />
+      );
+      expect(screen.getByRole("alert")).toHaveTextContent(/Ahmet Yılmaz/);
     });
   });
 });

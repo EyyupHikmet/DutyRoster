@@ -22,4 +22,24 @@ describe("effectiveTarget", () => {
     const broken = { T1: undefined } as unknown as Record<string, number>;
     expect(effectiveTarget({ id: "T1", target_hours: 4 }, broken)).toBe(4);
   });
+
+  // The Number.isFinite half of the guard was untested before this — only
+  // `undefined` (caught by `typeof override === "number"` alone) exercised
+  // it. NaN and Infinity are both `typeof "number"`, so a regression that
+  // weakened the guard to a bare `typeof` check would pass every test above
+  // while silently letting either through as a teacher's effective target.
+  it("NaN yok sayılır ve genel hedefe düşülür", () => {
+    const broken = { T1: NaN } as Record<string, number>;
+    expect(effectiveTarget({ id: "T1", target_hours: 4 }, broken)).toBe(4);
+  });
+
+  it("Infinity yok sayılır ve genel hedefe düşülür", () => {
+    const broken = { T1: Infinity } as Record<string, number>;
+    expect(effectiveTarget({ id: "T1", target_hours: 4 }, broken)).toBe(4);
+  });
+
+  it("sayısal bir metin (typeof 'string') yok sayılır ve genel hedefe düşülür", () => {
+    const broken = { T1: "6" } as unknown as Record<string, number>;
+    expect(effectiveTarget({ id: "T1", target_hours: 4 }, broken)).toBe(4);
+  });
 });
