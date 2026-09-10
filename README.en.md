@@ -53,10 +53,18 @@ example, that a given Tuesday has nobody marked available.
 
 ## Installing
 
-Download the latest Windows installer from the
-[Releases](https://github.com/EyyupHikmet/DutyRoster/releases) page — either
-the `.msi` or the `-setup.exe`. They install the same application; pick
-whichever you prefer.
+Download the latest installer for your platform from the
+[Releases](https://github.com/EyyupHikmet/DutyRoster/releases) page:
+
+- **Windows** — either the `.msi` or the `-setup.exe`. They install the same
+  application; pick whichever you prefer.
+- **macOS** — the `.dmg`. It's a universal build that runs natively on both
+  Apple Silicon and Intel Macs.
+
+Neither build is code-signed (that requires a paid certificate the project
+does not have yet), so both platforms will warn you before the app runs the
+first time. This is expected — see below for how to get past it, and how to
+verify the download yourself if you'd rather not just take that on faith.
 
 ### "Windows protected your PC"
 
@@ -68,18 +76,42 @@ Windows shows this the first time you run the installer. It may also appear as
 This happens because the installer is not code-signed, so Windows does not
 recognise the publisher. It is not a virus warning, and it does not mean
 anything was found in the file — an unsigned installer from a small project
-gets this message whatever it contains. Code signing requires a paid
-certificate the project does not have yet.
+gets this message whatever it contains.
 
-If you would rather check the download yourself, every release includes a
-`SHA256SUMS.txt` file. Compare it with your copy:
+### "DutyRoster is damaged and can't be opened" (macOS)
 
-```powershell
-Get-FileHash .\DutyRoster_0.1.0_x64-setup.exe -Algorithm SHA256
+macOS shows some version of this because the app isn't notarized by Apple.
+Despite the alarming wording, nothing is actually wrong with the file — this
+is macOS refusing to run an unsigned app downloaded from the internet.
+
+**To fix it, once, from Terminal:**
+
+```bash
+xattr -cr /Applications/DutyRoster.app
 ```
 
-If the hash matches that file's line in `SHA256SUMS.txt`, your download is
-byte-for-byte the file GitHub built from the tagged source.
+Then open the app normally. If you instead see the milder *"Apple could not
+verify..."* dialog, right-click (or Control-click) the app and choose
+**Open**, then confirm **Open** again in the dialog — no Terminal needed in
+that case.
+
+### Verifying a download
+
+Every release includes a `SHA256SUMS-windows.txt` and a `SHA256SUMS-macos.txt`.
+Compare your download against the matching one:
+
+```powershell
+# Windows (PowerShell)
+Get-FileHash .\DutyRoster_0.3.0_x64-setup.exe -Algorithm SHA256
+```
+
+```bash
+# macOS (Terminal)
+shasum -a 256 DutyRoster_0.3.0_universal.dmg
+```
+
+If the hash matches that file's line in the corresponding `SHA256SUMS-*.txt`,
+your download is byte-for-byte the file GitHub built from the tagged source.
 
 Prefer to build it yourself? See below.
 
@@ -92,6 +124,7 @@ Prefer to build it yourself? See below.
 | Node.js | 20 or newer |
 | Rust toolchain | stable, via [rustup](https://rustup.rs) |
 | WebView2 runtime | Windows only, and preinstalled on Windows 11 |
+| Xcode Command Line Tools | macOS only — `xcode-select --install` |
 
 Tauri compiles a Rust host around the web frontend, so the Rust toolchain is
 required even though almost all the application code is TypeScript.
@@ -111,8 +144,9 @@ prerequisites and starts the app. `run.sh` does the same on macOS and Linux.
 > touches persistence or the filesystem has to be exercised through
 > `npm run tauri dev`.
 
-Development has been on Windows. Tauri supports macOS and Linux and nothing in
-the code is Windows-specific, but neither has been tested — reports welcome.
+Development has been on Windows, and macOS has now been built, run and tested
+as well. Tauri also supports Linux and nothing in the code is
+platform-specific, but Linux hasn't been tried — reports welcome.
 
 ## Tests
 
