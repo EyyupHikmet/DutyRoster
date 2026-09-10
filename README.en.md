@@ -109,12 +109,12 @@ Compare your download against the matching one:
 
 ```powershell
 # Windows (PowerShell)
-Get-FileHash .\DutyRoster_0.3.0_x64-setup.exe -Algorithm SHA256
+Get-FileHash .\DutyRoster_0.4.0_x64-setup.exe -Algorithm SHA256
 ```
 
 ```bash
 # macOS (Terminal)
-shasum -a 256 DutyRoster_0.3.0_universal.dmg
+shasum -a 256 DutyRoster_0.4.0_universal.dmg
 ```
 
 If the hash matches that file's line in the corresponding `SHA256SUMS-*.txt`,
