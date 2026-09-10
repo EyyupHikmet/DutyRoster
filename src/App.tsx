@@ -546,7 +546,9 @@ export default function App() {
       teachers,
       holidays,
       weekendDutyDays,
-      extraDays
+      extraDays,
+      {},
+      monthlyTargets
     );
 
     if (result.status === "saved") {
