@@ -1,4 +1,5 @@
 import type { AvailabilityStatus } from "./index";
+import { shiftDate } from "../utils/dateUtils";
 
 /**
  * A set of teachers who serve duty together, and how many days this month they
@@ -93,6 +94,16 @@ export interface PlacementResult {
  * to a principal than no answer at all, which is the same trade `respectTargets`
  * and `avoidConsecutiveDays` already make in the main search.
  *
+ * When `avoidConsecutiveDays` is on, a group day is a normal duty for each of
+ * its members: it blocks that member from an adjacent CALENDAR day (via
+ * `shiftDate`, so a weekend or holiday in between is still a real rest gap),
+ * exactly as `hasAdjacentDuty` does for the main search in `index.ts`. Pinned
+ * days carry the same asymmetry the main search already has for pins: a pin
+ * is never removed by this rule, but it DOES block a group from being placed
+ * on either side of it — placement can only be refused here, never undone,
+ * since this phase runs before the backtracking search and writes straight
+ * into `assignments` the same way pins do.
+ *
  * Pure: no React, no database, no I/O.
  */
 export function placePartnerGroups(
@@ -100,7 +111,8 @@ export function placePartnerGroups(
   groups: PartnerGroup[],
   availabilities: Record<string, Record<string, AvailabilityStatus>>,
   requiredOn: (date: string) => number,
-  pinnedAssignments: Record<string, string[]>
+  pinnedAssignments: Record<string, string[]>,
+  avoidConsecutiveDays: boolean = false
 ): PlacementResult {
   const placements: Record<string, string[]> = {};
   const placed: Record<string, number> = {};
@@ -164,11 +176,33 @@ export function placePartnerGroups(
     return present;
   };
 
+  // Is this member already on duty on `date` — pinned there directly, or a
+  // member of a group already placed there? Reads the live `groupsOnDay`
+  // state, so it stays correct as placements accumulate.
+  const teacherOnDuty = (memberId: string, date: string): boolean => {
+    if ((pinnedAssignments[date] ?? []).includes(memberId)) return true;
+    for (const id of groupsOnDay[date] ?? []) {
+      if (byId.get(id)!.memberIds.includes(memberId)) return true;
+    }
+    return false;
+  };
+
   const canPlace = (group: PartnerGroup, date: string): boolean => {
     if ((groupsOnDay[date] ?? []).includes(group.id)) return false;
 
     for (const memberId of group.memberIds) {
       if (availabilities[memberId]?.[date] === "unavailable") return false;
+    }
+
+    // A group day is a normal duty day for each member: with the toggle on,
+    // it can't be adjacent (on the calendar) to another day that member is
+    // already on duty, in either direction.
+    if (avoidConsecutiveDays) {
+      const before = shiftDate(date, -1);
+      const after = shiftDate(date, 1);
+      for (const memberId of group.memberIds) {
+        if (teacherOnDuty(memberId, before) || teacherOnDuty(memberId, after)) return false;
+      }
     }
 
     for (const otherId of groupsOnDay[date] ?? []) {

@@ -264,4 +264,80 @@ describe("placePartnerGroups", () => {
       expect(membersOn(result, d)).not.toContain("empty");
     }
   });
+
+  it("avoidConsecutiveDays açıkken grup ardışık takvim günlerine konmaz", () => {
+    // DATES = [01, 02, 05, 06, 07]. 01-02 ardışık; 02-05 arasında hafta sonu
+    // boşluğu var (ardışık değil). Hedef 2 gün: kısıt açıkken 01 ve 02'yi
+    // birlikte kullanamaz.
+    const result = placePartnerGroups(
+      DATES,
+      [g("g1", ["T1", "T2"], 2)],
+      allAvailable(["T1", "T2"]),
+      () => 1,
+      {},
+      true
+    );
+    expect(result.placed.g1).toBe(2);
+    const days = DATES.filter((d) => membersOn(result, d).includes("g1"));
+    expect(days).toHaveLength(2);
+    expect(days).not.toEqual(["2026-10-01", "2026-10-02"]);
+    expect(days.includes("2026-10-01") && days.includes("2026-10-02")).toBe(false);
+  });
+
+  it("avoidConsecutiveDays açıkken sabitlenmiş güne komşu tarihe konmaz", () => {
+    // T1, 2026-10-01'de tek başına sabitli (gruba ait olmayan normal bir
+    // nöbet). T2, 01'de müsait değil, bu yüzden grup zaten 01'i kullanamaz —
+    // ama kısıt olmasa 02'yi rahatça kullanırdı. Kısıt açıkken 02, T1'in
+    // sabit nöbetine komşu olduğu için de yasaklanmalı.
+    const avail = allAvailable(["T1", "T2"]);
+    avail["T2"]["2026-10-01"] = "unavailable";
+    const result = placePartnerGroups(
+      DATES,
+      [g("g1", ["T1", "T2"], 1)],
+      avail,
+      () => 2,
+      { "2026-10-01": ["T1"] },
+      true
+    );
+    expect(membersOn(result, "2026-10-02")).not.toContain("g1");
+    expect(result.placed.g1).toBe(1);
+    const days = DATES.filter((d) => membersOn(result, d).includes("g1"));
+    expect(days).toEqual(["2026-10-05"]);
+  });
+
+  it("avoidConsecutiveDays kapalıyken (varsayılan) ardışık yerleşime izin verir", () => {
+    // Aynı senaryo, kısıt olmadan: bayrağın davranışı gerçekten kapattığını
+    // ve mevcut çağıranların etkilenmediğini kanıtlar.
+    const result = placePartnerGroups(
+      DATES,
+      [g("g1", ["T1", "T2"], 2)],
+      allAvailable(["T1", "T2"]),
+      () => 1,
+      {}
+      // avoidConsecutiveDays verilmedi -> varsayılan false
+    );
+    expect(result.placed.g1).toBe(2);
+    const days = DATES.filter((d) => membersOn(result, d).includes("g1"));
+    expect(days).toEqual(["2026-10-01", "2026-10-02"]);
+  });
+
+  it("avoidConsecutiveDays hedefi imkânsız kılarsa hata fırlatmadan eksik bildirir", () => {
+    // Sadece iki, birbirine komşu tarih var. Kısıt açıkken grup ikisini
+    // birden alamaz: biri diğerini komşuluk yüzünden bloke eder. Hedef 2
+    // iken sonuç 1 olmalı, hata fırlatılmamalı.
+    const tightDates = ["2026-10-01", "2026-10-02"];
+    const avail: Record<string, Record<string, AvailabilityStatus>> = {
+      T1: { "2026-10-01": "available", "2026-10-02": "available" },
+      T2: { "2026-10-01": "available", "2026-10-02": "available" },
+    };
+    const result = placePartnerGroups(
+      tightDates,
+      [g("g1", ["T1", "T2"], 2)],
+      avail,
+      () => 1,
+      {},
+      true
+    );
+    expect(result.placed.g1).toBe(1);
+  });
 });

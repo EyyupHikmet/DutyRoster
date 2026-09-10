@@ -133,7 +133,8 @@ export function solve(
       partnerGroups,
       availabilities,
       requiredOn,
-      pinnedAssignments
+      pinnedAssignments,
+      avoidConsecutiveDays
     );
 
     for (const [date, groupIds] of Object.entries(placements)) {

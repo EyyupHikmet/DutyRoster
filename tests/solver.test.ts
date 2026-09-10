@@ -625,6 +625,34 @@ describe("Nöbet grupları (partner groups)", () => {
     }
   });
 
+  it("goalDays 2 iken grubun kendi iki günü de ardışık olmaz", () => {
+    // Test 12/13 için goalDays: 1 yeterliydi, ama tek günlük bir hedef grubun
+    // KENDİ günlerinin birbirine göre ardışık olup olmadığını hiç sınamaz —
+    // sınanacak ikinci bir gün yok. goalDays: 2 ile placePartnerGroups'un
+    // grubu iki AYRI, komşu olmayan takvim gününe yerleştirdiğini doğrudan
+    // doğrular.
+    const config: SolverConfig = {
+      mode: "fairness",
+      teachersPerDay: 1,
+      pinnedAssignments: {},
+      partnerGroups: [{ id: "g1", memberIds: ["T1", "T2"], goalDays: 2 }],
+      avoidConsecutiveDays: true,
+    };
+
+    const result = solve(mockDates, mockTeachers, mockAvailabilities, config);
+
+    expect(result.success).toBe(true);
+    expect(result.unfilledGroups).toEqual([]);
+    const schedule = result.schedule!;
+    const together = mockDates.filter(
+      (d) => schedule[d].includes("T1") && schedule[d].includes("T2")
+    );
+    expect(together).toHaveLength(2);
+    const [first, second] = together;
+    expect(shiftDate(first, 1)).not.toBe(second);
+    expect(shiftDate(second, 1)).not.toBe(first);
+  });
+
   it("grup tanımlı olmayan bir ay eskisiyle birebir aynı sonucu verir", () => {
     const base: SolverConfig = {
       mode: "strict",
