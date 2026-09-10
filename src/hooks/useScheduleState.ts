@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { getSchedule, saveSchedule, DbSchedule } from "../db";
+import { getSchedule, saveSchedule, getAllSchedules, DbSchedule } from "../db";
 import { getDaysInMonth, formatDateYYYYMMDD } from "../utils/dateUtils";
+import { PartnerGroup } from "../solver/partners";
 
 // Snapshot of every field that makes up "this month's draft" for
 // dirty-tracking. Captured once right after loadScheduleData()/a successful save,
@@ -17,6 +18,8 @@ interface ScheduleSnapshot {
   teachersPerDay: number;
   pinnedAssignments: Record<string, string[]>;
   generatedSchedule: Record<string, string[]>;
+  partnerGroups: PartnerGroup[];
+  monthlyTargets: Record<string, number>;
 }
 
 // Order-independent deep canonicalization so toggling a day off and back on
@@ -66,6 +69,13 @@ export function useScheduleState() {
   const [avoidConsecutiveDays, setAvoidConsecutiveDays] = useState<boolean>(false);
   const [teachersPerDay, setTeachersPerDay] = useState<number>(1);
   const [pinnedAssignments, setPinnedAssignments] = useState<Record<string, string[]>>({}); // date -> teacherIds
+  // Teachers who must share duty days this month, and how many days they share.
+  // Month-scoped on purpose: a pairing that makes sense in March may not in April.
+  const [partnerGroups, setPartnerGroups] = useState<PartnerGroup[]>([]);
+  // This month's duty target overrides. A teacher absent from this map keeps
+  // their usual `teachers.target_hours` — resolve it via effectiveTarget(), never
+  // by reading this map directly.
+  const [monthlyTargets, setMonthlyTargets] = useState<Record<string, number>>({});
 
   // Schedule Result
   const [generatedSchedule, setGeneratedSchedule] = useState<Record<string, string[]>>({});
@@ -89,6 +99,8 @@ export function useScheduleState() {
     teachersPerDay,
     pinnedAssignments,
     generatedSchedule,
+    partnerGroups,
+    monthlyTargets,
   });
 
   const loadScheduleData = async (year: number, month: number) => {
@@ -115,6 +127,10 @@ export function useScheduleState() {
         const loadedPinnedAssignments = configObj.pinnedAssignments || {};
         const loadedExtraDays = configObj.extraDays || defaultWeekends;
         const loadedDaySpecificTeachers = configObj.daySpecificTeachers || {};
+        // Months saved before partner groups/monthly targets existed have
+        // neither key; they must keep loading as [] / {}, exactly as before.
+        const loadedPartnerGroups: PartnerGroup[] = configObj.partnerGroups || [];
+        const loadedMonthlyTargets: Record<string, number> = configObj.monthlyTargets || {};
 
         setGeneratedSchedule(loadedSchedule);
         setHolidays(loadedHolidays);
@@ -126,6 +142,8 @@ export function useScheduleState() {
         setPinnedAssignments(loadedPinnedAssignments);
         setExtraDays(loadedExtraDays);
         setDaySpecificTeachers(loadedDaySpecificTeachers);
+        setPartnerGroups(loadedPartnerGroups);
+        setMonthlyTargets(loadedMonthlyTargets);
 
         // Baseline is built from the values just READ, not from the hook's
         // own state variables (those won't reflect the setState calls above
@@ -143,6 +161,8 @@ export function useScheduleState() {
           teachersPerDay: loadedTeachersPerDay,
           pinnedAssignments: loadedPinnedAssignments,
           generatedSchedule: loadedSchedule,
+          partnerGroups: loadedPartnerGroups,
+          monthlyTargets: loadedMonthlyTargets,
         });
 
         return savedSched;
@@ -153,6 +173,8 @@ export function useScheduleState() {
         setPinnedAssignments({});
         setExtraDays(defaultWeekends);
         setDaySpecificTeachers({});
+        setPartnerGroups([]);
+        setMonthlyTargets({});
         // Note: solverMode/teachersPerDay are deliberately NOT reset here —
         // that matches this function's pre-existing behavior (they carry
         // over from whatever month was last active) and is out of this
@@ -171,6 +193,8 @@ export function useScheduleState() {
           teachersPerDay,
           pinnedAssignments: {},
           generatedSchedule: {},
+          partnerGroups: [],
+          monthlyTargets: {},
         });
         return null;
       }
@@ -234,7 +258,9 @@ export function useScheduleState() {
           teachersPerDay: teachersPerDay,
           pinnedAssignments: pinnedAssignments,
           extraDays: extraDays,
-          daySpecificTeachers: daySpecificTeachers
+          daySpecificTeachers: daySpecificTeachers,
+          partnerGroups: partnerGroups,
+          monthlyTargets: monthlyTargets
         })
       };
       await saveSchedule(scheduleToSave);
@@ -254,6 +280,8 @@ export function useScheduleState() {
         teachersPerDay,
         pinnedAssignments,
         generatedSchedule: scheduleResult,
+        partnerGroups,
+        monthlyTargets,
       });
       return true;
     } catch (err) {
@@ -271,6 +299,70 @@ export function useScheduleState() {
   // there is only one place that ever writes the `schedules` table.
   const saveDraftToDb = async () => {
     return saveGeneratedScheduleToDb(generatedSchedule);
+  };
+
+  /** Months that already have partner groups defined, newest first. */
+  const availablePartnerMonths = async (): Promise<{ year: number; month: number }[]> => {
+    try {
+      const rows = await getAllSchedules();
+      return rows
+        .filter((row) => {
+          try {
+            const config = JSON.parse(row.config);
+            return Array.isArray(config.partnerGroups) && config.partnerGroups.length > 0;
+          } catch {
+            return false;
+          }
+        })
+        .map((row) => ({ year: row.year, month: row.month }))
+        .sort((a, b) => b.year - a.year || b.month - a.month);
+    } catch (err) {
+      console.error("Gruplu aylar okunamadı:", err);
+      return [];
+    }
+  };
+
+  /**
+   * Seed this month from another one. Copies are independent: the groups get
+   * fresh ids so the two months can never be confused for each other, and
+   * members who have since left the roster are dropped (a group left with fewer
+   * than 2 members is not copied at all).
+   */
+  const copyPartnersFromMonth = async (
+    year: number,
+    month: number,
+    teacherIds: string[]
+  ): Promise<boolean> => {
+    try {
+      const rows = await getAllSchedules();
+      const source = rows.find((row) => row.year === year && row.month === month);
+      if (!source) return false;
+
+      const config = JSON.parse(source.config);
+      const sourceGroups: PartnerGroup[] = config.partnerGroups || [];
+      const sourceTargets: Record<string, number> = config.monthlyTargets || {};
+
+      const known = new Set(teacherIds);
+      const copied = sourceGroups
+        .map((group) => ({
+          id: crypto.randomUUID(),
+          memberIds: group.memberIds.filter((m) => known.has(m)),
+          goalDays: group.goalDays,
+        }))
+        .filter((group) => group.memberIds.length >= 2);
+
+      const targets: Record<string, number> = {};
+      for (const [teacherId, value] of Object.entries(sourceTargets)) {
+        if (known.has(teacherId)) targets[teacherId] = value;
+      }
+
+      setPartnerGroups(copied);
+      setMonthlyTargets(targets);
+      return true;
+    } catch (err) {
+      console.error("Gruplar kopyalanamadı:", err);
+      return false;
+    }
   };
 
   return {
@@ -298,6 +390,10 @@ export function useScheduleState() {
     setPinnedAssignments,
     generatedSchedule,
     setGeneratedSchedule,
+    partnerGroups,
+    setPartnerGroups,
+    monthlyTargets,
+    setMonthlyTargets,
     solverError,
     setSolverError,
     successMessage,
@@ -308,6 +404,8 @@ export function useScheduleState() {
     handleClearPins,
     saveGeneratedScheduleToDb,
     saveDraftToDb,
+    copyPartnersFromMonth,
+    availablePartnerMonths,
     isDirty
   };
 }

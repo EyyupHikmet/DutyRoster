@@ -6,9 +6,11 @@ import * as db from "../../src/db";
 vi.mock("../../src/db", () => ({
   getSchedule: vi.fn(),
   saveSchedule: vi.fn(),
+  getAllSchedules: vi.fn(),
 }));
 
 const mockedDb = vi.mocked(db);
+const { getSchedule, saveSchedule, getAllSchedules } = mockedDb;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -482,5 +484,164 @@ describe("useScheduleState", () => {
       });
       expect(result.current.isDirty).toBe(false);
     });
+  });
+});
+
+describe("aylık nöbet grupları ve hedefleri", () => {
+  it("kaydedilmiş aydan grupları ve hedefleri yükler", async () => {
+    vi.mocked(getSchedule).mockResolvedValue({
+      id: "s1",
+      year: 2026,
+      month: 10,
+      assignments: "{}",
+      holidays: "[]",
+      weekend_duty_days: "[]",
+      config: JSON.stringify({
+        mode: "fairness",
+        teachersPerDay: 1,
+        pinnedAssignments: {},
+        partnerGroups: [{ id: "g1", memberIds: ["T1", "T2"], goalDays: 2 }],
+        monthlyTargets: { T1: 5 },
+      }),
+    });
+
+    const { result } = renderHook(() => useScheduleState());
+    await act(async () => {
+      await result.current.loadScheduleData(2026, 10);
+    });
+
+    expect(result.current.partnerGroups).toEqual([
+      { id: "g1", memberIds: ["T1", "T2"], goalDays: 2 },
+    ]);
+    expect(result.current.monthlyTargets).toEqual({ T1: 5 });
+  });
+
+  it("bu anahtarları içermeyen eski ayları boş olarak yükler", async () => {
+    vi.mocked(getSchedule).mockResolvedValue({
+      id: "s1",
+      year: 2026,
+      month: 10,
+      assignments: "{}",
+      holidays: "[]",
+      weekend_duty_days: "[]",
+      config: JSON.stringify({ mode: "fairness", teachersPerDay: 1, pinnedAssignments: {} }),
+    });
+
+    const { result } = renderHook(() => useScheduleState());
+    await act(async () => {
+      await result.current.loadScheduleData(2026, 10);
+    });
+
+    expect(result.current.partnerGroups).toEqual([]);
+    expect(result.current.monthlyTargets).toEqual({});
+  });
+
+  it("grup eklemek ayı değişmiş sayar", async () => {
+    vi.mocked(getSchedule).mockResolvedValue(null);
+    const { result } = renderHook(() => useScheduleState());
+    await act(async () => {
+      await result.current.loadScheduleData(2026, 10);
+    });
+    expect(result.current.isDirty).toBe(false);
+
+    act(() => {
+      result.current.setPartnerGroups([{ id: "g1", memberIds: ["T1", "T2"], goalDays: 1 }]);
+    });
+    expect(result.current.isDirty).toBe(true);
+  });
+
+  it("aylık hedef değiştirmek ayı değişmiş sayar", async () => {
+    vi.mocked(getSchedule).mockResolvedValue(null);
+    const { result } = renderHook(() => useScheduleState());
+    await act(async () => {
+      await result.current.loadScheduleData(2026, 10);
+    });
+
+    act(() => {
+      result.current.setMonthlyTargets({ T1: 3 });
+    });
+    expect(result.current.isDirty).toBe(true);
+  });
+
+  it("grupları ve hedefleri ay kaydına yazar", async () => {
+    vi.mocked(getSchedule).mockResolvedValue(null);
+    const { result } = renderHook(() => useScheduleState());
+    await act(async () => {
+      await result.current.loadScheduleData(2026, 10);
+    });
+
+    act(() => {
+      result.current.setPartnerGroups([{ id: "g1", memberIds: ["T1", "T2"], goalDays: 1 }]);
+      result.current.setMonthlyTargets({ T1: 3 });
+    });
+    await act(async () => {
+      await result.current.saveDraftToDb();
+    });
+
+    const saved = vi.mocked(saveSchedule).mock.calls.at(-1)![0];
+    const config = JSON.parse(saved.config);
+    expect(config.partnerGroups).toEqual([{ id: "g1", memberIds: ["T1", "T2"], goalDays: 1 }]);
+    expect(config.monthlyTargets).toEqual({ T1: 3 });
+  });
+
+  it("başka bir aydan grupları yeni kimliklerle kopyalar", async () => {
+    vi.mocked(getSchedule).mockResolvedValue(null);
+    vi.mocked(getAllSchedules).mockResolvedValue([
+      {
+        id: "s1",
+        year: 2026,
+        month: 9,
+        assignments: "{}",
+        holidays: "[]",
+        weekend_duty_days: "[]",
+        config: JSON.stringify({
+          partnerGroups: [{ id: "old", memberIds: ["T1", "T2"], goalDays: 2 }],
+          monthlyTargets: { T1: 5 },
+        }),
+      },
+    ]);
+
+    const { result } = renderHook(() => useScheduleState());
+    await act(async () => {
+      await result.current.loadScheduleData(2026, 10);
+      await result.current.copyPartnersFromMonth(2026, 9, ["T1", "T2"]);
+    });
+
+    expect(result.current.partnerGroups).toHaveLength(1);
+    expect(result.current.partnerGroups[0].memberIds).toEqual(["T1", "T2"]);
+    expect(result.current.partnerGroups[0].goalDays).toBe(2);
+    expect(result.current.partnerGroups[0].id).not.toBe("old");
+    expect(result.current.monthlyTargets).toEqual({ T1: 5 });
+  });
+
+  it("kopyalarken kadroda olmayan üyeleri atar ve tek üye kalan grubu almaz", async () => {
+    vi.mocked(getSchedule).mockResolvedValue(null);
+    vi.mocked(getAllSchedules).mockResolvedValue([
+      {
+        id: "s1",
+        year: 2026,
+        month: 9,
+        assignments: "{}",
+        holidays: "[]",
+        weekend_duty_days: "[]",
+        config: JSON.stringify({
+          partnerGroups: [
+            { id: "old1", memberIds: ["T1", "TX"], goalDays: 2 },
+            { id: "old2", memberIds: ["T1", "T2", "TX"], goalDays: 1 },
+          ],
+          monthlyTargets: { T1: 5, TX: 9 },
+        }),
+      },
+    ]);
+
+    const { result } = renderHook(() => useScheduleState());
+    await act(async () => {
+      await result.current.loadScheduleData(2026, 10);
+      await result.current.copyPartnersFromMonth(2026, 9, ["T1", "T2"]);
+    });
+
+    expect(result.current.partnerGroups).toHaveLength(1);
+    expect(result.current.partnerGroups[0].memberIds).toEqual(["T1", "T2"]);
+    expect(result.current.monthlyTargets).toEqual({ T1: 5 });
   });
 });
