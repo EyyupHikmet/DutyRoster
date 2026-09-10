@@ -55,6 +55,7 @@ export function creditPartnerGroups(
     const creditedToday: PartnerGroup[] = [];
 
     for (const group of ordered) {
+      if (group.memberIds.length === 0) continue;
       const allPresent = group.memberIds.every((m) => present.has(m));
       if (!allPresent) continue;
       if (creditedToday.some((other) => groupsOverlap(group, other))) continue;
