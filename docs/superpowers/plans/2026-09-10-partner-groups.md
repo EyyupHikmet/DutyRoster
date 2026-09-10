@@ -733,7 +733,13 @@ Expected: FAIL — `placePartnerGroups` is not exported.
 
 - [ ] **Step 3: Write the implementation**
 
-Append to `src/solver/partners.ts` (and add the import at the top of the file: `import { AvailabilityStatus } from "./index";` — this is a type-only cycle back to `index.ts`, which TypeScript erases at compile time, matching how the solver already shares types):
+Append to `src/solver/partners.ts`. Add this import at the top of the file:
+
+```ts
+import type { AvailabilityStatus } from "./index";
+```
+
+**`import type`, not a plain import, is required here.** `index.ts` imports `placePartnerGroups` from this file as a value, so a plain import would close a genuine runtime cycle between the two modules. `import type` is erased at compile time, leaving the cycle type-only and harmless.
 
 ```ts
 export interface PlacementResult {
@@ -1751,8 +1757,8 @@ describe("PartnerGroups", () => {
     const user = userEvent.setup();
     const { onChangeGroups } = renderCard();
 
-    await user.click(screen.getByRole("checkbox", { name: "Ali" }));
-    await user.click(screen.getByRole("checkbox", { name: "Can" }));
+    await user.click(screen.getByRole("checkbox", { name: /Ali/ }));
+    await user.click(screen.getByRole("checkbox", { name: /Can/ }));
     const goal = screen.getByLabelText(/Ortak nöbet günü/i);
     await user.clear(goal);
     await user.type(goal, "2");
@@ -1769,7 +1775,7 @@ describe("PartnerGroups", () => {
     const user = userEvent.setup();
     const { onChangeGroups } = renderCard();
 
-    await user.click(screen.getByRole("checkbox", { name: "Ali" }));
+    await user.click(screen.getByRole("checkbox", { name: /Ali/ }));
     await user.click(screen.getByRole("button", { name: /Grubu Kaydet/i }));
 
     expect(onChangeGroups).not.toHaveBeenCalled();
@@ -1781,8 +1787,8 @@ describe("PartnerGroups", () => {
     // Ayşe'nin hedefi 2; 3 günlük bir grup fazla.
     const { onChangeGroups } = renderCard();
 
-    await user.click(screen.getByRole("checkbox", { name: "Ali" }));
-    await user.click(screen.getByRole("checkbox", { name: "Ayşe" }));
+    await user.click(screen.getByRole("checkbox", { name: /Ali/ }));
+    await user.click(screen.getByRole("checkbox", { name: /Ayşe/ }));
     const goal = screen.getByLabelText(/Ortak nöbet günü/i);
     await user.clear(goal);
     await user.type(goal, "3");
@@ -2110,6 +2116,7 @@ git commit -m "feat(roster): add the partner groups card"
 - Modify: `src/hooks/useTeachers.ts`
 - Modify: `src/components/TeacherForm.tsx`
 - Modify: `src/components/TeacherList.tsx`
+- Modify: `src/App.tsx` — **call sites only.** Changing `handleSaveTeacherSubmit`'s and `handleEditTeacherClick`'s signatures breaks `App.tsx` the moment this task lands, and Task 10 is too late to fix it. Update the two call sites here so the tree type-checks at this task boundary; Task 10 does the rest of the wiring.
 - Test: `tests/hooks/useTeachers.test.ts`, `tests/components/TeacherForm.test.tsx`, `tests/components/TeacherList.test.tsx`
 
 **Interfaces:**
@@ -2313,15 +2320,33 @@ Rewrite `handleSaveTeacherSubmit` to take the context and enforce the rule:
 
 `src/components/TeacherList.tsx`: add `monthlyTargets` and `partnerGroups` props. Replace `Hedef: {t.target_hours} Nöbet` with `Hedef: {effectiveTarget(t, monthlyTargets)} Nöbet`. When the teacher's summed group goals equal their effective target, append a marker span with `title="Bu ayki nöbetlerinin tamamı gruplara ayrılmış"` (and matching visible text, so it is not title-only).
 
+`src/App.tsx` — the minimum to keep the tree compiling. Add, next to the other `useScheduleState` destructuring:
+
+```ts
+  const saveTeacherContext = {
+    partnerGroups,
+    monthlyTargets,
+    applyMonthlyTarget: (teacherId: string, target: number) =>
+      setMonthlyTargets((prev) => ({ ...prev, [teacherId]: target })),
+  };
+```
+
+(pulling `partnerGroups`, `monthlyTargets` and `setMonthlyTargets` out of `useScheduleState`, which Task 7 already added), and pass it at the `handleSaveTeacherSubmit` call site. Pass `monthlyTargets` as the second argument at the `handleEditTeacherClick` call site. Nothing else in `App.tsx` changes here — Task 10 does the rest.
+
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `npx vitest run tests/hooks/useTeachers.test.ts tests/components/TeacherForm.test.tsx tests/components/TeacherList.test.tsx`
 Expected: PASS, including every pre-existing test in those files. Pre-existing tests that call `handleSaveTeacherSubmit` need the new context argument — update those call sites rather than restoring the old signature.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Type-check the whole tree**
+
+Run: `npx tsc --noEmit`
+Expected: no errors. This is what catches a missed `App.tsx` call site.
+
+- [ ] **Step 6: Commit**
 
 ```bash
-git add src/hooks/useTeachers.ts src/components/TeacherForm.tsx src/components/TeacherList.tsx tests/hooks/useTeachers.test.ts tests/components/TeacherForm.test.tsx tests/components/TeacherList.test.tsx
+git add src/hooks/useTeachers.ts src/components/TeacherForm.tsx src/components/TeacherList.tsx src/App.tsx tests/hooks/useTeachers.test.ts tests/components/TeacherForm.test.tsx tests/components/TeacherList.test.tsx
 git commit -m "feat(roster): edit and display duty targets per month"
 ```
 
