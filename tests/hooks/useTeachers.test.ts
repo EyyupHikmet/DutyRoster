@@ -50,6 +50,14 @@ describe("useTeachers", () => {
     expect(result.current.teachers).toEqual([]);
   });
 
+  // Minimal context for tests that only care about the save happening at
+  // all, not about monthly-target enforcement (covered separately below).
+  const emptyCtx = () => ({
+    partnerGroups: [],
+    monthlyTargets: {},
+    applyMonthlyTarget: vi.fn(),
+  });
+
   it("handleSaveTeacherSubmit() rejects an empty/whitespace name without calling saveTeacher", async () => {
     const { result } = renderHook(() => useTeachers());
     act(() => {
@@ -58,7 +66,7 @@ describe("useTeachers", () => {
 
     let submitResult: boolean | undefined;
     await act(async () => {
-      submitResult = await result.current.handleSaveTeacherSubmit();
+      submitResult = await result.current.handleSaveTeacherSubmit(undefined, emptyCtx());
     });
 
     expect(submitResult).toBe(false);
@@ -79,7 +87,7 @@ describe("useTeachers", () => {
     });
 
     await act(async () => {
-      await result.current.handleSaveTeacherSubmit();
+      await result.current.handleSaveTeacherSubmit(undefined, emptyCtx());
     });
 
     expect(mockedDb.saveTeacher).toHaveBeenCalledWith({
@@ -111,7 +119,7 @@ describe("useTeachers", () => {
     });
 
     await act(async () => {
-      await result.current.handleSaveTeacherSubmit();
+      await result.current.handleSaveTeacherSubmit(undefined, emptyCtx());
     });
 
     expect(mockedDb.saveTeacher).toHaveBeenCalledWith(
@@ -153,5 +161,65 @@ describe("useTeachers", () => {
 
     expect(mockedDb.deleteTeacher).toHaveBeenCalledWith("T1");
     await waitFor(() => expect(result.current.selectedTeacherId).toBe("T2"));
+  });
+});
+
+describe("aylık nöbet hedefi", () => {
+  // Note: adapted from the task brief to this file's existing mocking
+  // convention (mockedDb.getTeachers rather than a standalone vi.mocked
+  // import), since this file mocks the whole db module via `vi.mock`.
+  const ctx = (overrides = {}) => ({
+    partnerGroups: [{ id: "g1", memberIds: ["T1", "T2"], goalDays: 3 }],
+    monthlyTargets: {},
+    applyMonthlyTarget: vi.fn(),
+    ...overrides,
+  });
+
+  it("kaydederken hedefi bu aya yazar", async () => {
+    mockedDb.getTeachers.mockResolvedValue([
+      { id: "T1", name: "Ali", target_hours: 4, priority: 1 },
+    ]);
+    const { result } = renderHook(() => useTeachers());
+    await act(async () => {
+      await result.current.loadTeachers();
+    });
+
+    act(() => {
+      result.current.handleEditTeacherClick({ id: "T1", name: "Ali", target_hours: 4, priority: 1 });
+      result.current.setTeacherTarget(5);
+    });
+
+    const context = ctx();
+    await act(async () => {
+      await result.current.handleSaveTeacherSubmit(undefined, context);
+    });
+
+    expect(context.applyMonthlyTarget).toHaveBeenCalledWith("T1", 5);
+  });
+
+  it("grup taahhüdünün altına inen hedefi reddeder", async () => {
+    mockedDb.getTeachers.mockResolvedValue([
+      { id: "T1", name: "Ali", target_hours: 4, priority: 1 },
+      { id: "T2", name: "Ayşe", target_hours: 4, priority: 1 },
+    ]);
+    const { result } = renderHook(() => useTeachers());
+    await act(async () => {
+      await result.current.loadTeachers();
+    });
+
+    act(() => {
+      result.current.handleEditTeacherClick({ id: "T1", name: "Ali", target_hours: 4, priority: 1 });
+      result.current.setTeacherTarget(2); // g1 3 gün istiyor
+    });
+
+    const context = ctx();
+    let saved: boolean | undefined;
+    await act(async () => {
+      saved = await result.current.handleSaveTeacherSubmit(undefined, context);
+    });
+
+    expect(saved).toBe(false);
+    expect(context.applyMonthlyTarget).not.toHaveBeenCalled();
+    expect(result.current.teacherError).toMatch(/Ali/);
   });
 });

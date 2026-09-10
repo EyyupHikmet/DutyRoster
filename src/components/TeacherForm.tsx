@@ -11,6 +11,16 @@ interface TeacherFormProps {
   setTeacherPriority: (v: number) => void;
   onSubmit: (e: React.FormEvent) => void;
   onCancel: () => void;
+  /**
+   * Which month's target this form edits, for the label and the "differs
+   * from usual" note below. Optional (defaulting below) so a caller that
+   * hasn't wired month context yet — Step1Roster.tsx, until Task 10 plumbs
+   * it through — still compiles.
+   */
+  monthLabel?: string;
+  /** The teacher's usual (teachers.target_hours) target, or null when unknown
+   * (e.g. a brand-new teacher, or the caller hasn't wired it yet). */
+  usualTarget?: number | null;
 }
 
 export const TeacherForm: React.FC<TeacherFormProps> = ({
@@ -22,7 +32,9 @@ export const TeacherForm: React.FC<TeacherFormProps> = ({
   teacherPriority,
   setTeacherPriority,
   onSubmit,
-  onCancel
+  onCancel,
+  monthLabel = "bu ay",
+  usualTarget = null
 }) => {
   return (
     <div className="card" style={{ marginBottom: "20px" }}>
@@ -47,7 +59,7 @@ export const TeacherForm: React.FC<TeacherFormProps> = ({
         <div className="grid-2col" style={{ gap: "16px", marginBottom: "16px" }}>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label htmlFor="teacher-target-input">
-              Aylık Nöbet Hedefi
+              {`Aylık Nöbet Hedefi (${monthLabel})`}
               <span className="tooltip-container" style={{ marginLeft: "4px" }}>
                 <span className="tooltip-icon" aria-hidden="true">i</span>
                 <div className="tooltip-content">
@@ -65,6 +77,11 @@ export const TeacherForm: React.FC<TeacherFormProps> = ({
               onChange={(e) => setTeacherTarget(Number(e.target.value))}
               required
             />
+            {usualTarget !== null && usualTarget !== teacherTarget && (
+              <p style={{ margin: "6px 0 0 0", fontSize: "0.8rem", color: "var(--slate-500)" }}>
+                {`Bu öğretmenin genel hedefi ${usualTarget}. Girdiğiniz değer yalnızca ${monthLabel} için geçerlidir.`}
+              </p>
+            )}
           </div>
 
           <div className="form-group" style={{ marginBottom: 0 }}>

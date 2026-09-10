@@ -15,6 +15,8 @@ function setup(overrides: Partial<React.ComponentProps<typeof TeacherForm>> = {}
     setTeacherPriority: vi.fn(),
     onSubmit: vi.fn((e: React.FormEvent) => e.preventDefault()),
     onCancel: vi.fn(),
+    monthLabel: "Ekim 2026",
+    usualTarget: null as number | null,
     ...overrides,
   };
   render(<TeacherForm {...props} />);
@@ -57,5 +59,15 @@ describe("TeacherForm", () => {
     const props = setup({ editingTeacherId: "T1" });
     await user.click(screen.getByRole("button", { name: "İptal" }));
     expect(props.onCancel).toHaveBeenCalled();
+  });
+
+  it("hedef alanının hangi aya ait olduğunu belirtir", () => {
+    setup({ monthLabel: "Ekim 2026", usualTarget: 4 });
+    expect(screen.getByText(/Ekim 2026/)).toBeInTheDocument();
+  });
+
+  it("aylık hedef genel hedeften farklıysa bunu belirtir", () => {
+    setup({ monthLabel: "Ekim 2026", usualTarget: 4, teacherTarget: 6 });
+    expect(screen.getByText(/genel hedefi 4/i)).toBeInTheDocument();
   });
 });

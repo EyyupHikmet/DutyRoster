@@ -1,5 +1,13 @@
 import { useState } from "react";
 import { getTeachers, saveTeacher, deleteTeacher, DbTeacher } from "../db";
+import { effectiveTarget } from "../utils/targets";
+import { PartnerGroup } from "../solver/partners";
+
+export interface SaveTeacherContext {
+  partnerGroups: PartnerGroup[];
+  monthlyTargets: Record<string, number>;
+  applyMonthlyTarget: (teacherId: string, target: number) => void;
+}
 
 export function useTeachers() {
   const [teachers, setTeachers] = useState<DbTeacher[]>([]);
@@ -8,6 +16,7 @@ export function useTeachers() {
   const [teacherName, setTeacherName] = useState<string>("");
   const [teacherTarget, setTeacherTarget] = useState<number>(1);
   const [teacherPriority, setTeacherPriority] = useState<number>(1); // 1: Standart, 2: Orta, 3: Yüksek
+  const [teacherError, setTeacherError] = useState<string | null>(null);
 
   const loadTeachers = async () => {
     try {
@@ -23,21 +32,49 @@ export function useTeachers() {
     }
   };
 
-  const handleSaveTeacherSubmit = async (e?: React.FormEvent) => {
+  const handleSaveTeacherSubmit = async (
+    e: React.FormEvent | undefined,
+    ctx: SaveTeacherContext
+  ) => {
     if (e) e.preventDefault();
+    setTeacherError(null);
     if (!teacherName.trim()) return false;
 
+    const id = editingTeacherId || crypto.randomUUID();
+    const target = Number(teacherTarget);
+
+    // The month's target is a ceiling on what this teacher has already been
+    // committed to in groups. Lowering it below that would leave the month
+    // over-committed the moment it is saved, which is exactly what creating
+    // such a group is refused for — so refuse it here too, symmetrically.
+    const committed = ctx.partnerGroups
+      .filter((group) => group.memberIds.includes(id))
+      .reduce((sum, group) => sum + group.goalDays, 0);
+
+    if (committed > target) {
+      setTeacherError(
+        `${teacherName.trim()}: bu ay gruplarda toplam ${committed} ortak nöbet günü tanımlı, hedefi ${target} yapamazsınız. Önce grupların gün sayısını azaltın.`
+      );
+      return false;
+    }
+
     const newTeacher: DbTeacher = {
-      id: editingTeacherId || crypto.randomUUID(),
+      id,
       name: teacherName.trim(),
-      target_hours: Number(teacherTarget),
+      // The teachers table keeps the teacher's USUAL target. A brand new teacher
+      // adopts what was typed; an existing one keeps theirs, because the field
+      // on this screen edits the selected month, not the general default.
+      target_hours: editingTeacherId
+        ? teachers.find((t) => t.id === id)?.target_hours ?? target
+        : target,
       priority: Number(teacherPriority)
     };
 
     try {
       await saveTeacher(newTeacher);
+      ctx.applyMonthlyTarget(id, target);
       await loadTeachers();
-      
+
       if (!selectedTeacherId) {
         setSelectedTeacherId(newTeacher.id);
       }
@@ -50,14 +87,15 @@ export function useTeachers() {
       return true;
     } catch (err) {
       console.error("Öğretmen kaydedilemedi:", err);
+      setTeacherError("Öğretmen kaydedilemedi. Lütfen tekrar deneyin.");
       return false;
     }
   };
 
-  const handleEditTeacherClick = (t: DbTeacher) => {
+  const handleEditTeacherClick = (t: DbTeacher, monthlyTargets: Record<string, number> = {}) => {
     setEditingTeacherId(t.id);
     setTeacherName(t.name);
-    setTeacherTarget(t.target_hours);
+    setTeacherTarget(effectiveTarget(t, monthlyTargets));
     setTeacherPriority(t.priority);
   };
 
@@ -89,6 +127,7 @@ export function useTeachers() {
     setTeacherTarget,
     teacherPriority,
     setTeacherPriority,
+    teacherError,
     loadTeachers,
     handleSaveTeacherSubmit,
     handleEditTeacherClick,

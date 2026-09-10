@@ -1,5 +1,7 @@
 import React from "react";
 import { DbTeacher } from "../db";
+import { PartnerGroup } from "../solver/partners";
+import { effectiveTarget } from "../utils/targets";
 
 interface TeacherListProps {
   teachers: DbTeacher[];
@@ -7,6 +9,15 @@ interface TeacherListProps {
   onSelectTeacher: (id: string) => void;
   onEditTeacher: (t: DbTeacher) => void;
   onDeleteTeacher: (id: string) => void;
+  /**
+   * This month's target overrides, and the groups the roster is committed to
+   * this month. Optional (defaulting below) so a caller that hasn't wired
+   * month context yet — Step1Roster.tsx, until Task 10 plumbs it through —
+   * still compiles; it falls back to each teacher's usual target and shows
+   * no group marker.
+   */
+  monthlyTargets?: Record<string, number>;
+  partnerGroups?: PartnerGroup[];
 }
 
 export const TeacherList: React.FC<TeacherListProps> = ({
@@ -14,7 +25,9 @@ export const TeacherList: React.FC<TeacherListProps> = ({
   selectedTeacherId,
   onSelectTeacher,
   onEditTeacher,
-  onDeleteTeacher
+  onDeleteTeacher,
+  monthlyTargets = {},
+  partnerGroups = []
 }) => {
   return (
     <div className="fill-column">
@@ -36,7 +49,16 @@ export const TeacherList: React.FC<TeacherListProps> = ({
             backgroundColor: "var(--bg-content)"
           }}
         >
-          {teachers.map((t) => (
+          {teachers.map((t) => {
+            const target = effectiveTarget(t, monthlyTargets);
+            const committed = partnerGroups
+              .filter((group) => group.memberIds.includes(t.id))
+              .reduce((sum, group) => sum + group.goalDays, 0);
+            // Only mark a teacher whose groups actually account for the whole
+            // month's target — a 0/0 teacher (no target, no groups) isn't
+            // "fully committed" to anything.
+            const fullyCommittedToGroups = committed > 0 && committed === target;
+            return (
             <div
               key={t.id}
               className={`teacher-item ${selectedTeacherId === t.id ? 'selected' : ''}`}
@@ -73,8 +95,21 @@ export const TeacherList: React.FC<TeacherListProps> = ({
                 <div className="teacher-info">
                   <h4>{t.name}</h4>
                   <p>
-                    Hedef: {t.target_hours} Nöbet | Kıdem:{" "}
+                    Hedef: {target} Nöbet | Kıdem:{" "}
                     {t.priority === 3 ? "Yüksek" : t.priority === 2 ? "Orta" : "Standart"}
+                    {fullyCommittedToGroups && (
+                      // A plain, non-interactive <span>: it must not become
+                      // another focusable/clickable control nested inside the
+                      // row's own button (see the comment above about WCAG
+                      // 4.1.2), and it carries its own visible text rather
+                      // than relying on the title tooltip alone.
+                      <span
+                        title="Bu ayki nöbetlerinin tamamı gruplara ayrılmış"
+                        style={{ marginLeft: "6px", fontSize: "0.8rem", color: "var(--primary)" }}
+                      >
+                        {" "}| Tümü gruplara ayrılmış
+                      </span>
+                    )}
                   </p>
                 </div>
               </button>
@@ -98,7 +133,8 @@ export const TeacherList: React.FC<TeacherListProps> = ({
                 </button>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

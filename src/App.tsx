@@ -293,8 +293,22 @@ export default function App() {
     handleClearPins,
     saveGeneratedScheduleToDb,
     saveDraftToDb,
-    isDirty
+    isDirty,
+    partnerGroups,
+    monthlyTargets,
+    setMonthlyTargets
   } = useScheduleState();
+
+  // Context Task 9's handleSaveTeacherSubmit needs to enforce the monthly
+  // target-vs-group-commitment rule; wrapped into the Step1Roster call site
+  // below rather than changing Step1Roster's own (still single-argument)
+  // prop type, which is Task 10's wiring to do.
+  const saveTeacherContext = {
+    partnerGroups,
+    monthlyTargets,
+    applyMonthlyTarget: (teacherId: string, target: number) =>
+      setMonthlyTargets((prev) => ({ ...prev, [teacherId]: target })),
+  };
 
   // Intercept the year/month selectors (shared by Step1's
   // availability calendar and Step2's active-days calendar) when the month
@@ -785,8 +799,8 @@ export default function App() {
             setTeacherTarget={setTeacherTarget}
             teacherPriority={teacherPriority}
             setTeacherPriority={setTeacherPriority}
-            handleSaveTeacher={handleSaveTeacherSubmit}
-            handleEditTeacherClick={handleEditTeacherClick}
+            handleSaveTeacher={(e) => handleSaveTeacherSubmit(e, saveTeacherContext)}
+            handleEditTeacherClick={(t) => handleEditTeacherClick(t, monthlyTargets)}
             handleDeleteTeacher={handleDeleteTeacherClick}
             handleFileImport={handleFileImport}
             selectedYear={selectedYear}
