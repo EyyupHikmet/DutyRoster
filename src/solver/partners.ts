@@ -1,3 +1,5 @@
+import type { AvailabilityStatus } from "./index";
+
 /**
  * A set of teachers who serve duty together, and how many days this month they
  * are meant to do so. Groups are per-month: they live in that month's
@@ -65,4 +67,162 @@ export function creditPartnerGroups(
   }
 
   return credit;
+}
+
+export interface PlacementResult {
+  /** date -> ids of the groups deliberately placed on that date. */
+  placements: Record<string, string[]>;
+  /** groupId -> days secured, counting days already pinned with the full group. */
+  placed: Record<string, number>;
+}
+
+/**
+ * Decide which duty days host which groups. Runs BEFORE the main backtracking
+ * search; its output is written into the assignments map the same way pinned
+ * assignments are, which is what lets the rest of the pipeline stay unchanged.
+ *
+ * A day's headcount is max(requiredOn(date), largest group placed there), and
+ * the distinct teachers on the day may not exceed it. So one group of 3 expands
+ * a 1-teacher day, a group of 2 on a 3-teacher day leaves a slot for the
+ * ordinary search, and two groups of 2 fit a 4-teacher day but not a 3.
+ *
+ * Groups are tried most-constrained-first — fewest feasible days relative to
+ * what they still need — so a group with two possible days doesn't lose them to
+ * a group that had ten options. When a group runs out of feasible days it is
+ * simply left short: a partial answer plus a reported shortfall is far more use
+ * to a principal than no answer at all, which is the same trade `respectTargets`
+ * and `avoidConsecutiveDays` already make in the main search.
+ *
+ * Pure: no React, no database, no I/O.
+ */
+export function placePartnerGroups(
+  dates: string[],
+  groups: PartnerGroup[],
+  availabilities: Record<string, Record<string, AvailabilityStatus>>,
+  requiredOn: (date: string) => number,
+  pinnedAssignments: Record<string, string[]>
+): PlacementResult {
+  const placements: Record<string, string[]> = {};
+  const placed: Record<string, number> = {};
+  if (groups.length === 0) return { placements, placed };
+
+  const byId = new Map(groups.map((gr) => [gr.id, gr]));
+
+  // Days the principal already pinned with a group's full membership count
+  // toward that group before anything is placed — they made that choice by hand.
+  const pinnedOnDutyDays: Record<string, string[]> = {};
+  for (const date of dates) {
+    if (pinnedAssignments[date]) pinnedOnDutyDays[date] = pinnedAssignments[date];
+  }
+  const preCredited = creditPartnerGroups(pinnedOnDutyDays, groups);
+
+  // Days consumed by a pin-credited group are off limits to groups sharing a
+  // member with it, exactly as if the group had been placed there.
+  const reservedByPins: Record<string, string[]> = {};
+  for (const [date, assigned] of Object.entries(pinnedOnDutyDays)) {
+    const present = new Set(assigned);
+    const here: string[] = [];
+    const ordered = [...groups].sort(
+      (a, b) => b.memberIds.length - a.memberIds.length || a.id.localeCompare(b.id)
+    );
+    for (const group of ordered) {
+      if (!group.memberIds.every((m) => present.has(m))) continue;
+      if (here.some((id) => groupsOverlap(group, byId.get(id)!))) continue;
+      here.push(group.id);
+    }
+    if (here.length > 0) reservedByPins[date] = here;
+  }
+
+  const remaining = new Map<string, number>();
+  for (const group of groups) {
+    placed[group.id] = preCredited[group.id] ?? 0;
+    remaining.set(group.id, Math.max(0, group.goalDays - placed[group.id]));
+  }
+
+  // Live state, mutated as groups are placed.
+  const groupsOnDay: Record<string, string[]> = {};
+  for (const [date, ids] of Object.entries(reservedByPins)) {
+    groupsOnDay[date] = [...ids];
+  }
+
+  const teachersOnDay = (date: string): Set<string> => {
+    const present = new Set(pinnedAssignments[date] ?? []);
+    for (const id of groupsOnDay[date] ?? []) {
+      for (const m of byId.get(id)!.memberIds) present.add(m);
+    }
+    return present;
+  };
+
+  const canPlace = (group: PartnerGroup, date: string): boolean => {
+    if ((groupsOnDay[date] ?? []).includes(group.id)) return false;
+
+    for (const memberId of group.memberIds) {
+      if (availabilities[memberId]?.[date] === "unavailable") return false;
+    }
+
+    for (const otherId of groupsOnDay[date] ?? []) {
+      if (groupsOverlap(group, byId.get(otherId)!)) return false;
+    }
+
+    const present = teachersOnDay(date);
+    for (const m of group.memberIds) present.add(m);
+
+    let largestGroup = group.memberIds.length;
+    for (const otherId of groupsOnDay[date] ?? []) {
+      largestGroup = Math.max(largestGroup, byId.get(otherId)!.memberIds.length);
+    }
+
+    return present.size <= Math.max(requiredOn(date), largestGroup);
+  };
+
+  const feasibleDays = (group: PartnerGroup): string[] =>
+    dates.filter((d) => canPlace(group, d));
+
+  // One (group, day) placement at a time. The most constrained group goes
+  // first; within it, the least contested day goes first, so a day that only
+  // one group can use isn't spent by a group with alternatives.
+  for (;;) {
+    let bestGroup: PartnerGroup | null = null;
+    let bestDays: string[] = [];
+    let bestSlack = Infinity;
+
+    for (const group of groups) {
+      const need = remaining.get(group.id)!;
+      if (need <= 0) continue;
+      const days = feasibleDays(group);
+      const slack = days.length - need;
+      // On a slack tie, prefer the group with fewer absolute feasible days:
+      // otherwise a flexible group (many feasible days, large need) keeps
+      // winning ties by array order and can spend down the one day a truly
+      // cornered group (few feasible days, small need) depends on.
+      if (slack < bestSlack || (slack === bestSlack && days.length < bestDays.length)) {
+        bestSlack = slack;
+        bestGroup = group;
+        bestDays = days;
+      }
+    }
+
+    if (!bestGroup) break;
+
+    if (bestDays.length === 0) {
+      // Nothing left for this group; leave it short and move on to the others.
+      remaining.set(bestGroup.id, 0);
+      continue;
+    }
+
+    const contention = (date: string): number =>
+      groups.filter((other) => (remaining.get(other.id) ?? 0) > 0 && canPlace(other, date))
+        .length;
+
+    const chosen = [...bestDays].sort(
+      (a, b) => contention(a) - contention(b) || a.localeCompare(b)
+    )[0];
+
+    groupsOnDay[chosen] = [...(groupsOnDay[chosen] ?? []), bestGroup.id];
+    placements[chosen] = [...(placements[chosen] ?? []), bestGroup.id];
+    placed[bestGroup.id]++;
+    remaining.set(bestGroup.id, remaining.get(bestGroup.id)! - 1);
+  }
+
+  return { placements, placed };
 }
