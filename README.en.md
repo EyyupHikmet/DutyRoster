@@ -78,22 +78,29 @@ recognise the publisher. It is not a virus warning, and it does not mean
 anything was found in the file — an unsigned installer from a small project
 gets this message whatever it contains.
 
-### "DutyRoster is damaged and can't be opened" (macOS)
+### "Apple could not verify ... is free of malware" (macOS)
 
-macOS shows some version of this because the app isn't notarized by Apple.
-Despite the alarming wording, nothing is actually wrong with the file — this
-is macOS refusing to run an unsigned app downloaded from the internet.
+macOS shows this, or the similar *"DutyRoster is damaged and can't be
+opened"*, because the app isn't notarized by Apple. Despite the alarming
+wording, nothing is actually wrong with the file — this is macOS refusing to
+run an unsigned app downloaded from the internet, and every unnotarized app
+gets some version of this message. Right-click → Open does not offer a bypass
+here, since that shortcut only helps for apps that are signed but not
+notarized, not fully unsigned ones like this build. Two ways past it instead:
 
-**To fix it, once, from Terminal:**
+**Terminal, once:**
 
 ```bash
 xattr -cr /Applications/DutyRoster.app
 ```
 
-Then open the app normally. If you instead see the milder *"Apple could not
-verify..."* dialog, right-click (or Control-click) the app and choose
-**Open**, then confirm **Open** again in the dialog — no Terminal needed in
-that case.
+Then open the app normally.
+
+**Or via System Settings**, no Terminal needed: System Settings → Privacy &
+Security → scroll to the Security section → you'll see *"'DutyRoster.app' was
+blocked to protect your Mac"* with an **Open Anyway** button. Click it,
+authenticate, then open the app again and confirm **Open** in the follow-up
+dialog.
 
 ### Verifying a download
 

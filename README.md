@@ -83,23 +83,30 @@ Windows yayıncıyı tanımıyor. Bu bir virüs uyarısı değildir ve dosyada b
 bulunduğu anlamına gelmez — imzalanmamış her küçük proje, içeriği ne olursa
 olsun bu mesajı alır.
 
-### "DutyRoster dosyası bozuk, açılamıyor" uyarısı (macOS)
+### "Apple, kötü amaçlı yazılım içermediğini doğrulayamadı" uyarısı (macOS)
 
-macOS bu uyarıyı (veya benzer bir metnini) gösterir, çünkü uygulama Apple
-tarafından notarize edilmemiştir. Mesaj endişe verici görünse de dosyada
-gerçekten bir sorun yoktur — macOS, internetten indirilen imzasız bir
-uygulamayı çalıştırmayı reddediyor, hepsi bu.
+macOS bu uyarıyı, ya da benzer biçimde *"DutyRoster dosyası bozuk, açılamıyor"*
+mesajını gösterir; çünkü uygulama Apple tarafından notarize edilmemiştir.
+Mesaj endişe verici görünse de dosyada gerçekten bir sorun yoktur — macOS,
+internetten indirilen imzasız bir uygulamayı çalıştırmayı reddediyor, hepsi
+bu; notarize edilmemiş her uygulama bu mesajın bir biçimini alır. Uygulamaya
+sağ tıklayıp **Aç**'ı seçmek burada işe yaramaz; bu kısayol yalnızca imzalı
+ama notarize edilmemiş uygulamalarda çalışır, bu derleme gibi tamamen imzasız
+uygulamalarda değil. Bunun yerine iki yol var:
 
-**Bunu bir kereliğine Terminal'den düzeltmek için:**
+**Terminal'den, bir kereliğine:**
 
 ```bash
 xattr -cr /Applications/DutyRoster.app
 ```
 
-Ardından uygulamayı normal şekilde açabilirsiniz. Bunun yerine daha yumuşak
-bir *"Apple bunu doğrulayamadı..."* diyaloğu görürseniz, uygulamaya sağ
-tıklayın (veya Control tuşuyla tıklayın), **Aç**'ı seçin ve açılan diyalogda
-tekrar **Aç**'ı onaylayın — bu durumda Terminal'e gerek yoktur.
+Ardından uygulamayı normal şekilde açabilirsiniz.
+
+**Ya da Terminal'e gerek kalmadan Sistem Ayarları'ndan:** Sistem Ayarları →
+Gizlilik ve Güvenlik → Güvenlik bölümüne inin → *"'DutyRoster.app'
+Mac'inizi korumak için engellendi"* yazısını ve **Yine de Aç** düğmesini
+göreceksiniz. Düğmeye tıklayın, kimliğinizi doğrulayın, ardından uygulamayı
+tekrar açıp açılan diyalogda **Aç**'ı onaylayın.
 
 ### İndirdiğiniz dosyayı doğrulama
 
