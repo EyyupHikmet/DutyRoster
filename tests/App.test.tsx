@@ -19,6 +19,7 @@ vi.mock("../src/db", () => ({
   saveAvailability: vi.fn().mockResolvedValue(undefined),
   getSchedule: vi.fn().mockResolvedValue(null),
   saveSchedule: vi.fn().mockResolvedValue(undefined),
+  getAllSchedules: vi.fn().mockResolvedValue([]),
   resetDb: vi.fn().mockResolvedValue(undefined),
 }));
 
@@ -63,6 +64,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockedDb.getSchedule.mockResolvedValue(null);
   mockedDb.saveSchedule.mockResolvedValue(undefined);
+  mockedDb.getAllSchedules.mockResolvedValue([]);
 });
 
 describe("App — 3-step wizard navigation", () => {
@@ -661,5 +663,189 @@ describe("App — hard planning rules reach the solver", () => {
     const config = mockedSolve.mock.calls[0][3];
     expect(config.respectTargets).toBe(true);
     expect(config.avoidConsecutiveDays).toBe(true);
+  });
+});
+
+// This month's partner groups (loaded from its saved config) must reach the
+// solver's SolverConfig, and monthlyTargets must resolve through
+// effectiveTarget rather than the bare teachers.target_hours — the two
+// states (roster's own groups/targets, solver's config) must never drift
+// apart. The brief's own version of this test only rendered App and waited
+// for a save that nothing ever triggers (no click on "Programı Hazırla"),
+// which times out — fixed here to actually drive generation, matching how
+// every other solver-config test in this file does it (see
+// "App — hard planning rules reach the solver" above).
+describe("App — this month's partner groups and monthly targets reach the solver", () => {
+  beforeEach(() => {
+    mockedDb.getTeachers.mockResolvedValue([
+      { id: "T1", name: "Ahmet Yılmaz", target_hours: 4, priority: 1 },
+      { id: "T2", name: "Ayşe Demir", target_hours: 4, priority: 1 },
+    ]);
+    // Bu ayın kaydında bir grup ve bir hedef geçersiz kılma var.
+    mockedDb.getSchedule.mockResolvedValue({
+      id: "s1",
+      year: new Date().getFullYear(),
+      month: new Date().getMonth() + 1,
+      assignments: "{}",
+      holidays: "[]",
+      weekend_duty_days: "[]",
+      config: JSON.stringify({
+        mode: "fairness",
+        teachersPerDay: 1,
+        pinnedAssignments: {},
+        partnerGroups: [{ id: "g1", memberIds: ["T1", "T2"], goalDays: 1 }],
+        monthlyTargets: { T1: 6 },
+      }),
+    });
+  });
+
+  it("çizelge üretilirken ayın gruplarını ve o aya özel hedefleri çözücüye iletir", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await waitFor(() => expect(screen.getByText(/Adım 1: Öğretmen Kadrosu/)).toBeInTheDocument());
+
+    await user.click(screen.getByText("Planla & Dışa Aktar"));
+    await waitFor(() => expect(screen.getByText(/Adım 3: Planlama Seçenekleri/)).toBeInTheDocument());
+    await user.click(screen.getByText("⚡ Programı Hazırla"));
+
+    await waitFor(() => expect(mockedSolve).toHaveBeenCalled());
+    const [solverDates, solverTeachers, , solverConfig] = mockedSolve.mock.calls[0];
+    expect(solverConfig.partnerGroups).toEqual([
+      { id: "g1", memberIds: ["T1", "T2"], goalDays: 1 },
+    ]);
+    // T1's target_hours is 4, but this month overrides it to 6 — the solver
+    // must see the override, not the teacher's usual value.
+    expect(solverTeachers.find((t) => t.id === "T1")?.target_hours).toBe(6);
+    expect(solverTeachers.find((t) => t.id === "T2")?.target_hours).toBe(4);
+    expect(solverDates.length).toBeGreaterThan(0);
+  });
+});
+
+// Important 1 (final review): useTeachers already computed the refusal
+// message when a monthly target is lowered below a teacher's committed
+// group days — teacherError was on the hook's return value, but App.tsx
+// never destructured it and passed it to anything, so the save failed with
+// no feedback whatsoever. A hook-level test already existed and passed
+// throughout, which is exactly why a wiring gap like this needs a test that
+// actually renders the real component tree App produces, not just the hook.
+describe("App — blocked target-lowering save is now visible (Important 1)", () => {
+  beforeEach(() => {
+    mockedDb.getTeachers.mockResolvedValue([
+      { id: "T1", name: "Ali", target_hours: 4, priority: 1 },
+      { id: "T2", name: "Ayşe", target_hours: 4, priority: 1 },
+    ]);
+    mockedDb.getSchedule.mockResolvedValue({
+      id: "s1",
+      year: new Date().getFullYear(),
+      month: new Date().getMonth() + 1,
+      assignments: "{}",
+      holidays: "[]",
+      weekend_duty_days: "[]",
+      config: JSON.stringify({
+        mode: "fairness",
+        teachersPerDay: 1,
+        pinnedAssignments: {},
+        // Ali + Ayşe owe 3 joint days this month.
+        partnerGroups: [{ id: "g1", memberIds: ["T1", "T2"], goalDays: 3 }],
+        monthlyTargets: {},
+      }),
+    });
+  });
+
+  it("shows the refusal inline, in Turkish, naming the teacher, when the save is blocked", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await waitFor(() => expect(screen.getByText(/Adım 1: Öğretmen Kadrosu/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Ali bilgilerini düzenle" })).toBeInTheDocument());
+
+    await user.click(screen.getByRole("button", { name: "Ali bilgilerini düzenle" }));
+    const targetInput = screen.getByLabelText(/Aylık Nöbet Hedefi/i);
+    await user.clear(targetInput);
+    await user.type(targetInput, "2"); // below the 3 days owed to g1
+    await user.click(screen.getByRole("button", { name: "Güncelle" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/Ali/);
+    expect(screen.getByRole("alert")).toHaveTextContent(/3 ortak nöbet günü/);
+    // The save must have genuinely failed, not just failed to show a message.
+    expect(mockedDb.saveTeacher).not.toHaveBeenCalled();
+  });
+
+  it("clears the error once a fresh edit is started on another teacher", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await waitFor(() => expect(screen.getByText(/Adım 1: Öğretmen Kadrosu/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Ali bilgilerini düzenle" })).toBeInTheDocument());
+
+    await user.click(screen.getByRole("button", { name: "Ali bilgilerini düzenle" }));
+    const targetInput = screen.getByLabelText(/Aylık Nöbet Hedefi/i);
+    await user.clear(targetInput);
+    await user.type(targetInput, "2");
+    await user.click(screen.getByRole("button", { name: "Güncelle" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(/Ali/);
+
+    await user.click(screen.getByRole("button", { name: "Ayşe bilgilerini düzenle" }));
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+});
+
+// Important 2 (final review): db.ts's deleteTeacher() cascade already
+// cleans the deleted id out of every SAVED month's row. Before this fix,
+// the CURRENTLY LOADED month's in-memory partnerGroups/monthlyTargets kept
+// the dead id, so a save right after the delete wrote it straight back over
+// the row the cascade had just cleaned — undoing it. This drives the real
+// delete -> save sequence end to end, through App's actual wiring, rather
+// than asserting on a hook in isolation.
+describe("App — deleting a teacher does not resurrect them in the saved month (Important 2)", () => {
+  beforeEach(() => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    mockedDb.getTeachers.mockResolvedValue([
+      { id: "T1", name: "Ali", target_hours: 4, priority: 1 },
+      { id: "T2", name: "Ayşe", target_hours: 4, priority: 1 },
+    ]);
+    mockedDb.getSchedule.mockResolvedValue({
+      id: "s1",
+      year: 2026,
+      month: 10,
+      assignments: "{}",
+      holidays: "[]",
+      weekend_duty_days: "[]",
+      config: JSON.stringify({
+        mode: "fairness",
+        teachersPerDay: 1,
+        pinnedAssignments: {},
+        // Only 2 members, so deleting either one must drop the group entirely.
+        partnerGroups: [{ id: "g1", memberIds: ["T1", "T2"], goalDays: 2 }],
+        monthlyTargets: { T1: 5 },
+      }),
+    });
+  });
+
+  it("a draft save right after the delete persists T1 out of partnerGroups and monthlyTargets", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await waitFor(() => expect(screen.getByText(/Adım 1: Öğretmen Kadrosu/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Ali bilgilerini düzenle" })).toBeInTheDocument());
+
+    await user.click(screen.getByRole("button", { name: "Ali öğretmenini sil" }));
+    await waitFor(() => expect(mockedDb.deleteTeacher).toHaveBeenCalledWith("T1"));
+
+    // Force the (year, month) selector to a value it already has, via
+    // Step 2, so the unsaved-changes prompt fires purely off the pruning
+    // above having made the loaded month dirty.
+    await user.click(screen.getByText("Ay Seçimi & Özel Günler"));
+    await waitFor(() => expect(screen.getByText(/Ay Seçimi & Aktif Günler/)).toBeInTheDocument());
+    await user.click(screen.getByRole("combobox", { name: "Yıl seçimi" }));
+    await user.click(screen.getByRole("option", { name: "2027" }));
+
+    await user.click(await screen.findByRole("button", { name: "Kaydet ve Devam Et" }));
+
+    await waitFor(() => expect(mockedDb.saveSchedule).toHaveBeenCalledTimes(1));
+    const savedConfig = JSON.parse(mockedDb.saveSchedule.mock.calls[0][0].config);
+    // The bug: without pruning, g1 (down to just T2) would still list T1 and
+    // monthlyTargets would still have T1's override, undoing the cascade
+    // db.ts's deleteTeacher() had just performed on this exact row.
+    expect(savedConfig.partnerGroups).toEqual([]);
+    expect(savedConfig.monthlyTargets).toEqual({});
   });
 });

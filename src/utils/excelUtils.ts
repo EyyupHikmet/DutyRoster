@@ -3,6 +3,7 @@ import { save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { writeFile as writeFsFile } from "@tauri-apps/plugin-fs";
 import { DbTeacher } from "../db";
 import { MONTHS_TR, getDaysInMonth, formatDateYYYYMMDD } from "./dateUtils";
+import { effectiveTarget } from "./targets";
 
 // Real destination picker + versioned filename + real bytes on disk,
 // replacing the old silent XLSX.writeFile() browser-style download.
@@ -219,7 +220,8 @@ export const exportScheduleToExcel = async (
   holidays: string[],
   weekendDutyDays: string[],
   extraDays: string[],
-  deps: ExportScheduleDeps = {}
+  deps: ExportScheduleDeps = {},
+  monthlyTargets: Record<string, number> = {}
 ): Promise<ExportScheduleResult> => {
   const doSaveDialog = deps.saveDialog ?? saveDialog;
   const doWriteFile = deps.writeFile ?? writeFsFile;
@@ -303,11 +305,12 @@ export const exportScheduleToExcel = async (
       }
     }
 
-    const difference = t.target_hours - totalAssigned;
+    const target = effectiveTarget(t, monthlyTargets);
+    const difference = target - totalAssigned;
 
     exportRows2.push([
       t.name,
-      t.target_hours,
+      target,
       totalAssigned,
       weekdayDuties,
       weekendDuties,

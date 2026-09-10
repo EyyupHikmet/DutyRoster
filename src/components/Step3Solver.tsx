@@ -2,6 +2,8 @@ import React, { useRef, useState } from "react";
 import { DbTeacher } from "../db";
 import { DAYS_TR, getMonthDatesWithPadding, formatDateYYYYMMDD } from "../utils/dateUtils";
 import { CustomSelect } from "./CustomSelect";
+import { PartnerGroup, creditPartnerGroups } from "../solver/partners";
+import { turkishPossessiveSuffix } from "../utils/turkishNumberSuffix";
 
 interface Step3SolverProps {
   teachers: DbTeacher[];
@@ -27,6 +29,7 @@ interface Step3SolverProps {
   handleGenerateSchedule: () => void;
   handleExportSchedule: () => void;
   unfilledDays: Array<{ date: string; required: number; assigned: number }>;
+  partnerGroups: PartnerGroup[];
 }
 
 // The hard rules that sit under the four distribution modes. Deliberately
@@ -98,7 +101,8 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
   handleClearPins,
   handleGenerateSchedule,
   handleExportSchedule,
-  unfilledDays
+  unfilledDays,
+  partnerGroups
 }) => {
   const paddedDates = getMonthDatesWithPadding(selectedYear, selectedMonth);
 
@@ -156,6 +160,28 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
   const selectedDateDetails = getSelectedDateDetails();
   const requiredCount = selectedDateStr ? (daySpecificTeachers[selectedDateStr] ?? teachersPerDay) : teachersPerDay;
   const pinnedIds = selectedDateStr ? (pinnedAssignments[selectedDateStr] || []) : [];
+
+  // Recomputed from the live schedule rather than cached from the last solve,
+  // for the same reason `unfilledDays` is: a pin cleared or a saved month
+  // loaded must not leave a stale badge or warning behind.
+  const groupCredit = creditPartnerGroups(generatedSchedule, partnerGroups);
+
+  const unfilledGroups = partnerGroups
+    .filter((group) => (groupCredit[group.id] ?? 0) < group.goalDays)
+    .map((group) => ({
+      group,
+      placed: groupCredit[group.id] ?? 0,
+      names: group.memberIds
+        .map((id) => teachers.find((t) => t.id === id)?.name ?? id)
+        .join(" + "),
+    }));
+
+  const isGroupDay = (dateStr: string): boolean => {
+    const present = new Set(generatedSchedule[dateStr] ?? []);
+    return partnerGroups.some(
+      (group) => group.memberIds.length > 0 && group.memberIds.every((m) => present.has(m))
+    );
+  };
 
   return (
     <div className="fill-column">
@@ -293,6 +319,26 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
                 : " veya günlere sabitlediğiniz öğretmenleri değiştirebilirsiniz."}
             </div>
           )}
+
+          {/* A group falling short of its goal is a normal, expected outcome
+              (usually tight availability), not a solver error — same
+              alert-warning treatment as the open-day summary above, and the
+              same role="status" (polite live region) so screen-reader users
+              hear it after a generate without focus being stolen, per WCAG
+              2.2 AA 4.1.3. */}
+          {unfilledGroups.length > 0 && (
+            <div className="alert alert-warning" role="status" style={{ padding: "10px 14px", fontSize: "0.78rem", margin: 0 }}>
+              <strong>Bazı nöbet grupları eksik kaldı.</strong>
+              <ul style={{ margin: "6px 0 0 0", paddingLeft: "18px" }}>
+                {unfilledGroups.map(({ group, placed, names }) => (
+                  <li key={group.id}>
+                    {names}: {group.goalDays} günün {placed}{turkishPossessiveSuffix(placed)} yerleştirildi. Kalan
+                    günlerde üyelerin tamamı birden uygun değil.
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
 
         {/* Pane 2 (Middle - 2): Central Big Calendar Grid */}
@@ -380,6 +426,16 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
 
                     {isIncluded ? (
                       <div className="schedule-assignments-list" style={{ marginTop: "2px" }}>
+                        {isGroupDay(dateStr) && (
+                          <span
+                            className="partner-day-badge"
+                            title="Bu gün bir nöbet grubu birlikte görevli"
+                            aria-label="Bu gün bir nöbet grubu birlikte görevli"
+                            style={{ fontSize: "0.7rem" }}
+                          >
+                            👥
+                          </span>
+                        )}
                         {assignedIds.map((id, assignedIdx) => {
                           const teacher = teachers.find(t => t.id === id);
                           const isPinned = pinnedIds[assignedIdx] === id;

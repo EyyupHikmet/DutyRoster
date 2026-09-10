@@ -50,6 +50,14 @@ describe("useTeachers", () => {
     expect(result.current.teachers).toEqual([]);
   });
 
+  // Minimal context for tests that only care about the save happening at
+  // all, not about monthly-target enforcement (covered separately below).
+  const emptyCtx = () => ({
+    partnerGroups: [],
+    monthlyTargets: {},
+    applyMonthlyTarget: vi.fn(),
+  });
+
   it("handleSaveTeacherSubmit() rejects an empty/whitespace name without calling saveTeacher", async () => {
     const { result } = renderHook(() => useTeachers());
     act(() => {
@@ -58,7 +66,7 @@ describe("useTeachers", () => {
 
     let submitResult: boolean | undefined;
     await act(async () => {
-      submitResult = await result.current.handleSaveTeacherSubmit();
+      submitResult = await result.current.handleSaveTeacherSubmit(undefined, emptyCtx());
     });
 
     expect(submitResult).toBe(false);
@@ -79,7 +87,7 @@ describe("useTeachers", () => {
     });
 
     await act(async () => {
-      await result.current.handleSaveTeacherSubmit();
+      await result.current.handleSaveTeacherSubmit(undefined, emptyCtx());
     });
 
     expect(mockedDb.saveTeacher).toHaveBeenCalledWith({
@@ -111,7 +119,7 @@ describe("useTeachers", () => {
     });
 
     await act(async () => {
-      await result.current.handleSaveTeacherSubmit();
+      await result.current.handleSaveTeacherSubmit(undefined, emptyCtx());
     });
 
     expect(mockedDb.saveTeacher).toHaveBeenCalledWith(
@@ -119,13 +127,18 @@ describe("useTeachers", () => {
     );
   });
 
+  // Minimal context for delete tests that don't care about pruning the
+  // loaded month's in-memory state (covered separately below) — just that
+  // the delete flow itself still works.
+  const emptyDeleteCtx = () => ({ pruneTeacherFromMonth: vi.fn() });
+
   it("handleDeleteTeacherClick() asks for confirmation and, if declined, does not delete", async () => {
     vi.spyOn(window, "confirm").mockReturnValue(false);
     const { result } = renderHook(() => useTeachers());
 
     let returned: boolean | undefined;
     await act(async () => {
-      returned = await result.current.handleDeleteTeacherClick("T1");
+      returned = await result.current.handleDeleteTeacherClick("T1", emptyDeleteCtx());
     });
 
     expect(returned).toBe(false);
@@ -148,10 +161,109 @@ describe("useTeachers", () => {
     expect(result.current.selectedTeacherId).toBe("T1");
 
     await act(async () => {
-      await result.current.handleDeleteTeacherClick("T1");
+      await result.current.handleDeleteTeacherClick("T1", emptyDeleteCtx());
     });
 
     expect(mockedDb.deleteTeacher).toHaveBeenCalledWith("T1");
     await waitFor(() => expect(result.current.selectedTeacherId).toBe("T2"));
+  });
+
+  // Important 2 (final review): db.ts's deleteTeacher() cascades the id out
+  // of every SAVED month's partnerGroups/monthlyTargets, but the CURRENTLY
+  // LOADED month's in-memory copies live in useScheduleState, not here. A
+  // successful delete must tell that state to prune itself too, or a save
+  // right after would write the stale in-memory groups straight back over
+  // the row the cascade just cleaned.
+  it("handleDeleteTeacherClick() prunes the deleted teacher from the loaded month's in-memory state on success", async () => {
+    mockedDb.deleteTeacher.mockResolvedValue(undefined);
+    mockedDb.getTeachers.mockResolvedValue([]);
+    const { result } = renderHook(() => useTeachers());
+
+    const pruneTeacherFromMonth = vi.fn();
+    await act(async () => {
+      await result.current.handleDeleteTeacherClick("T1", { pruneTeacherFromMonth });
+    });
+
+    expect(pruneTeacherFromMonth).toHaveBeenCalledWith("T1");
+  });
+
+  it("handleDeleteTeacherClick() does NOT prune the in-memory state when the delete itself fails", async () => {
+    mockedDb.deleteTeacher.mockRejectedValue(new Error("db down"));
+    const { result } = renderHook(() => useTeachers());
+
+    const pruneTeacherFromMonth = vi.fn();
+    await act(async () => {
+      await result.current.handleDeleteTeacherClick("T1", { pruneTeacherFromMonth });
+    });
+
+    expect(pruneTeacherFromMonth).not.toHaveBeenCalled();
+  });
+});
+
+describe("aylık nöbet hedefi", () => {
+  // Note: adapted from the task brief to this file's existing mocking
+  // convention (mockedDb.getTeachers rather than a standalone vi.mocked
+  // import), since this file mocks the whole db module via `vi.mock`.
+  const ctx = (overrides = {}) => ({
+    partnerGroups: [{ id: "g1", memberIds: ["T1", "T2"], goalDays: 3 }],
+    monthlyTargets: {},
+    applyMonthlyTarget: vi.fn(),
+    ...overrides,
+  });
+
+  it("kaydederken hedefi bu aya yazar", async () => {
+    mockedDb.getTeachers.mockResolvedValue([
+      { id: "T1", name: "Ali", target_hours: 4, priority: 1 },
+    ]);
+    const { result } = renderHook(() => useTeachers());
+    await act(async () => {
+      await result.current.loadTeachers();
+    });
+
+    act(() => {
+      result.current.handleEditTeacherClick({ id: "T1", name: "Ali", target_hours: 4, priority: 1 });
+      result.current.setTeacherTarget(5);
+    });
+
+    const context = ctx();
+    await act(async () => {
+      await result.current.handleSaveTeacherSubmit(undefined, context);
+    });
+
+    expect(context.applyMonthlyTarget).toHaveBeenCalledWith("T1", 5);
+    // The whole point of this branch: an EXISTING teacher's stored
+    // target_hours (their USUAL target) is left exactly as it was — the
+    // field on this screen edited THIS MONTH's target (via
+    // applyMonthlyTarget above), never the general default. Previously
+    // nothing asserted this distinction at all.
+    expect(mockedDb.saveTeacher).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "T1", target_hours: 4 })
+    );
+  });
+
+  it("grup taahhüdünün altına inen hedefi reddeder", async () => {
+    mockedDb.getTeachers.mockResolvedValue([
+      { id: "T1", name: "Ali", target_hours: 4, priority: 1 },
+      { id: "T2", name: "Ayşe", target_hours: 4, priority: 1 },
+    ]);
+    const { result } = renderHook(() => useTeachers());
+    await act(async () => {
+      await result.current.loadTeachers();
+    });
+
+    act(() => {
+      result.current.handleEditTeacherClick({ id: "T1", name: "Ali", target_hours: 4, priority: 1 });
+      result.current.setTeacherTarget(2); // g1 3 gün istiyor
+    });
+
+    const context = ctx();
+    let saved: boolean | undefined;
+    await act(async () => {
+      saved = await result.current.handleSaveTeacherSubmit(undefined, context);
+    });
+
+    expect(saved).toBe(false);
+    expect(context.applyMonthlyTarget).not.toHaveBeenCalled();
+    expect(result.current.teacherError).toMatch(/Ali/);
   });
 });

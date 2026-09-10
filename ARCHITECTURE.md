@@ -88,6 +88,21 @@ That trade is deliberate. A hard cap makes most months genuinely unsolvable,
 and a principal is far better served by a roster with two open Fridays they can
 see and fix than by an empty screen.
 
+**Partner groups** run as two phases bracketing the search rather than as a
+rule inside it. Before backtracking starts, `placePartnerGroups`
+(`src/solver/partners.ts`) decides which duty days host which group, most
+constrained group first, and writes those days into `assignments` the same
+way pinned assignments are — which is exactly why the backtracking search
+itself needed no changes to accommodate groups at all: it just sees more
+pre-filled days. A group that runs out of feasible days is left short rather
+than aborting the month, the same trade `respectTargets` makes. After the
+search finishes, `creditPartnerGroups` reads the *finished* schedule to count
+how many days each group actually served together, rather than trusting the
+placement phase's intentions — if the ordinary search happens to complete a
+group by filling a leftover slot, that day counts too. Both phases are pure
+functions with no React or database dependency, which is what makes them
+straightforward to test independently of the search.
+
 A second, independent flag is `avoidConsecutiveDays`: with it on, no teacher may
 be on duty on two **adjacent calendar days**. Adjacency is measured on the
 calendar rather than on the duty list, so a weekend or a holiday in between is a
@@ -109,7 +124,12 @@ Three tables, all local:
   `assignments` map plus everything needed to reproduce it: `holidays`,
   `weekend_duty_days`, and a `config` blob (strategy, target-cap flag,
   back-to-back flag, teachers per day, pinned assignments, extra days,
-  day-specific counts).
+  day-specific counts, `partnerGroups`, and `monthlyTargets`). Groups and
+  target overrides are per-month rather than a property of the teacher, so
+  they live in this blob alongside the rest of that month's setup instead of
+  in the `teachers` table — `effectiveTarget` (`src/utils/targets.ts`) is the
+  one place that resolves a teacher's target for a given month, falling back
+  to `teachers.target_hours` when `monthlyTargets` has no override.
 
 `schedules` has a **unique index on `(year, month)`** and is written with
 `INSERT OR REPLACE`, so a month has exactly one row that is replaced in place.

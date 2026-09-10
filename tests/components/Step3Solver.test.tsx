@@ -4,6 +4,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Step3Solver } from "../../src/components/Step3Solver";
 import { DbTeacher } from "../../src/db";
+import type { PartnerGroup } from "../../src/solver/partners";
 
 const teachers: DbTeacher[] = [{ id: "T1", name: "Ahmet Yılmaz", target_hours: 4, priority: 1 }];
 
@@ -32,8 +33,13 @@ function baseProps(overrides: Partial<React.ComponentProps<typeof Step3Solver>> 
     handleClearPins: vi.fn(),
     handleGenerateSchedule: vi.fn(),
     handleExportSchedule: vi.fn(),
+    partnerGroups: [] as PartnerGroup[],
     ...overrides,
   };
+}
+
+function renderStep3(overrides: Partial<React.ComponentProps<typeof Step3Solver>> = {}) {
+  return render(<Step3Solver {...baseProps(overrides)} />);
 }
 
 describe("Step3Solver", () => {
@@ -271,6 +277,34 @@ describe("Step3Solver", () => {
       );
       expect(screen.getByRole("alert")).toHaveTextContent("Sıkıştı");
       expect(screen.getByRole("status")).toHaveTextContent("1 gün boş kaldı");
+    });
+  });
+
+  describe("nöbet grupları", () => {
+    it("grup günlerini takvimde işaretler", () => {
+      renderStep3({
+        partnerGroups: [{ id: "g1", memberIds: ["T1", "T2"], goalDays: 1 }],
+        generatedSchedule: { "2026-10-01": ["T1", "T2"], "2026-10-02": ["T3"] },
+      });
+      expect(screen.getAllByTitle(/nöbet grubu/i)).toHaveLength(1);
+    });
+
+    it("eksik kalan grup günlerini uyarı olarak bildirir", () => {
+      renderStep3({
+        partnerGroups: [{ id: "g1", memberIds: ["T1", "T2"], goalDays: 2 }],
+        generatedSchedule: { "2026-10-01": ["T1", "T2"], "2026-10-02": ["T3"] },
+      });
+      const warning = screen.getByText(/2 günün 1'i/);
+      expect(warning).toBeInTheDocument();
+      expect(warning.textContent).toMatch(/Ahmet|T1|Ali/);
+    });
+
+    it("grup tanımlı değilse grup uyarısı göstermez", () => {
+      renderStep3({
+        partnerGroups: [],
+        generatedSchedule: { "2026-10-01": ["T1"] },
+      });
+      expect(screen.queryByText(/nöbet grubu/i)).not.toBeInTheDocument();
     });
   });
 });

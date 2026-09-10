@@ -287,4 +287,69 @@ describe("excelUtils — exportScheduleToExcel (save dialog + fs write)", () => 
       expect(result.message).toContain("dialog plugin unavailable");
     }
   });
+
+  it("öğretmen raporunda ayın hedefini kullanır", async () => {
+    const ali: DbTeacher[] = [{ id: "T1", name: "Ali", target_hours: 4, priority: 1 }];
+    let captured: XLSX.WorkBook | null = null;
+    const deps = makeDeps({
+      xlsxWriter: {
+        write: (wb) => {
+          captured = wb;
+          return new Uint8Array();
+        },
+      },
+    });
+
+    await exportScheduleToExcel(
+      2026,
+      10,
+      { "2026-10-01": ["T1"] },
+      ali,
+      [],
+      [],
+      [],
+      deps,
+      { T1: 6 }
+    );
+
+    const rows = XLSX.utils.sheet_to_json(
+      captured!.Sheets["Öğretmen Analiz Raporu"],
+      { header: 1 }
+    ) as unknown[][];
+    const aliRow = rows.find((r) => r[0] === "Ali")!;
+    expect(aliRow[1]).toBe(6); // Hedef — ayın hedefi
+    expect(aliRow[2]).toBe(1); // Toplam
+    expect(aliRow[6]).toBe(5); // Fark = 6 - 1
+  });
+
+  it("ay için hedef tanımlı değilse genel hedefi kullanır", async () => {
+    const ali: DbTeacher[] = [{ id: "T1", name: "Ali", target_hours: 4, priority: 1 }];
+    let captured: XLSX.WorkBook | null = null;
+    const deps = makeDeps({
+      xlsxWriter: {
+        write: (wb) => {
+          captured = wb;
+          return new Uint8Array();
+        },
+      },
+    });
+
+    await exportScheduleToExcel(
+      2026,
+      10,
+      { "2026-10-01": ["T1"] },
+      ali,
+      [],
+      [],
+      [],
+      deps,
+      {}
+    );
+
+    const rows = XLSX.utils.sheet_to_json(
+      captured!.Sheets["Öğretmen Analiz Raporu"],
+      { header: 1 }
+    ) as unknown[][];
+    expect(rows.find((r) => r[0] === "Ali")![1]).toBe(4);
+  });
 });

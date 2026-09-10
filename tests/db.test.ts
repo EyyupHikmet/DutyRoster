@@ -23,10 +23,17 @@ import SqliteDatabase from "better-sqlite3";
 // shared object reference sidesteps that module-identity problem entirely.)
 const mockState = vi.hoisted(() => ({
   nextRawDb: null as InstanceType<typeof import("better-sqlite3")> | null,
+  mockSelect: null as ReturnType<typeof vi.fn> | null,
+  mockExecute: null as ReturnType<typeof vi.fn> | null,
 }));
 
 function __setNextRawDb(db: InstanceType<typeof SqliteDatabase>) {
   mockState.nextRawDb = db;
+}
+
+function __useMockSelectExecute(select: ReturnType<typeof vi.fn>, execute: ReturnType<typeof vi.fn>) {
+  mockState.mockSelect = select;
+  mockState.mockExecute = execute;
 }
 
 vi.mock("@tauri-apps/plugin-sql", async () => {
@@ -51,11 +58,19 @@ vi.mock("@tauri-apps/plugin-sql", async () => {
       return new FakeDatabase(raw as InstanceType<typeof RealSqliteDatabase>);
     }
     async execute(sql: string, bindValues: unknown[] = []) {
+      // If mockExecute is set, use it (for tests that need to inspect exact SQL calls)
+      if (mockState.mockExecute) {
+        return mockState.mockExecute(sql, bindValues);
+      }
       const stmt = this.raw.prepare(toSqliteSql(sql));
       const info = stmt.run(...(bindValues as never[]));
       return { rowsAffected: info.changes, lastInsertId: Number(info.lastInsertRowid) };
     }
     async select<T>(sql: string, bindValues: unknown[] = []): Promise<T> {
+      // If mockSelect is set, use it (for tests that need to inspect exact SQL calls)
+      if (mockState.mockSelect) {
+        return mockState.mockSelect(sql, bindValues) as T;
+      }
       const stmt = this.raw.prepare(toSqliteSql(sql));
       return stmt.all(...(bindValues as never[])) as unknown as T;
     }
@@ -79,6 +94,8 @@ async function freshDb() {
 
 beforeEach(() => {
   vi.resetModules();
+  mockState.mockSelect = null;
+  mockState.mockExecute = null;
 });
 
 describe("db.ts — Teachers CRUD", () => {
@@ -298,5 +315,62 @@ describe("db.ts — resetDb()", () => {
     expect(await getTeachers()).toHaveLength(0);
     expect(await getAvailabilities()).toHaveLength(0);
     expect(await getSchedule(2026, 10)).toBeNull();
+  });
+});
+
+describe("öğretmen silindiğinde aylık gruplar ve hedefler temizlenir", () => {
+  it("silinen öğretmeni gruplardan ve aylık hedeflerden çıkarır", async () => {
+    const config = JSON.stringify({
+      mode: "fairness",
+      teachersPerDay: 1,
+      pinnedAssignments: {},
+      partnerGroups: [
+        { id: "g1", memberIds: ["T1", "T2", "T3"], goalDays: 2 },
+        { id: "g2", memberIds: ["T1", "T2"], goalDays: 1 },
+      ],
+      monthlyTargets: { T1: 5, T2: 3 },
+    });
+
+    const mockSelect = vi.fn().mockResolvedValue([
+      { id: "s1", year: 2026, month: 10, assignments: "{}", holidays: "[]", weekend_duty_days: "[]", config },
+    ]);
+    const mockExecute = vi.fn().mockResolvedValue({ rowsAffected: 0, lastInsertId: 0 });
+
+    vi.resetModules();
+    __useMockSelectExecute(mockSelect, mockExecute);
+
+    const { deleteTeacher } = await import("../src/db");
+    await deleteTeacher("T1");
+
+    const rewrite = mockExecute.mock.calls.find(
+      ([sql]) => typeof sql === "string" && sql.includes("UPDATE schedules")
+    );
+    expect(rewrite).toBeDefined();
+    const written = JSON.parse(rewrite![1][0] as string);
+
+    // g1 iki üyeyle ayakta kalır, g2 tek üye kaldığı için silinir.
+    expect(written.partnerGroups).toEqual([
+      { id: "g1", memberIds: ["T2", "T3"], goalDays: 2 },
+    ]);
+    expect(written.monthlyTargets).toEqual({ T2: 3 });
+  });
+
+  it("grubu olmayan aylara dokunmaz", async () => {
+    const config = JSON.stringify({ mode: "fairness", teachersPerDay: 1, pinnedAssignments: {} });
+    const mockSelect = vi.fn().mockResolvedValue([
+      { id: "s1", year: 2026, month: 10, assignments: "{}", holidays: "[]", weekend_duty_days: "[]", config },
+    ]);
+    const mockExecute = vi.fn().mockResolvedValue({ rowsAffected: 0, lastInsertId: 0 });
+
+    vi.resetModules();
+    __useMockSelectExecute(mockSelect, mockExecute);
+
+    const { deleteTeacher } = await import("../src/db");
+    await deleteTeacher("T1");
+
+    const rewrite = mockExecute.mock.calls.find(
+      ([sql]) => typeof sql === "string" && sql.includes("UPDATE schedules")
+    );
+    expect(rewrite).toBeUndefined();
   });
 });

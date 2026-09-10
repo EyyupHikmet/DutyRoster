@@ -33,6 +33,8 @@ function renderTeacherForm(overrides: Partial<React.ComponentProps<typeof Teache
       setTeacherPriority={vi.fn()}
       onSubmit={vi.fn((e: React.FormEvent) => e.preventDefault())}
       onCancel={vi.fn()}
+      monthLabel="Ekim 2026"
+      usualTarget={null}
       {...overrides}
     />
   );

@@ -89,6 +89,47 @@ export async function deleteTeacher(id: string): Promise<void> {
   const db = await getDb();
   await db.execute("DELETE FROM teachers WHERE id = $1", [id]);
   await db.execute("DELETE FROM availabilities WHERE teacher_id = $1", [id]);
+
+  // Partner groups and monthly duty targets live inside each month's config
+  // blob, so a deleted teacher would otherwise linger there as a dangling id
+  // and reappear as a phantom member the next time that month is opened. A
+  // group left with fewer than two members is no longer a group, so it goes too.
+  const schedules = await getAllSchedules();
+  for (const row of schedules) {
+    let config: Record<string, unknown>;
+    try {
+      config = JSON.parse(row.config);
+    } catch {
+      continue; // an unreadable config is not this function's problem to fix
+    }
+
+    const groups = Array.isArray(config.partnerGroups)
+      ? (config.partnerGroups as { id: string; memberIds: string[]; goalDays: number }[])
+      : [];
+    const targets = (config.monthlyTargets ?? {}) as Record<string, number>;
+
+    const touchesGroups = groups.some((gr) => gr.memberIds.includes(id));
+    const touchesTargets = Object.prototype.hasOwnProperty.call(targets, id);
+    if (!touchesGroups && !touchesTargets) continue;
+
+    const nextGroups = groups
+      .map((gr) => ({ ...gr, memberIds: gr.memberIds.filter((m) => m !== id) }))
+      .filter((gr) => gr.memberIds.length >= 2);
+
+    const nextTargets = { ...targets };
+    delete nextTargets[id];
+
+    const nextConfig = JSON.stringify({
+      ...config,
+      partnerGroups: nextGroups,
+      monthlyTargets: nextTargets,
+    });
+
+    await db.execute("UPDATE schedules SET config = $1 WHERE id = $2", [
+      nextConfig,
+      row.id,
+    ]);
+  }
 }
 
 // Availabilities Operations
@@ -151,6 +192,14 @@ export async function getSchedule(year: number, month: number): Promise<DbSchedu
     [year, month]
   );
   return rows && rows.length > 0 ? rows[0] : null;
+}
+
+export async function getAllSchedules(): Promise<DbSchedule[]> {
+  const db = await getDb();
+  const rows = await db.select<DbSchedule[]>(
+    "SELECT * FROM schedules ORDER BY year ASC, month ASC"
+  );
+  return rows || [];
 }
 
 export async function saveSchedule(schedule: DbSchedule): Promise<void> {

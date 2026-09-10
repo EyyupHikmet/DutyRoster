@@ -523,3 +523,150 @@ describe("Nöbet Çözücü Motor Testleri (solver)", () => {
     }
   });
 });
+
+describe("Nöbet grupları (partner groups)", () => {
+  it("grup üyelerini aynı günlere birlikte yerleştirir", () => {
+    const config: SolverConfig = {
+      mode: "fairness",
+      teachersPerDay: 1,
+      pinnedAssignments: {},
+      partnerGroups: [{ id: "g1", memberIds: ["T1", "T2"], goalDays: 2 }],
+    };
+
+    const result = solve(mockDates, mockTeachers, mockAvailabilities, config);
+
+    expect(result.success).toBe(true);
+    const schedule = result.schedule!;
+    const together = mockDates.filter(
+      (d) => schedule[d].includes("T1") && schedule[d].includes("T2")
+    );
+    expect(together.length).toBeGreaterThanOrEqual(2);
+    expect(result.unfilledGroups).toEqual([]);
+  });
+
+  it("günlük nöbetçi sayısı 1 olsa da üç kişilik grup birlikte görev alır", () => {
+    const config: SolverConfig = {
+      mode: "fairness",
+      teachersPerDay: 1,
+      pinnedAssignments: {},
+      partnerGroups: [{ id: "g1", memberIds: ["T1", "T2", "T4"], goalDays: 1 }],
+    };
+
+    const result = solve(mockDates, mockTeachers, mockAvailabilities, config);
+
+    expect(result.success).toBe(true);
+    const schedule = result.schedule!;
+    const groupDays = mockDates.filter((d) => schedule[d].length === 3);
+    expect(groupDays).toHaveLength(1);
+    expect(schedule[groupDays[0]].sort()).toEqual(["T1", "T2", "T4"]);
+    // Diğer günler tek nöbetçiyle kalır.
+    for (const d of mockDates) {
+      if (d !== groupDays[0]) expect(schedule[d]).toHaveLength(1);
+    }
+  });
+
+  it("yerleştirilemeyen ortak günleri bildirir ama çizelgeyi yine de üretir", () => {
+    // T2 yalnızca tek bir günde uygun; 3 ortak gün mümkün değil.
+    for (const d of mockDates.slice(1)) {
+      mockAvailabilities["T2"][d] = "unavailable";
+    }
+
+    const config: SolverConfig = {
+      mode: "fairness",
+      teachersPerDay: 1,
+      pinnedAssignments: {},
+      partnerGroups: [{ id: "g1", memberIds: ["T1", "T2"], goalDays: 3 }],
+    };
+
+    const result = solve(mockDates, mockTeachers, mockAvailabilities, config);
+
+    expect(result.success).toBe(true);
+    expect(result.schedule).toBeDefined();
+    expect(result.unfilledGroups).toEqual([{ groupId: "g1", goal: 3, placed: 1 }]);
+  });
+
+  it("sabitlenmiş tam kadro bir gün grubun hedefinden düşer", () => {
+    const config: SolverConfig = {
+      mode: "fairness",
+      teachersPerDay: 2,
+      pinnedAssignments: { "2026-10-01": ["T1", "T2"] },
+      partnerGroups: [{ id: "g1", memberIds: ["T1", "T2"], goalDays: 1 }],
+    };
+
+    const result = solve(mockDates, mockTeachers, mockAvailabilities, config);
+
+    expect(result.success).toBe(true);
+    expect(result.unfilledGroups).toEqual([]);
+    const schedule = result.schedule!;
+    const together = mockDates.filter(
+      (d) => schedule[d].includes("T1") && schedule[d].includes("T2")
+    );
+    expect(together).toContain("2026-10-01");
+  });
+
+  it("grup günleri üst üste iki gün kuralına tabidir", () => {
+    const config: SolverConfig = {
+      mode: "fairness",
+      teachersPerDay: 1,
+      pinnedAssignments: {},
+      partnerGroups: [{ id: "g1", memberIds: ["T1", "T2"], goalDays: 1 }],
+      avoidConsecutiveDays: true,
+    };
+
+    const result = solve(mockDates, mockTeachers, mockAvailabilities, config);
+
+    expect(result.success).toBe(true);
+    const schedule = result.schedule!;
+    for (const teacherId of ["T1", "T2", "T3", "T4"]) {
+      for (const d of mockDates) {
+        if (!schedule[d].includes(teacherId)) continue;
+        expect(schedule[shiftDate(d, 1)]?.includes(teacherId) ?? false).toBe(false);
+      }
+    }
+  });
+
+  it("goalDays 2 iken grubun kendi iki günü de ardışık olmaz", () => {
+    // Test 12/13 için goalDays: 1 yeterliydi, ama tek günlük bir hedef grubun
+    // KENDİ günlerinin birbirine göre ardışık olup olmadığını hiç sınamaz —
+    // sınanacak ikinci bir gün yok. goalDays: 2 ile placePartnerGroups'un
+    // grubu iki AYRI, komşu olmayan takvim gününe yerleştirdiğini doğrudan
+    // doğrular.
+    const config: SolverConfig = {
+      mode: "fairness",
+      teachersPerDay: 1,
+      pinnedAssignments: {},
+      partnerGroups: [{ id: "g1", memberIds: ["T1", "T2"], goalDays: 2 }],
+      avoidConsecutiveDays: true,
+    };
+
+    const result = solve(mockDates, mockTeachers, mockAvailabilities, config);
+
+    expect(result.success).toBe(true);
+    expect(result.unfilledGroups).toEqual([]);
+    const schedule = result.schedule!;
+    const together = mockDates.filter(
+      (d) => schedule[d].includes("T1") && schedule[d].includes("T2")
+    );
+    expect(together).toHaveLength(2);
+    const [first, second] = together;
+    expect(shiftDate(first, 1)).not.toBe(second);
+    expect(shiftDate(second, 1)).not.toBe(first);
+  });
+
+  it("grup tanımlı olmayan bir ay eskisiyle birebir aynı sonucu verir", () => {
+    const base: SolverConfig = {
+      mode: "strict",
+      teachersPerDay: 1,
+      pinnedAssignments: {},
+    };
+
+    const without = solve(mockDates, mockTeachers, mockAvailabilities, base);
+    const withEmpty = solve(mockDates, mockTeachers, mockAvailabilities, {
+      ...base,
+      partnerGroups: [],
+    });
+
+    expect(without.schedule).toEqual(withEmpty.schedule);
+    expect(without.unfilledGroups).toBeUndefined();
+  });
+});

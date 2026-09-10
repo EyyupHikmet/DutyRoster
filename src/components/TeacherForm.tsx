@@ -11,6 +11,23 @@ interface TeacherFormProps {
   setTeacherPriority: (v: number) => void;
   onSubmit: (e: React.FormEvent) => void;
   onCancel: () => void;
+  /**
+   * Which month's target this form edits, for the label and the "differs
+   * from usual" note below. e.g. "Ekim 2026" — Step1Roster derives this from
+   * the selected year/month and always supplies it.
+   */
+  monthLabel: string;
+  /** The teacher's usual (teachers.target_hours) target, or null when unknown
+   * (e.g. a brand-new teacher not yet in the roster). */
+  usualTarget: number | null;
+  /**
+   * A save refused by useTeachers (e.g. lowering this month's target below
+   * what the teacher is already committed to in partner groups), in Turkish,
+   * naming the teacher and the numbers — or null when there is nothing to
+   * show. Rendered verbatim; useTeachers owns clearing it, so this component
+   * never caches or reinterprets it.
+   */
+  error: string | null;
 }
 
 export const TeacherForm: React.FC<TeacherFormProps> = ({
@@ -22,7 +39,10 @@ export const TeacherForm: React.FC<TeacherFormProps> = ({
   teacherPriority,
   setTeacherPriority,
   onSubmit,
-  onCancel
+  onCancel,
+  monthLabel,
+  usualTarget,
+  error
 }) => {
   return (
     <div className="card" style={{ marginBottom: "20px" }}>
@@ -47,7 +67,7 @@ export const TeacherForm: React.FC<TeacherFormProps> = ({
         <div className="grid-2col" style={{ gap: "16px", marginBottom: "16px" }}>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label htmlFor="teacher-target-input">
-              Aylık Nöbet Hedefi
+              {`Aylık Nöbet Hedefi (${monthLabel})`}
               <span className="tooltip-container" style={{ marginLeft: "4px" }}>
                 <span className="tooltip-icon" aria-hidden="true">i</span>
                 <div className="tooltip-content">
@@ -65,6 +85,11 @@ export const TeacherForm: React.FC<TeacherFormProps> = ({
               onChange={(e) => setTeacherTarget(Number(e.target.value))}
               required
             />
+            {usualTarget !== null && usualTarget !== teacherTarget && (
+              <p style={{ margin: "6px 0 0 0", fontSize: "0.8rem", color: "var(--slate-500)" }}>
+                {`Bu öğretmenin genel hedefi ${usualTarget}. Girdiğiniz değer yalnızca ${monthLabel} için geçerlidir.`}
+              </p>
+            )}
           </div>
 
           <div className="form-group" style={{ marginBottom: 0 }}>
@@ -89,6 +114,21 @@ export const TeacherForm: React.FC<TeacherFormProps> = ({
             />
           </div>
         </div>
+
+        {/* Matches the pattern already used by PartnerGroups' own blocked-save
+            error (div.alert.alert-danger, role="alert" — WCAG 2.2 AA 4.1.3):
+            a save refused here is exactly the same kind of event (a monthly
+            target that would leave the teacher over-committed), so both
+            paths should look and behave identically. */}
+        {error && (
+          <div
+            className="alert alert-danger"
+            role="alert"
+            style={{ margin: "0 0 12px 0", fontSize: "0.8rem" }}
+          >
+            {error}
+          </div>
+        )}
 
         <div style={{ display: "flex", gap: "10px" }}>
           <button type="submit" className="btn btn-primary">
