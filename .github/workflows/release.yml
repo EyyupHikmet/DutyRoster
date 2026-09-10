@@ -6,8 +6,17 @@ name: Release
 #     git tag v0.1.0
 #     git push origin v0.1.0
 #
-# The release is created as a DRAFT, so you can check the assets and write the
-# notes before anyone sees it. Publish it from the Releases page when ready.
+# For a brand-new tag, the release is created as a DRAFT, so you can check the
+# assets and write the notes before anyone sees it. Publish it from the
+# Releases page when ready.
+#
+# To backfill a platform's installers onto a release that is already
+# published (e.g. macOS support landed after v0.3.0 had already shipped for
+# Windows), run this workflow manually with the "release_tag" input set to
+# that tag (Actions -> Release -> Run workflow). The job checks out that
+# tag's source so the backfilled build matches what was originally released,
+# and updates the existing (non-draft) release in place instead of trying to
+# create a duplicate.
 #
 # Keep the tag in step with "version" in src-tauri/tauri.conf.json - that is
 # what ends up in the installer filenames.
@@ -17,6 +26,13 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: >-
+          Existing release tag to attach builds to (e.g. v0.3.0). Leave empty
+          to cut a brand-new draft release from the current ref instead.
+        required: false
+        type: string
 
 jobs:
   release:
@@ -26,14 +42,27 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Windows only for now: it is the only platform the app has actually
-        # been tested on. macOS and Linux runners can be added here once
-        # someone has verified the app works there.
-        platform: [windows-latest]
+        include:
+          - platform: windows-latest
+            args: ""
+          # Universal build: one .dmg that runs natively on both Apple
+          # Silicon and Intel Macs.
+          - platform: macos-latest
+            args: "--target universal-apple-darwin"
     runs-on: ${{ matrix.platform }}
+    env:
+      PLATFORM: ${{ matrix.platform }}
+      # Empty input -> normal path: tag the release from the ref that
+      # triggered this run, and create it as a draft if it doesn't exist yet.
+      # Non-empty input -> backfill path: attach this platform's build to the
+      # named tag's existing release instead of creating a new one.
+      RELEASE_TAG: ${{ github.event.inputs.release_tag || github.ref_name }}
+      IS_BACKFILL: ${{ github.event.inputs.release_tag != '' }}
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
 
       - uses: actions/setup-node@v4
         with:
@@ -41,6 +70,8 @@ jobs:
           cache: npm
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       # Rust builds from scratch take several minutes; cache the target dir.
       - uses: swatinem/rust-cache@v2
@@ -68,41 +99,66 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: DutyRoster ${{ github.ref_name }}
+          args: ${{ matrix.args }}
+          tagName: ${{ env.RELEASE_TAG }}
+          releaseName: DutyRoster ${{ env.RELEASE_TAG }}
           releaseBody: |
-            Windows installers are attached below.
+            Windows and macOS installers are attached below.
 
-            The `.msi` and the `-setup.exe` install the same application; pick
-            whichever you prefer.
+            **Windows** - the `.msi` and `-setup.exe` install the same
+            application; pick whichever you prefer. These builds are not
+            code-signed, so Windows SmartScreen will show a "Windows
+            protected your PC" warning on first run. Choose **More info ->
+            Run anyway** to continue. The warning means Windows does not
+            recognise the publisher - not that it found anything wrong with
+            the file.
 
-            These builds are not code-signed, so Windows SmartScreen will show
-            a "Windows protected your PC" warning on first run. Choose
-            **More info -> Run anyway** to continue. The warning means Windows
-            does not recognise the publisher - not that it found anything wrong
-            with the file.
+            **macOS** - the `.dmg` is a universal build that runs natively on
+            both Apple Silicon and Intel Macs. It is not code-signed or
+            notarized, so Gatekeeper will block it by default: after copying
+            the app to Applications, right-click it and choose **Open**, then
+            confirm **Open** in the dialog. You only need to do this once.
 
-            `SHA256SUMS.txt` below lists the checksum of each installer, so you
-            can confirm your download is exactly what this build produced:
+            `SHA256SUMS-windows.txt` and `SHA256SUMS-macos.txt` below list the
+            checksum of each installer, so you can confirm your download is
+            exactly what this build produced:
 
-            ```powershell
-            Get-FileHash .\DutyRoster_0.1.0_x64-setup.exe -Algorithm SHA256
             ```
-          releaseDraft: true
+            # Windows (PowerShell)
+            Get-FileHash .\DutyRoster_0.3.0_x64-setup.exe -Algorithm SHA256
+
+            # macOS (Terminal)
+            shasum -a 256 DutyRoster_0.3.0_universal.dmg
+            ```
+          # Backfilling onto an already-published release must not flip it
+          # back to a draft - create-release.ts only updates (never re-drafts)
+          # a release that already exists and isn't a draft.
+          releaseDraft: ${{ env.IS_BACKFILL == 'false' }}
           prerelease: false
 
-      # Publish a checksum for every installer. This does not remove the
-      # SmartScreen warning - only code signing does that - but it lets anyone
-      # verify the file they downloaded is byte-for-byte what this build
-      # produced, which is part of what signing would otherwise vouch for.
+      # Publish a checksum for every installer this platform's job built.
+      # One file per platform (not a single shared SHA256SUMS.txt): matrix
+      # jobs run in parallel and each only sees its own runner's bundle
+      # output, so a shared filename would have the last job to finish
+      # clobber the other platform's hashes.
+      #
+      # This does not remove the SmartScreen/Gatekeeper warning - only
+      # code signing does that - but it lets anyone verify the file they
+      # downloaded is byte-for-byte what this build produced, which is part
+      # of what signing would otherwise vouch for.
       - name: Publish SHA-256 checksums
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          $bundle = "src-tauri/target/release/bundle"
+          $platformLabel = if ($env:PLATFORM -eq 'macos-latest') { 'macos' } else { 'windows' }
+          $bundle = if ($env:PLATFORM -eq 'macos-latest') {
+            "src-tauri/target/universal-apple-darwin/release/bundle"
+          } else {
+            "src-tauri/target/release/bundle"
+          }
           $files = Get-ChildItem -Path $bundle -Recurse -File |
-                   Where-Object { $_.Extension -in '.msi', '.exe' } |
+                   Where-Object { $_.Extension -in '.msi', '.exe', '.dmg' } |
                    Sort-Object Name
           # Fail loudly rather than publishing a release with no checksums.
           if (-not $files) { throw "No installers found under $bundle" }
@@ -118,7 +174,7 @@ jobs:
           # exists for. WriteAllText with an explicit UTF8Encoding($false)
           # avoids both that and a byte-order mark.
           $text = ($lines -join "`n") + "`n"
-          $path = Join-Path $PWD 'SHA256SUMS.txt'
+          $path = Join-Path $PWD "SHA256SUMS-$platformLabel.txt"
           [System.IO.File]::WriteAllText($path, $text, [System.Text.UTF8Encoding]::new($false))
           Get-Content $path
-          gh release upload $env:GITHUB_REF_NAME SHA256SUMS.txt --clobber
+          gh release upload $env:RELEASE_TAG $path --clobber
