@@ -880,6 +880,7 @@ export default function App() {
             unfilledDays={unfilledDays}
             handleGenerateSchedule={handleGenerateSchedule}
             handleExportSchedule={handleExportSchedule}
+            partnerGroups={partnerGroups}
           />
         )}
       </main>

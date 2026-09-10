@@ -1023,6 +1023,14 @@ html, body, #root {
   box-shadow: 0 1px 2px rgba(0,0,0,0.01);
 }
 
+/* Marks a duty day where a partner group serves together. Sits above the
+   assignment tags in the same calendar cell, alongside them rather than
+   replacing them, since the group's members still show up individually below. */
+.partner-day-badge {
+  align-self: flex-start;
+  line-height: 1;
+}
+
 /* Options for Solver config */
 .options-pane {
   background-color: var(--bg-card);
