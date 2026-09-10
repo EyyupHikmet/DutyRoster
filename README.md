@@ -55,10 +55,20 @@ günü için uygun işaretlenmiş hiç öğretmen bulunmadığını.
 
 ## Kurulum
 
-Windows için hazır kurulum dosyasını
+Platformunuza uygun kurulum dosyasını
 [Releases](https://github.com/EyyupHikmet/DutyRoster/releases) sayfasından
-indirebilirsiniz — `.msi` veya `-setup.exe` dosyalarından biri yeterlidir;
-ikisi de aynı uygulamayı kurar.
+indirebilirsiniz:
+
+- **Windows** — `.msi` veya `-setup.exe` dosyalarından biri yeterlidir; ikisi
+  de aynı uygulamayı kurar.
+- **macOS** — `.dmg` dosyası. Hem Apple Silicon hem de Intel Mac'lerde
+  doğrudan çalışan evrensel (universal) bir derlemedir.
+
+İki kurulum dosyası da dijital olarak imzalanmamıştır (bu, projenin henüz
+sahip olmadığı ücretli bir sertifika gerektirir); bu yüzden her iki platformda
+da uygulamayı ilk çalıştırdığınızda bir uyarı görürsünüz. Bu beklenen bir
+durumdur — nasıl devam edeceğiniz ve isterseniz indirdiğiniz dosyayı nasıl
+doğrulayabileceğiniz aşağıda anlatılıyor.
 
 ### "Windows bilgisayarınızı korudu" uyarısı
 
@@ -71,17 +81,49 @@ engelledi"* biçiminde de çıkabilir.
 Bunun nedeni, kurulum dosyasının dijital olarak imzalanmamış olması; yani
 Windows yayıncıyı tanımıyor. Bu bir virüs uyarısı değildir ve dosyada bir şey
 bulunduğu anlamına gelmez — imzalanmamış her küçük proje, içeriği ne olursa
-olsun bu mesajı alır. İmzalama ücretli bir sertifika gerektiriyor ve projenin
-henüz böyle bir sertifikası yok.
+olsun bu mesajı alır.
 
-Dosyayı kendiniz doğrulamak isterseniz, her sürümde bir `SHA256SUMS.txt`
-dosyası bulunur. Kendi kopyanızla karşılaştırın:
+### "Apple, kötü amaçlı yazılım içermediğini doğrulayamadı" uyarısı (macOS)
 
-```powershell
-Get-FileHash .\DutyRoster_0.1.0_x64-setup.exe -Algorithm SHA256
+macOS bu uyarıyı, ya da benzer biçimde *"DutyRoster dosyası bozuk, açılamıyor"*
+mesajını gösterir; çünkü uygulama Apple tarafından notarize edilmemiştir.
+Mesaj endişe verici görünse de dosyada gerçekten bir sorun yoktur — macOS,
+internetten indirilen imzasız bir uygulamayı çalıştırmayı reddediyor, hepsi
+bu; notarize edilmemiş her uygulama bu mesajın bir biçimini alır. Uygulamaya
+sağ tıklayıp **Aç**'ı seçmek burada işe yaramaz; bu kısayol yalnızca imzalı
+ama notarize edilmemiş uygulamalarda çalışır, bu derleme gibi tamamen imzasız
+uygulamalarda değil. Bunun yerine iki yol var:
+
+**Terminal'den, bir kereliğine:**
+
+```bash
+xattr -cr /Applications/DutyRoster.app
 ```
 
-Çıkan özet değeri `SHA256SUMS.txt` içindeki ilgili satırla aynıysa,
+Ardından uygulamayı normal şekilde açabilirsiniz.
+
+**Ya da Terminal'e gerek kalmadan Sistem Ayarları'ndan:** Sistem Ayarları →
+Gizlilik ve Güvenlik → Güvenlik bölümüne inin → *"'DutyRoster.app'
+Mac'inizi korumak için engellendi"* yazısını ve **Yine de Aç** düğmesini
+göreceksiniz. Düğmeye tıklayın, kimliğinizi doğrulayın, ardından uygulamayı
+tekrar açıp açılan diyalogda **Aç**'ı onaylayın.
+
+### İndirdiğiniz dosyayı doğrulama
+
+Her sürümde bir `SHA256SUMS-windows.txt` ve bir `SHA256SUMS-macos.txt` dosyası
+bulunur. İndirdiğinizi ilgili olanla karşılaştırın:
+
+```powershell
+# Windows (PowerShell)
+Get-FileHash .\DutyRoster_0.3.0_x64-setup.exe -Algorithm SHA256
+```
+
+```bash
+# macOS (Terminal)
+shasum -a 256 DutyRoster_0.3.0_universal.dmg
+```
+
+Çıkan özet değeri ilgili `SHA256SUMS-*.txt` dosyasındaki satırla aynıysa,
 indirdiğiniz dosya GitHub'ın etiketlenmiş kaynaktan derlediği dosyanın birebir
 aynısıdır.
 
@@ -96,6 +138,7 @@ Uygulamayı kendiniz derlemek isterseniz aşağıdaki adımları izleyebilirsini
 | Node.js | 20 veya üzeri |
 | Rust araç zinciri | kararlı sürüm, [rustup](https://rustup.rs) ile |
 | WebView2 çalışma zamanı | yalnızca Windows; Windows 11'de hâlihazırda kuruludur |
+| Xcode Command Line Tools | yalnızca macOS — `xcode-select --install` |
 
 Uygulama kodunun neredeyse tamamı TypeScript olmasına rağmen Rust araç zinciri
 gereklidir: Tauri, arayüzün çevresine yerel bir Rust katmanı derler.
@@ -114,9 +157,10 @@ kontrol edip uygulamayı başlatır. macOS ve Linux'ta aynı işi `run.sh` yapar
 > pencereleri ve Excel'e aktarma çalışmaz. Veri veya dosya işlemlerine dokunan
 > her şeyin `npm run tauri dev` ile denenmesi gerekir.
 
-Geliştirme Windows üzerinde yapıldı. Tauri macOS ve Linux'u da destekliyor ve
-kodda platforma özel bir bölüm yok, ancak bu iki platform denenmedi — geri
-bildirimleriniz memnuniyetle karşılanır.
+Geliştirme Windows üzerinde yapıldı; artık macOS üzerinde de derlenip
+çalıştırıldı ve test edildi. Tauri Linux'u da destekliyor ve kodda platforma
+özel bir bölüm yok, ancak Linux henüz denenmedi — geri bildirimleriniz
+memnuniyetle karşılanır.
 
 ## Testler
 
