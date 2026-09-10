@@ -115,12 +115,12 @@ bulunur. İndirdiğinizi ilgili olanla karşılaştırın:
 
 ```powershell
 # Windows (PowerShell)
-Get-FileHash .\DutyRoster_0.3.0_x64-setup.exe -Algorithm SHA256
+Get-FileHash .\DutyRoster_0.4.0_x64-setup.exe -Algorithm SHA256
 ```
 
 ```bash
 # macOS (Terminal)
-shasum -a 256 DutyRoster_0.3.0_universal.dmg
+shasum -a 256 DutyRoster_0.4.0_universal.dmg
 ```
 
 Çıkan özet değeri ilgili `SHA256SUMS-*.txt` dosyasındaki satırla aynıysa,
