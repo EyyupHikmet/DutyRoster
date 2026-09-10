@@ -34,6 +34,8 @@ describe("TeacherList", () => {
         onSelectTeacher={() => {}}
         onEditTeacher={() => {}}
         onDeleteTeacher={() => {}}
+        monthlyTargets={{}}
+        partnerGroups={[]}
       />
     );
     expect(screen.getByText(/henüz öğretmen kayıtlı değil/i)).toBeInTheDocument();
@@ -47,6 +49,8 @@ describe("TeacherList", () => {
         onSelectTeacher={() => {}}
         onEditTeacher={() => {}}
         onDeleteTeacher={() => {}}
+        monthlyTargets={{}}
+        partnerGroups={[]}
       />
     );
     expect(screen.getByText("Ahmet Yılmaz")).toBeInTheDocument();
@@ -66,6 +70,8 @@ describe("TeacherList", () => {
         onSelectTeacher={onSelectTeacher}
         onEditTeacher={() => {}}
         onDeleteTeacher={() => {}}
+        monthlyTargets={{}}
+        partnerGroups={[]}
       />
     );
     await user.click(screen.getByText("Ahmet Yılmaz"));
@@ -84,6 +90,8 @@ describe("TeacherList", () => {
         onSelectTeacher={onSelectTeacher}
         onEditTeacher={onEditTeacher}
         onDeleteTeacher={onDeleteTeacher}
+        monthlyTargets={{}}
+        partnerGroups={[]}
       />
     );
 

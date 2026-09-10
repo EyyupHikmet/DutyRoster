@@ -11,13 +11,13 @@ interface TeacherListProps {
   onDeleteTeacher: (id: string) => void;
   /**
    * This month's target overrides, and the groups the roster is committed to
-   * this month. Optional (defaulting below) so a caller that hasn't wired
-   * month context yet — Step1Roster.tsx, until Task 10 plumbs it through —
-   * still compiles; it falls back to each teacher's usual target and shows
-   * no group marker.
+   * this month. Step1Roster always supplies these, sourced from the same
+   * month-scoped state the solver and PartnerGroups card use — a teacher's
+   * row must reflect THIS month's target and commitments, not fall back
+   * silently to something else.
    */
-  monthlyTargets?: Record<string, number>;
-  partnerGroups?: PartnerGroup[];
+  monthlyTargets: Record<string, number>;
+  partnerGroups: PartnerGroup[];
 }
 
 export const TeacherList: React.FC<TeacherListProps> = ({
@@ -26,8 +26,8 @@ export const TeacherList: React.FC<TeacherListProps> = ({
   onSelectTeacher,
   onEditTeacher,
   onDeleteTeacher,
-  monthlyTargets = {},
-  partnerGroups = []
+  monthlyTargets,
+  partnerGroups
 }) => {
   return (
     <div className="fill-column">

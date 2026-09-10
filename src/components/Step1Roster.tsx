@@ -1,10 +1,12 @@
 import React from "react";
 import { DbTeacher } from "../db";
 import { AvailabilityStatus } from "../solver";
+import { PartnerGroup } from "../solver/partners";
 import { TeacherForm } from "./TeacherForm";
 import { ExcelImport } from "./ExcelImport";
 import { TeacherList } from "./TeacherList";
 import { AvailabilityCalendar } from "./AvailabilityCalendar";
+import { PartnerGroups } from "./PartnerGroups";
 
 interface Step1RosterProps {
   teachers: DbTeacher[];
@@ -28,6 +30,18 @@ interface Step1RosterProps {
   setSelectedMonth: (m: number) => void;
   availabilities: Record<string, Record<string, AvailabilityStatus>>;
   handleCycleAvailability: (dateStr: string) => void;
+  /** e.g. "Ekim 2026" — the selected (year, month), for the target-hours
+   * label on TeacherForm and the header of the PartnerGroups card. */
+  monthLabel: string;
+  /** This month's duty-target overrides and partner groups, plus the setter
+   * for the latter — sourced from useScheduleState so the roster, the
+   * PartnerGroups card, and the solver all agree on what THIS month looks
+   * like. */
+  partnerGroups: PartnerGroup[];
+  monthlyTargets: Record<string, number>;
+  onChangeGroups: (groups: PartnerGroup[]) => void;
+  copyMonths: { year: number; month: number }[];
+  onCopyFromMonth: (year: number, month: number) => void;
 }
 
 export const Step1Roster: React.FC<Step1RosterProps> = ({
@@ -51,7 +65,13 @@ export const Step1Roster: React.FC<Step1RosterProps> = ({
   selectedMonth,
   setSelectedMonth,
   availabilities,
-  handleCycleAvailability
+  handleCycleAvailability,
+  monthLabel,
+  partnerGroups,
+  monthlyTargets,
+  onChangeGroups,
+  copyMonths,
+  onCopyFromMonth
 }) => {
   return (
     <div className="fill-column">
@@ -76,6 +96,8 @@ export const Step1Roster: React.FC<Step1RosterProps> = ({
             onSelectTeacher={(id) => setSelectedTeacherId(id)}
             onEditTeacher={handleEditTeacherClick}
             onDeleteTeacher={handleDeleteTeacher}
+            monthlyTargets={monthlyTargets}
+            partnerGroups={partnerGroups}
           />
         </div>
 
@@ -118,6 +140,17 @@ export const Step1Roster: React.FC<Step1RosterProps> = ({
               setTeacherTarget(4);
               setTeacherPriority(1);
             }}
+            monthLabel={monthLabel}
+            usualTarget={teachers.find((t) => t.id === editingTeacherId)?.target_hours ?? null}
+          />
+          <PartnerGroups
+            teachers={teachers}
+            monthLabel={monthLabel}
+            partnerGroups={partnerGroups}
+            monthlyTargets={monthlyTargets}
+            onChangeGroups={onChangeGroups}
+            copyMonths={copyMonths}
+            onCopyFromMonth={onCopyFromMonth}
           />
           <ExcelImport onFileImport={handleFileImport} />
         </div>

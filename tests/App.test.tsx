@@ -19,6 +19,7 @@ vi.mock("../src/db", () => ({
   saveAvailability: vi.fn().mockResolvedValue(undefined),
   getSchedule: vi.fn().mockResolvedValue(null),
   saveSchedule: vi.fn().mockResolvedValue(undefined),
+  getAllSchedules: vi.fn().mockResolvedValue([]),
   resetDb: vi.fn().mockResolvedValue(undefined),
 }));
 
@@ -63,6 +64,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockedDb.getSchedule.mockResolvedValue(null);
   mockedDb.saveSchedule.mockResolvedValue(undefined);
+  mockedDb.getAllSchedules.mockResolvedValue([]);
 });
 
 describe("App — 3-step wizard navigation", () => {
@@ -661,5 +663,60 @@ describe("App — hard planning rules reach the solver", () => {
     const config = mockedSolve.mock.calls[0][3];
     expect(config.respectTargets).toBe(true);
     expect(config.avoidConsecutiveDays).toBe(true);
+  });
+});
+
+// This month's partner groups (loaded from its saved config) must reach the
+// solver's SolverConfig, and monthlyTargets must resolve through
+// effectiveTarget rather than the bare teachers.target_hours — the two
+// states (roster's own groups/targets, solver's config) must never drift
+// apart. The brief's own version of this test only rendered App and waited
+// for a save that nothing ever triggers (no click on "Programı Hazırla"),
+// which times out — fixed here to actually drive generation, matching how
+// every other solver-config test in this file does it (see
+// "App — hard planning rules reach the solver" above).
+describe("App — this month's partner groups and monthly targets reach the solver", () => {
+  beforeEach(() => {
+    mockedDb.getTeachers.mockResolvedValue([
+      { id: "T1", name: "Ahmet Yılmaz", target_hours: 4, priority: 1 },
+      { id: "T2", name: "Ayşe Demir", target_hours: 4, priority: 1 },
+    ]);
+    // Bu ayın kaydında bir grup ve bir hedef geçersiz kılma var.
+    mockedDb.getSchedule.mockResolvedValue({
+      id: "s1",
+      year: new Date().getFullYear(),
+      month: new Date().getMonth() + 1,
+      assignments: "{}",
+      holidays: "[]",
+      weekend_duty_days: "[]",
+      config: JSON.stringify({
+        mode: "fairness",
+        teachersPerDay: 1,
+        pinnedAssignments: {},
+        partnerGroups: [{ id: "g1", memberIds: ["T1", "T2"], goalDays: 1 }],
+        monthlyTargets: { T1: 6 },
+      }),
+    });
+  });
+
+  it("çizelge üretilirken ayın gruplarını ve o aya özel hedefleri çözücüye iletir", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await waitFor(() => expect(screen.getByText(/Adım 1: Öğretmen Kadrosu/)).toBeInTheDocument());
+
+    await user.click(screen.getByText("Planla & Dışa Aktar"));
+    await waitFor(() => expect(screen.getByText(/Adım 3: Planlama Seçenekleri/)).toBeInTheDocument());
+    await user.click(screen.getByText("⚡ Programı Hazırla"));
+
+    await waitFor(() => expect(mockedSolve).toHaveBeenCalled());
+    const [solverDates, solverTeachers, , solverConfig] = mockedSolve.mock.calls[0];
+    expect(solverConfig.partnerGroups).toEqual([
+      { id: "g1", memberIds: ["T1", "T2"], goalDays: 1 },
+    ]);
+    // T1's target_hours is 4, but this month overrides it to 6 — the solver
+    // must see the override, not the teacher's usual value.
+    expect(solverTeachers.find((t) => t.id === "T1")?.target_hours).toBe(6);
+    expect(solverTeachers.find((t) => t.id === "T2")?.target_hours).toBe(4);
+    expect(solverDates.length).toBeGreaterThan(0);
   });
 });

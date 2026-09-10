@@ -4,6 +4,7 @@ import { useAvailabilities } from "./hooks/useAvailabilities";
 import { useScheduleState } from "./hooks/useScheduleState";
 import { parseExcelRoster, exportScheduleToExcel } from "./utils/excelUtils";
 import { getDutyDates, findUnfilledDays, MONTHS_TR } from "./utils/dateUtils";
+import { effectiveTarget } from "./utils/targets";
 import { solve, Teacher, SolverConfig, SolverResult } from "./solver";
 import { saveTeacher, resetDb } from "./db";
 import { openPath, revealItemInDir, openUrl } from "@tauri-apps/plugin-opener";
@@ -295,9 +296,25 @@ export default function App() {
     saveDraftToDb,
     isDirty,
     partnerGroups,
+    setPartnerGroups,
     monthlyTargets,
-    setMonthlyTargets
+    setMonthlyTargets,
+    copyPartnersFromMonth,
+    availablePartnerMonths
   } = useScheduleState();
+
+  // Months (other than the one currently selected) that already have partner
+  // groups defined, offered in the PartnerGroups card's "copy from another
+  // month" control. Refreshed alongside the rest of the month's data below,
+  // since it depends on the whole schedules table, not just (selectedYear,
+  // selectedMonth).
+  const [copyMonths, setCopyMonths] = useState<{ year: number; month: number }[]>([]);
+
+  const monthLabel = `${MONTHS_TR[selectedMonth - 1]} ${selectedYear}`;
+
+  const handleCopyPartnersFromMonth = async (year: number, month: number) => {
+    await copyPartnersFromMonth(year, month, teachers.map((t) => t.id));
+  };
 
   // Context Task 9's handleSaveTeacherSubmit needs to enforce the monthly
   // target-vs-group-commitment rule; wrapped into the Step1Roster call site
@@ -373,6 +390,7 @@ export default function App() {
         await loadTeachers();
         await loadAvailabilities();
         await loadScheduleData(selectedYear, selectedMonth);
+        setCopyMonths(await availablePartnerMonths());
       } catch (err) {
         console.error("Veritabanı yüklenirken hata oluştu:", err);
       }
@@ -449,10 +467,14 @@ export default function App() {
       return;
     }
 
+    // The solver must see THIS month's target — a monthlyTargets override, or
+    // the teacher's usual target_hours if this month has none — never the
+    // bare teachers.target_hours, or a month-specific override set via
+    // TeacherForm/PartnerGroups would be silently ignored at generation time.
     const solverTeachers: Teacher[] = teachers.map((t) => ({
       id: t.id,
       name: t.name,
-      target_hours: t.target_hours,
+      target_hours: effectiveTarget(t, monthlyTargets),
       priority: t.priority
     }));
 
@@ -467,7 +489,8 @@ export default function App() {
       teachersPerDay: solverTeachersPerDay,
       pinnedAssignments: pinnedAssignments,
       respectTargets: respectTargets,
-      avoidConsecutiveDays: avoidConsecutiveDays
+      avoidConsecutiveDays: avoidConsecutiveDays,
+      partnerGroups: partnerGroups
     };
 
     const result: SolverResult = solve(targetDates, solverTeachers, availabilities, config);
@@ -809,6 +832,12 @@ export default function App() {
             setSelectedMonth={requestMonthChange}
             availabilities={availabilities}
             handleCycleAvailability={handleCycleAvailabilityWrapper}
+            monthLabel={monthLabel}
+            partnerGroups={partnerGroups}
+            monthlyTargets={monthlyTargets}
+            onChangeGroups={setPartnerGroups}
+            copyMonths={copyMonths}
+            onCopyFromMonth={handleCopyPartnersFromMonth}
           />
         )}
 

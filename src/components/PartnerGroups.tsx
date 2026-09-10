@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { DbTeacher } from "../db";
 import { PartnerGroup } from "../solver/partners";
 import { validatePartnerGroups } from "../solver/validation";
@@ -31,6 +31,26 @@ export const PartnerGroups: React.FC<PartnerGroupsProps> = ({
   const [copySelection, setCopySelection] = useState<string>(
     copyMonths.length > 0 ? `${copyMonths[0].year}-${copyMonths[0].month}` : ""
   );
+
+  // copyMonths is loaded asynchronously (App reads it from the DB) and
+  // typically starts out empty. copySelection is only initialised once via
+  // useState above, so if it started out "" it would stay "" forever once
+  // copyMonths eventually arrives — handleCopy's Number("") parse then
+  // silently produces NaN and no-ops, with no error shown, on every click of
+  // "Seçilen aydan kopyala". Re-derive the selection whenever the option list
+  // changes and the current selection no longer names one of its options.
+  useEffect(() => {
+    if (copyMonths.length === 0) return;
+    const stillValid = copyMonths.some(
+      ({ year, month }) => `${year}-${month}` === copySelection
+    );
+    if (!stillValid) {
+      setCopySelection(`${copyMonths[0].year}-${copyMonths[0].month}`);
+    }
+    // Only copyMonths should re-trigger this: copySelection is read to decide
+    // whether a re-sync is needed, not to be chased on every keystroke.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [copyMonths]);
 
   const nameOf = (id: string) => teachers.find((t) => t.id === id)?.name ?? id;
 

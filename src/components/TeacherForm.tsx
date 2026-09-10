@@ -13,14 +13,13 @@ interface TeacherFormProps {
   onCancel: () => void;
   /**
    * Which month's target this form edits, for the label and the "differs
-   * from usual" note below. Optional (defaulting below) so a caller that
-   * hasn't wired month context yet — Step1Roster.tsx, until Task 10 plumbs
-   * it through — still compiles.
+   * from usual" note below. e.g. "Ekim 2026" — Step1Roster derives this from
+   * the selected year/month and always supplies it.
    */
-  monthLabel?: string;
+  monthLabel: string;
   /** The teacher's usual (teachers.target_hours) target, or null when unknown
-   * (e.g. a brand-new teacher, or the caller hasn't wired it yet). */
-  usualTarget?: number | null;
+   * (e.g. a brand-new teacher not yet in the roster). */
+  usualTarget: number | null;
 }
 
 export const TeacherForm: React.FC<TeacherFormProps> = ({
@@ -33,8 +32,8 @@ export const TeacherForm: React.FC<TeacherFormProps> = ({
   setTeacherPriority,
   onSubmit,
   onCancel,
-  monthLabel = "bu ay",
-  usualTarget = null
+  monthLabel,
+  usualTarget
 }) => {
   return (
     <div className="card" style={{ marginBottom: "20px" }}>

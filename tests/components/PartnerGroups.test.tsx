@@ -121,4 +121,42 @@ describe("PartnerGroups", () => {
 
     expect(onCopyFromMonth).toHaveBeenCalledWith(2026, 9);
   });
+
+  // copyMonths is loaded from the DB asynchronously by App, so it is very
+  // often still [] on the first render and only arrives afterward. The
+  // initial "seçim" state must not get stuck at "" once that happens —
+  // otherwise the copy button silently no-ops (Number("") is NaN) with no
+  // visible error.
+  it("copyMonths mount sonrasında gelse bile kopyalamayı doğru ay/yılla tetikler", async () => {
+    const user = userEvent.setup();
+    const onCopyFromMonth = vi.fn();
+    const { rerender } = render(
+      <PartnerGroups
+        teachers={teachers}
+        monthLabel="Ekim 2026"
+        partnerGroups={[]}
+        monthlyTargets={{}}
+        onChangeGroups={vi.fn()}
+        copyMonths={[]}
+        onCopyFromMonth={onCopyFromMonth}
+      />
+    );
+    expect(screen.queryByRole("button", { name: /kopyala/i })).not.toBeInTheDocument();
+
+    rerender(
+      <PartnerGroups
+        teachers={teachers}
+        monthLabel="Ekim 2026"
+        partnerGroups={[]}
+        monthlyTargets={{}}
+        onChangeGroups={vi.fn()}
+        copyMonths={[{ year: 2026, month: 9 }]}
+        onCopyFromMonth={onCopyFromMonth}
+      />
+    );
+
+    await user.click(await screen.findByRole("button", { name: /kopyala/i }));
+
+    expect(onCopyFromMonth).toHaveBeenCalledWith(2026, 9);
+  });
 });
