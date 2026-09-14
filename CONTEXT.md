@@ -163,7 +163,7 @@ _Turkish_: Sıkışma
 _Avoid_: Error date, failure date
 
 **Duty report**:
-The exported workbook of a month's schedule together with each teacher's duty totals.
+The exported workbook of one or more schedules, each with its teachers' duty totals, plus a running total when it holds more than one.
 _Turkish_: Nöbet Raporu
 _Avoid_: Excel export, Excel file
 
@@ -175,3 +175,26 @@ Everything the principal has configured for one month.
 **Draft**:
 A month setup for which no schedule has been generated yet.
 _Avoid_: Unsaved changes (a separate thing: edits not yet written)
+
+**School year**:
+The twelve months from Eylül to the following Ağustos.
+_Turkish_: Eğitim-öğretim yılı
+
+### Approval
+
+**Approve**:
+To make a generated schedule official, keeping a frozen copy of it permanently. A schedule has at most one approved schedule, so approving it again replaces the earlier copy. Approving does not lock the month: its setup can still be changed and its schedule generated again.
+_Turkish_: Onayla
+
+**Approved schedule**:
+The frozen copy of a schedule made when the principal approves it, together with everything its duty report needs: teacher names, effective targets, extra duty days and non-duty days. Later changes to the staff or the month setup never alter it. It may contain open slots.
+_Turkish_: Onaylı Çizelge
+_Avoid_: Saved schedule, archive, final schedule
+
+**Approval date**:
+The moment a schedule was approved.
+_Turkish_: Onay tarihi
+
+**Running total**:
+Each teacher's duties added up across every schedule included in one duty report. Teachers are matched by name, so a teacher renamed between schedules counts as two.
+_Avoid_: Annual total (it covers only what the report includes)
