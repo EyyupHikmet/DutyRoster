@@ -16,6 +16,7 @@ what would justify revisiting the choice.
 | [ADR-0003](ADR-0003-one-row-per-month.md) | A month is one row, with its configuration stored as JSON |
 | [ADR-0004](ADR-0004-turkish-first-plain-language.md) | Turkish-first interface, with no technical vocabulary |
 | [ADR-0005](ADR-0005-drafts-persist-independently.md) | A month's setup is saved independently of solving it |
+| [ADR-0006](ADR-0006-approved-schedules-are-frozen-copies.md) | Approved schedules are frozen copies, stored apart from the working month |
 
 These were written when the project was opened to the public, and document
 decisions taken during its initial development rather than at the moment each
