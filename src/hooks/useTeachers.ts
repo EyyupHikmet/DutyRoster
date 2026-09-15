@@ -2,6 +2,7 @@ import { useState } from "react";
 import { getTeachers, saveTeacher, deleteTeacher, DbTeacher } from "../db";
 import { effectiveTarget } from "../utils/targets";
 import { PartnerGroup, committedGroupDays } from "../solver/partners";
+import { findNameConflict } from "../utils/teacherNames";
 
 export interface SaveTeacherContext {
   partnerGroups: PartnerGroup[];
@@ -51,6 +52,16 @@ export function useTeachers() {
     if (e) e.preventDefault();
     setTeacherError(null);
     if (!teacherName.trim()) return false;
+
+    // The name is what tells teachers apart (see teacherNames.ts), so a name
+    // another teacher already has is refused rather than saved as a twin.
+    const conflict = findNameConflict(teacherName, teachers, editingTeacherId);
+    if (conflict) {
+      setTeacherError(
+        `“${conflict.name}” adında bir öğretmen zaten var. İki öğretmeni ayırt edebilmek için adı değiştirin (ör. “${conflict.name} (Mat.)”).`
+      );
+      return false;
+    }
 
     const id = editingTeacherId || crypto.randomUUID();
     const target = Number(teacherTarget);

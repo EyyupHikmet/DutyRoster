@@ -2,6 +2,7 @@ import React from "react";
 import { DbTeacher } from "../db";
 import { PartnerGroup, committedGroupDays } from "../solver/partners";
 import { effectiveTarget } from "../utils/targets";
+import { duplicateNameIds } from "../utils/teacherNames";
 
 interface TeacherListProps {
   teachers: DbTeacher[];
@@ -29,6 +30,10 @@ export const TeacherList: React.FC<TeacherListProps> = ({
   monthlyTargets,
   partnerGroups
 }) => {
+  // Older data may hold two teachers with the same name. They are not merged
+  // automatically; the principal is shown which ones to rename.
+  const sharedNames = duplicateNameIds(teachers);
+
   return (
     <div className="fill-column">
       <h3 style={{ margin: "0 0 12px 0", color: "var(--slate-900)", fontWeight: "800", fontSize: "1.1rem", flexShrink: 0 }}>
@@ -109,6 +114,11 @@ export const TeacherList: React.FC<TeacherListProps> = ({
                       </span>
                     )}
                   </p>
+                  {sharedNames.has(t.id) && (
+                    <p style={{ margin: "2px 0 0 0", fontSize: "0.78rem", fontWeight: 600, color: "var(--danger)" }}>
+                      Aynı isimde başka öğretmen var
+                    </p>
+                  )}
                 </div>
               </button>
               <div style={{ display: "flex", gap: "8px" }}>
