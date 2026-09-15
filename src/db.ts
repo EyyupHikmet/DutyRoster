@@ -73,8 +73,10 @@ export interface DbTeacher {
 
 export async function getTeachers(): Promise<DbTeacher[]> {
   const db = await getDb();
-  const rows = await db.select<DbTeacher[]>("SELECT * FROM teachers ORDER BY name ASC");
-  return rows || [];
+  const rows = await db.select<DbTeacher[]>("SELECT * FROM teachers");
+  // Sorted here, not with ORDER BY: SQLite compares bytes, which puts every
+  // Turkish capital (Ç Ğ İ Ö Ş Ü) after Z. See AGENTS.md, "Turkish text".
+  return (rows || []).sort((a, b) => a.name.localeCompare(b.name, "tr"));
 }
 
 export async function saveTeacher(teacher: DbTeacher): Promise<void> {

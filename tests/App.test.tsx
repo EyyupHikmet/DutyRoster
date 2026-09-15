@@ -324,31 +324,31 @@ describe("App — Excel export save dialog and confirmation", () => {
     const user = userEvent.setup();
     mockedExcelUtils.exportScheduleToExcel.mockResolvedValue({
       status: "saved",
-      path: "C:\\Users\\test\\Belgeler\\2026_Eylül_Nobet_Raporu_v1.xlsx",
-      filename: "2026_Eylül_Nobet_Raporu_v1.xlsx",
+      path: "C:\\Users\\test\\Belgeler\\2026_Eylül_Nöbet_Raporu_v1.xlsx",
+      filename: "2026_Eylül_Nöbet_Raporu_v1.xlsx",
     });
     const exportButton = await goToStep3WithExportButton(user);
 
     await user.click(exportButton);
 
-    expect(await screen.findByText(/2026_Eylül_Nobet_Raporu_v1\.xlsx/)).toBeInTheDocument();
+    expect(await screen.findByText(/2026_Eylül_Nöbet_Raporu_v1\.xlsx/)).toBeInTheDocument();
     const openFileBtn = screen.getByRole("button", { name: "Dosyayı Aç" });
     const openFolderBtn = screen.getByRole("button", { name: "Klasörü Aç" });
 
     await user.click(openFileBtn);
     expect(mockedOpener.openPath).toHaveBeenCalledWith(
-      "C:\\Users\\test\\Belgeler\\2026_Eylül_Nobet_Raporu_v1.xlsx"
+      "C:\\Users\\test\\Belgeler\\2026_Eylül_Nöbet_Raporu_v1.xlsx"
     );
 
     await user.click(openFolderBtn);
     expect(mockedOpener.revealItemInDir).toHaveBeenCalledWith(
-      "C:\\Users\\test\\Belgeler\\2026_Eylül_Nobet_Raporu_v1.xlsx"
+      "C:\\Users\\test\\Belgeler\\2026_Eylül_Nöbet_Raporu_v1.xlsx"
     );
 
     // Dismiss control also present and functional (not required by the ACs,
     // but the toast must not be stuck on screen forever with no way to close it).
     await user.click(screen.getByRole("button", { name: "Bildirimi kapat" }));
-    expect(screen.queryByText(/2026_Eylül_Nobet_Raporu_v1\.xlsx/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/2026_Eylül_Nöbet_Raporu_v1\.xlsx/)).not.toBeInTheDocument();
   });
 
   it("canceled: dismissing the native dialog shows no confirmation toast and no error, no opener calls", async () => {
@@ -409,8 +409,8 @@ describe("App — Excel export save dialog and confirmation", () => {
       const user = userEvent.setup();
       mockedExcelUtils.exportScheduleToExcel.mockResolvedValue({
         status: "saved",
-        path: "C:\Users\test\Belgeler\2026_Eylül_Nobet_Raporu_v1.xlsx",
-        filename: "2026_Eylül_Nobet_Raporu_v1.xlsx",
+        path: "C:\Users\test\Belgeler\2026_Eylül_Nöbet_Raporu_v1.xlsx",
+        filename: "2026_Eylül_Nöbet_Raporu_v1.xlsx",
       });
       const exportButton = await goToStep3WithExportButton(user, partialMonth);
 
@@ -421,7 +421,7 @@ describe("App — Excel export save dialog and confirmation", () => {
         expect(mockedExcelUtils.exportScheduleToExcel).toHaveBeenCalledTimes(1)
       );
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-      expect(await screen.findByText(/2026_Eylül_Nobet_Raporu_v1\.xlsx/)).toBeInTheDocument();
+      expect(await screen.findByText(/2026_Eylül_Nöbet_Raporu_v1\.xlsx/)).toBeInTheDocument();
     });
 
     it("'Vazgeç' closes the dialog and writes nothing", async () => {
