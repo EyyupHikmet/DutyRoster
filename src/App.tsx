@@ -8,10 +8,11 @@ import { approvedCopyFor, earlierInSchoolYear, formatApprovalDate } from "./util
 import { creditPartnerGroups } from "./solver/partners";
 import { splitImportByName } from "./utils/teacherNames";
 import { useApprovedSchedules, ApprovedSchedule } from "./hooks/useApprovedSchedules";
+import { useDutyPosts } from "./hooks/useDutyPosts";
 import { getDutyDates, findUnfilledDays, MONTHS_TR } from "./utils/dateUtils";
 import { effectiveTarget } from "./utils/targets";
 import { solve, Teacher, SolverConfig, SolverResult } from "./solver";
-import { saveTeacher, resetDb } from "./db";
+import { saveTeacher, resetDb, getLastPostId, setLastPostId } from "./db";
 import { openPath, revealItemInDir, openUrl } from "@tauri-apps/plugin-opener";
 import "./App.css";
 
@@ -27,6 +28,7 @@ import { Step3Solver } from "./components/Step3Solver";
 import { ApprovedSchedulesDrawer } from "./components/ApprovedSchedulesDrawer";
 import { DeleteApprovedDialog } from "./components/DeleteApprovedDialog";
 import { ModalDialog } from "./components/ModalDialog";
+import { PostMenu } from "./components/PostMenu";
 
 export default function App() {
   const [activeStep, setActiveStep] = useState<number>(1);
@@ -43,7 +45,9 @@ export default function App() {
   // unsaved changes. pendingNav holds the target the user tried to switch to
   // (captured at the moment their year/month selector fired) so it can be
   // applied after Save/Discard, or thrown away on Cancel.
-  const [pendingNav, setPendingNav] = useState<{ type: "year" | "month"; value: number } | null>(null);
+  const [pendingNav, setPendingNav] = useState<
+    { type: "year" | "month"; value: number } | { type: "post"; value: string } | null
+  >(null);
   const [isUnsavedConfirmOpen, setIsUnsavedConfirmOpen] = useState<boolean>(false);
   const unsavedModalRef = useRef<HTMLDivElement>(null);
 
@@ -255,33 +259,20 @@ export default function App() {
     document.documentElement.style.fontSize = `${16 * fontSizeFactor}px`;
   }, [fontSizeFactor]);
 
+  // On a narrow window the header's side buttons keep only their icons, so the
+  // wizard steps are never covered. Measured in the app's own text scale (the
+  // header row is the window less the page padding): larger text compacts
+  // sooner. JS rather than a CSS container query, because containing the header
+  // would trap its dropdowns and dialogs inside it.
+  const [windowWidth, setWindowWidth] = useState<number>(() => window.innerWidth);
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+  const compactHeader = windowWidth - 48 < 47.5 * 16 * fontSizeFactor;
+
   // Load state and action managers via custom hooks
-  const {
-    teachers,
-    loadTeachers,
-    selectedTeacherId,
-    setSelectedTeacherId,
-    editingTeacherId,
-    setEditingTeacherId,
-    teacherName,
-    setTeacherName,
-    teacherTarget,
-    setTeacherTarget,
-    teacherPriority,
-    setTeacherPriority,
-    teacherError,
-    setTeacherError,
-    handleSaveTeacherSubmit,
-    handleEditTeacherClick,
-    handleDeleteTeacherClick
-  } = useTeachers();
-
-  const {
-    availabilities,
-    loadAvailabilities,
-    handleCycleAvailability
-  } = useAvailabilities();
-
   const {
     selectedYear,
     setSelectedYear,
@@ -322,10 +313,56 @@ export default function App() {
     copyPartnersFromMonth,
     availablePartnerMonths,
     pruneTeacherFromMonth,
-    scheduleId
+    scheduleId,
+    selectedPostId,
+    setSelectedPostId,
+    copyDaySettingsFromPost,
+    postsWithMonthSetup
   } = useScheduleState();
 
+  const {
+    teachers,
+    loadTeachers,
+    selectedTeacherId,
+    setSelectedTeacherId,
+    editingTeacherId,
+    setEditingTeacherId,
+    teacherName,
+    setTeacherName,
+    teacherTarget,
+    setTeacherTarget,
+    teacherPriority,
+    setTeacherPriority,
+    teacherError,
+    setTeacherError,
+    handleSaveTeacherSubmit,
+    handleEditTeacherClick,
+    handleDeleteTeacherClick,
+    allTeachers,
+    teacherPostId,
+    setTeacherPostId
+  } = useTeachers(selectedPostId);
+
+  const {
+    availabilities,
+    loadAvailabilities,
+    handleCycleAvailability
+  } = useAvailabilities();
+
+
   const { approvedSchedules, loadApprovedSchedules, approve, remove } = useApprovedSchedules();
+
+  const { posts, loadPosts, addPost, renamePost, removePost } = useDutyPosts();
+  const selectedPost = posts.find((p) => p.id === selectedPostId) ?? null;
+  // Other posts with a saved setup for this month, offered on step 2 to copy
+  // day settings from. Named from `posts` at render, so a rename shows at once.
+  const [copyPostIds, setCopyPostIds] = useState<string[]>([]);
+  const copyPosts = posts.filter((p) => copyPostIds.includes(p.id));
+  // Copies approved before duty posts existed have no frozen post name; they
+  // belong to the post existing data moved into, so show its current name.
+  const namedApproved = approvedSchedules.map((copy) =>
+    copy.postName ? copy : { ...copy, postName: posts.find((p) => p.id === copy.post_id)?.name ?? "" }
+  );
 
   // Months (other than the one currently selected) that already have partner
   // groups defined, offered in the PartnerGroups card's "copy from another
@@ -347,6 +384,7 @@ export default function App() {
   const saveTeacherContext = {
     partnerGroups,
     monthlyTargets,
+    pruneTeacherFromMonth,
     applyMonthlyTarget: (teacherId: string, target: number) =>
       setMonthlyTargets((prev) => ({ ...prev, [teacherId]: target })),
   };
@@ -378,9 +416,82 @@ export default function App() {
     }
   };
 
+  // Duty posts (ADR-0007). Switching post is navigation, like switching month
+  // (ADR-0005): the month being left may have unsaved changes.
+  const requestPostChange = (postId: string) => {
+    if (postId === selectedPostId) return;
+    if (isDirty) {
+      setPendingNav({ type: "post", value: postId });
+      setIsUnsavedConfirmOpen(true);
+    } else {
+      switchPost(postId);
+    }
+  };
+
+  const switchPost = (postId: string) => {
+    // Teachers belong to one post, so a selection or an open edit cannot carry over.
+    setSelectedTeacherId(null);
+    setEditingTeacherId(null);
+    setTeacherPostId(null);
+    setTeacherError(null);
+    setSelectedPostId(postId);
+    setLastPostId(postId).catch((err) => console.error("Seçili nöbet yeri kaydedilemedi:", err));
+  };
+
+  const duplicatePostMessage = (name: string) => `“${name}” adında bir nöbet yeri zaten var.`;
+
+  // Resolves to the message the dialog shows when the name is refused.
+  const handleAddPost = async (name: string): Promise<string | null> => {
+    const result = await addPost(name);
+    if (result.status === "duplicate") return duplicatePostMessage(result.existing.name);
+    if (result.status === "empty") return "Nöbet yerinin adını yazın.";
+    if (result.status === "error") return "Nöbet yeri eklenemedi. Lütfen tekrar deneyin.";
+    requestPostChange(result.post.id);
+    return null;
+  };
+
+  const handleRenamePost = async (name: string): Promise<string | null> => {
+    if (!selectedPostId) return null;
+    const result = await renamePost(selectedPostId, name);
+    if (result.status === "duplicate") return duplicatePostMessage(result.existing.name);
+    if (result.status === "empty") return "Nöbet yerinin adını yazın.";
+    if (result.status === "error") return "Nöbet yerinin adı değiştirilemedi. Lütfen tekrar deneyin.";
+    return null;
+  };
+
+  // The menu deletes the post on screen. Its unsaved changes go with it, so
+  // nothing is asked before moving to a post that remains.
+  const handleDeletePost = async () => {
+    if (!selectedPostId) return;
+    const name = selectedPost?.name ?? "";
+    const result = await removePost(selectedPostId);
+    if (result.status !== "deleted") {
+      setExportErrorMessage("Nöbet yeri silinemedi. Lütfen tekrar deneyin.");
+      setTimeout(() => setExportErrorMessage(null), 5000);
+      return;
+    }
+    const remaining = await loadPosts();
+    if (remaining.length > 0) switchPost(remaining[0].id);
+    await loadApprovedSchedules();
+    setSuccessMessage(`${name} nöbet yeri silindi.`);
+    setTimeout(() => setSuccessMessage(null), 4000);
+  };
+
+  const handleCopyDaySettings = async (sourcePostId: string) => {
+    const sourceName = posts.find((p) => p.id === sourcePostId)?.name ?? "";
+    if (await copyDaySettingsFromPost(sourcePostId)) {
+      setSuccessMessage(`${sourceName} nöbet yerinin gün ayarları bu aya kopyalandı.`);
+      setTimeout(() => setSuccessMessage(null), 4000);
+    } else {
+      setExportErrorMessage(`${sourceName} nöbet yerinin bu ay için kaydedilmiş gün ayarı yok.`);
+      setTimeout(() => setExportErrorMessage(null), 5000);
+    }
+  };
+
   const applyPendingNav = () => {
     if (pendingNav) {
-      if (pendingNav.type === "year") setSelectedYear(pendingNav.value);
+      if (pendingNav.type === "post") switchPost(pendingNav.value);
+      else if (pendingNav.type === "year") setSelectedYear(pendingNav.value);
       else setSelectedMonth(pendingNav.value);
     }
     setPendingNav(null);
@@ -407,21 +518,37 @@ export default function App() {
     applyPendingNav();
   };
 
-  // Load Initial Data from SQLite
+  // Open on the duty post the principal last worked on (ADR-0007).
   useEffect(() => {
+    async function openLastPost() {
+      try {
+        await loadPosts();
+        setSelectedPostId(await getLastPostId());
+      } catch (err) {
+        console.error("Nöbet yerleri yüklenemedi:", err);
+      }
+    }
+    openLastPost();
+  }, []);
+
+  // Load the selected post's month from SQLite
+  useEffect(() => {
+    if (!selectedPostId) return;
+    const postId = selectedPostId;
     async function loadData() {
       try {
         await loadTeachers();
         await loadAvailabilities();
-        await loadScheduleData(selectedYear, selectedMonth);
+        await loadScheduleData(postId, selectedYear, selectedMonth);
         setCopyMonths(await availablePartnerMonths());
+        setCopyPostIds(await postsWithMonthSetup());
         await loadApprovedSchedules();
       } catch (err) {
         console.error("Veritabanı yüklenirken hata oluştu:", err);
       }
     }
     loadData();
-  }, [selectedYear, selectedMonth]);
+  }, [selectedPostId, selectedYear, selectedMonth]);
 
   // Handle Excel File Roster Import
   const handleFileImport = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -442,9 +569,10 @@ export default function App() {
 
         // A name already in the staff, or repeated earlier in the file, is
         // skipped rather than saved as a second teacher (see teacherNames.ts).
-        const { added, skipped } = splitImportByName(imported, teachers);
+        const { added, skipped } = splitImportByName(imported, allTeachers);
         for (const t of added) {
-          await saveTeacher(t);
+          // Imported teachers join the staff of the post on screen.
+          await saveTeacher({ ...t, post_id: selectedPostId ?? "" });
         }
         await loadTeachers();
 
@@ -489,14 +617,14 @@ export default function App() {
   // The schedule on screen as its duty report shows it: the same shape an
   // approved schedule freezes, so the two can be compared.
   const workingReport = freezeScheduleReport(
-    { year: selectedYear, month: selectedMonth, generatedSchedule, holidays, weekendDutyDays, extraDays, teachersPerDay, daySpecificTeachers, monthlyTargets },
+    { year: selectedYear, month: selectedMonth, postName: selectedPost?.name, generatedSchedule, holidays, weekendDutyDays, extraDays, teachersPerDay, daySpecificTeachers, monthlyTargets },
     teachers
   );
-  const currentApproved = approvedCopyFor(approvedSchedules, scheduleId, selectedYear, selectedMonth);
+  const currentApproved = approvedCopyFor(approvedSchedules, scheduleId);
   const approval = currentApproved
     ? { approvedAt: currentApproved.approved_at, changed: !sameReport(currentApproved.report, workingReport) }
     : null;
-  const earlierApproved = earlierInSchoolYear(approvedSchedules, selectedYear, selectedMonth);
+  const earlierApproved = earlierInSchoolYear(approvedSchedules, selectedPostId ?? "", selectedYear, selectedMonth);
 
   // Partner groups short of their group goal, counted as Step 3 counts them.
   const groupCredit = creditPartnerGroups(generatedSchedule, partnerGroups);
@@ -653,7 +781,7 @@ export default function App() {
   const performApproveSchedule = async () => {
     const report = workingReport;
     const savedId = await saveGeneratedScheduleToDb(generatedSchedule);
-    const approved = savedId ? await approve(savedId, report) : false;
+    const approved = savedId ? await approve(savedId, selectedPostId ?? "", report) : false;
     if (approved) {
       setSuccessMessage(`${monthLabel} çizelgesi onaylandı.`);
       setTimeout(() => setSuccessMessage(null), 4000);
@@ -760,10 +888,17 @@ export default function App() {
       setTeacherTarget(1);
       setTeacherPriority(1);
       
-      // Load empty roster from SQLite
-      await loadTeachers();
-      await loadAvailabilities();
-      await loadScheduleData(selectedYear, selectedMonth);
+      // Reset leaves one new, empty post (ADR-0007): open it.
+      await loadPosts();
+      setTeacherPostId(null);
+      const postId = await getLastPostId();
+      if (postId === selectedPostId) {
+        await loadTeachers();
+        await loadAvailabilities();
+        await loadScheduleData(postId, selectedYear, selectedMonth);
+      } else {
+        setSelectedPostId(postId);
+      }
       
       setSuccessMessage("Veritabanı başarıyla sıfırlandı.");
       setTimeout(() => setSuccessMessage(null), 4000);
@@ -790,36 +925,46 @@ export default function App() {
             actual visible heading hierarchy already has them. */}
         <h1 className="sr-only">Öğretmen Nöbet Çizelgesi Hazırlayıcı</h1>
 
-        {/* Centered Wizard Navigation (Top Center) */}
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: "16px", flexShrink: 0, width: "100%" }}>
-          <div style={{ width: "100%", maxWidth: "950px" }}>
+        {/* One row: the duty post menu (left), the wizard steps
+            (centre), and approved schedules with settings (right). A grid
+            rather than absolutely positioned buttons, so the side buttons can
+            never cover the steps on a narrow window. */}
+        <div className="app-header-row">
+          <div className="app-header-side app-header-side--left">
+            {/* On every step, like Onaylı Çizelgeler: switching post from
+                step 2 or 3 asks about unsaved changes as switching month does. */}
+            {posts.length > 0 && (
+              <PostMenu
+                posts={posts}
+                selectedPostId={selectedPostId}
+                onSelectPost={requestPostChange}
+                onAddPost={handleAddPost}
+                onRenamePost={handleRenamePost}
+                onDeletePost={handleDeletePost}
+                compact={compactHeader}
+              />
+            )}
+          </div>
+
+          <div style={{ minWidth: 0 }}>
             <WizardNav activeStep={activeStep} setActiveStep={setActiveStep} />
           </div>
-        </div>
 
-        {/* Approved schedules, next to the settings button. Not a wizard
-            step: the list can be opened from any step. */}
-        <button
-          className="settings-toggle-btn"
-          onClick={() => setIsApprovedDrawerOpen((open) => !open)}
-          title="Onaylı Çizelgeler"
-          aria-label="Onaylı Çizelgeler"
-          aria-expanded={isApprovedDrawerOpen}
-          aria-controls="approved-schedules-drawer"
-          style={{ position: "absolute", top: "16px", right: "80px", zIndex: 100 }}
-        >
-          <span aria-hidden="true">📚</span>
-        </button>
+          <div className="app-header-side app-header-side--right">
+            {/* Approved schedules. Not a wizard step: the list can be opened
+                from any step. */}
+            <button
+              className="header-pill-btn"
+              onClick={() => setIsApprovedDrawerOpen((open) => !open)}
+              title="Onaylı Çizelgeler"
+              aria-label="Onaylı Çizelgeler"
+              aria-expanded={isApprovedDrawerOpen}
+              aria-controls="approved-schedules-drawer"
+            >
+              <span aria-hidden="true">📚</span>
+              {!compactHeader && <span>Onaylı Çizelgeler</span>}
+            </button>
 
-        {/* Absolutely Positioned Settings Dropdown (Top Right) */}
-        <div
-          style={{
-            position: "absolute",
-            top: "16px",
-            right: "24px",
-            zIndex: 100
-          }}
-        >
         <div style={{ position: "relative" }} ref={settingsWrapperRef}>
           <button
             ref={settingsToggleBtnRef}
@@ -942,6 +1087,7 @@ export default function App() {
             </div>
           )}
         </div>
+          </div>
         </div>
       </header>
 
@@ -977,6 +1123,10 @@ export default function App() {
             onChangeGroups={setPartnerGroups}
             copyMonths={copyMonths}
             onCopyFromMonth={handleCopyPartnersFromMonth}
+            posts={posts}
+            selectedPostId={selectedPostId}
+            teacherPostId={teacherPostId}
+            setTeacherPostId={setTeacherPostId}
           />
         )}
 
@@ -991,6 +1141,9 @@ export default function App() {
             extraDays={extraDays}
             handleToggleExtraDay={handleToggleExtraDay}
             handleToggleDayEligibility={handleToggleDayEligibility}
+            postName={selectedPost?.name}
+            copyPosts={copyPosts}
+            onCopyFromPost={handleCopyDaySettings}
           />
         )}
 
@@ -1025,6 +1178,7 @@ export default function App() {
             earlierApprovedCount={earlierApproved.length}
             includeEarlierApproved={includeEarlierApproved}
             setIncludeEarlierApproved={setIncludeEarlierApproved}
+            postName={selectedPost?.name}
           />
         )}
       </main>
@@ -1360,7 +1514,7 @@ export default function App() {
 
             <p id="unsaved-nav-desc" style={{ margin: 0, fontSize: "0.9rem", color: "var(--text-secondary)", lineHeight: "1.45rem" }}>
               {MONTHS_TR[selectedMonth - 1]} {selectedYear} için yaptığınız değişiklikler henüz kaydedilmedi.
-              Başka bir aya geçmeden önce ne yapmak istersiniz?
+              Başka bir aya ya da nöbet yerine geçmeden önce ne yapmak istersiniz?
             </p>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "4px" }}>
@@ -1394,7 +1548,7 @@ export default function App() {
       {/* Approved schedules drawer, opened from the header on any step. */}
       {isApprovedDrawerOpen && (
         <ApprovedSchedulesDrawer
-          approvedSchedules={approvedSchedules}
+          approvedSchedules={namedApproved}
           onClose={handleCloseApprovedDrawer}
           onExport={handleExportApproved}
           onDelete={setApprovedToDelete}
@@ -1436,6 +1590,7 @@ export default function App() {
       {approvedToDelete && (
         <DeleteApprovedDialog
           label={`${MONTHS_TR[approvedToDelete.month - 1]} ${approvedToDelete.year}`}
+          postName={approvedToDelete.postName}
           approvedAt={approvedToDelete.approved_at}
           onCancel={() => setApprovedToDelete(null)}
           onConfirm={handleConfirmDeleteApproved}

@@ -100,6 +100,7 @@ export const ApprovedSchedulesDrawer: React.FC<ApprovedSchedulesDrawerProps> = (
                     </span>
                   </div>
                   <div style={{ fontSize: "0.78rem", color: "var(--text-secondary)" }}>
+                    {copy.postName ? `${copy.postName} · ` : ""}
                     {copy.report.teachers.length} öğretmen
                     {openSlots > 0 && (
                       <>

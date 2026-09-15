@@ -21,6 +21,13 @@ vi.mock("../src/db", () => ({
   getApprovedSchedules: vi.fn(),
   approveSchedule: vi.fn(),
   deleteApprovedSchedule: vi.fn(),
+  getDutyPosts: vi.fn(),
+  addDutyPost: vi.fn(),
+  renameDutyPost: vi.fn(),
+  deleteDutyPost: vi.fn(),
+  getLastPostId: vi.fn(),
+  setLastPostId: vi.fn(),
+  moveTeacherToPost: vi.fn(),
 }));
 
 vi.mock("@tauri-apps/plugin-opener", () => ({
@@ -31,7 +38,7 @@ vi.mock("@tauri-apps/plugin-opener", () => ({
 
 const mockedDb = vi.mocked(db);
 
-const ayse: db.DbTeacher = { id: "T1", name: "Ayşe Yılmaz", target_hours: 4, priority: 1 };
+const ayse: db.DbTeacher = { id: "T1", name: "Ayşe Yılmaz", target_hours: 4, priority: 1, post_id: "yurt" };
 
 function xlsxFile(rows: unknown[][]): File {
   const wb = XLSX.utils.book_new();
@@ -44,6 +51,9 @@ function xlsxFile(rows: unknown[][]): File {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockedDb.getDutyPosts.mockResolvedValue([{ id: "yurt", name: "Yurt" }]);
+  mockedDb.getLastPostId.mockResolvedValue("yurt");
+  mockedDb.setLastPostId.mockResolvedValue(undefined);
   mockedDb.getTeachers.mockResolvedValue([ayse]);
   mockedDb.saveTeacher.mockResolvedValue(undefined);
   mockedDb.getAvailabilities.mockResolvedValue([]);
@@ -76,7 +86,11 @@ describe("importing the staff from Excel", () => {
     expect(
       await screen.findByText("2 öğretmen yüklendi. 2 isim zaten kadroda olduğu için atlandı: AYŞE YILMAZ, şule kaya.")
     ).toBeInTheDocument();
-    expect(mockedDb.saveTeacher.mock.calls.map(([t]) => t.name)).toEqual(["Şule Kaya", "Sule Kaya"]);
+    // Imported teachers join the selected post's staff.
+    expect(mockedDb.saveTeacher.mock.calls.map(([t]) => [t.name, t.post_id])).toEqual([
+      ["Şule Kaya", "yurt"],
+      ["Sule Kaya", "yurt"],
+    ]);
   });
 
   it("says no teacher was added when every name is already in the staff", async () => {

@@ -116,7 +116,10 @@ export const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
           {DAYS_TR.map(d => <div key={d}>{d}</div>)}
         </div>
 
-        <div className="calendar-grid" style={{ flexGrow: 1, height: "100%" }}>
+        <div
+          className="calendar-grid"
+          style={{ "--weeks": Math.ceil(paddedDates.length / 7), "--row-min": "3.5rem" } as React.CSSProperties}
+        >
           {paddedDates.map((date, idx) => {
             if (!date) return <div key={`empty-${idx}`} className="calendar-cell-empty" />;
             

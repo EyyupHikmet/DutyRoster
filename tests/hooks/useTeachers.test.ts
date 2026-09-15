@@ -76,10 +76,10 @@ describe("useTeachers", () => {
   it("handleSaveTeacherSubmit() creates a new teacher with a fresh UUID and resets the form", async () => {
     mockedDb.saveTeacher.mockResolvedValue(undefined);
     mockedDb.getTeachers.mockResolvedValue([
-      { id: "new-uuid", name: "Ahmet Yılmaz", target_hours: 6, priority: 3 },
+      { id: "new-uuid", name: "Ahmet Yılmaz", target_hours: 6, priority: 3, post_id: "yurt" },
     ]);
 
-    const { result } = renderHook(() => useTeachers());
+    const { result } = renderHook(() => useTeachers("yurt"));
     act(() => {
       result.current.setTeacherName("Ahmet Yılmaz");
       result.current.setTeacherTarget(6);
@@ -95,6 +95,7 @@ describe("useTeachers", () => {
       name: "Ahmet Yılmaz",
       target_hours: 6,
       priority: 3,
+      post_id: "yurt",
     });
     // Form resets after a successful save
     expect(result.current.teacherName).toBe("");

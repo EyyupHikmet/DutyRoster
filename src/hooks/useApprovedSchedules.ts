@@ -3,7 +3,11 @@ import { approveSchedule, deleteApprovedSchedule, getApprovedSchedules, DbApprov
 import { ScheduleReport } from "../utils/scheduleReport";
 
 /** An approved schedule with its frozen report read back from storage. */
-export type ApprovedSchedule = Omit<DbApprovedSchedule, "report"> & { report: ScheduleReport };
+export type ApprovedSchedule = Omit<DbApprovedSchedule, "report"> & {
+  report: ScheduleReport;
+  /** The duty post's name as approved; "" for copies approved before duty posts existed. */
+  postName: string;
+};
 
 export function useApprovedSchedules() {
   // Latest month first, as the database returns them.
@@ -15,7 +19,8 @@ export function useApprovedSchedules() {
       setApprovedSchedules(
         rows.flatMap((row) => {
           try {
-            return [{ ...row, report: JSON.parse(row.report) as ScheduleReport }];
+            const report = JSON.parse(row.report) as ScheduleReport;
+            return [{ ...row, report, postName: report.postName ?? "" }];
           } catch {
             // One unreadable copy must not hide the others.
             console.error("Onaylı çizelge okunamadı:", row.id);
@@ -29,11 +34,12 @@ export function useApprovedSchedules() {
   };
 
   /** Stores `report` as the approved schedule of `scheduleId`, replacing any earlier copy. */
-  const approve = async (scheduleId: string, report: ScheduleReport): Promise<boolean> => {
+  const approve = async (scheduleId: string, postId: string, report: ScheduleReport): Promise<boolean> => {
     try {
       await approveSchedule({
         id: crypto.randomUUID(),
         schedule_id: scheduleId,
+        post_id: postId,
         year: report.year,
         month: report.month,
         approved_at: new Date().toISOString(),

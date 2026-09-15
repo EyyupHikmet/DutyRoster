@@ -39,6 +39,8 @@ interface Step3SolverProps {
   earlierApprovedCount?: number;
   includeEarlierApproved?: boolean;
   setIncludeEarlierApproved?: (include: boolean) => void;
+  /** The duty post whose month this is, named next to the title. */
+  postName?: string;
 }
 
 // The hard rules that sit under the four distribution modes. Deliberately
@@ -116,7 +118,8 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
   approval = null,
   earlierApprovedCount = 0,
   includeEarlierApproved = true,
-  setIncludeEarlierApproved
+  setIncludeEarlierApproved,
+  postName
 }) => {
   const paddedDates = getMonthDatesWithPadding(selectedYear, selectedMonth);
 
@@ -200,7 +203,7 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
   return (
     <div className="fill-column">
       <h2 className="step-title" style={{ margin: "0 0 12px 0", flexShrink: 0 }}>
-        <span>Adım 3: Planlama Seçenekleri & Çizelge Hazırlama</span>
+        <span>Adım 3: Planlama Seçenekleri & Çizelge Hazırlama{postName ? ` — ${postName}` : ""}</span>
         <div className="tooltip-container tooltip-container--title">
           <span className="tooltip-icon">?</span>
           <div className="tooltip-content">
@@ -421,7 +424,11 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
               {DAYS_TR.map(d => <div key={d}>{d}</div>)}
             </div>
 
-            <div className="calendar-grid" style={{ flexGrow: 1, height: "100%" }}>
+            <div
+              className="calendar-grid"
+              // Taller floor than step 1: a day lists its teachers.
+              style={{ "--weeks": Math.ceil(paddedDates.length / 7), "--row-min": "5rem" } as React.CSSProperties}
+            >
               {paddedDates.map((date, idx) => {
                 if (!date) return <div key={`empty-${idx}`} className="calendar-cell-empty" />;
                 
@@ -471,7 +478,9 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
                       }
                     }}
                   >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", flexShrink: 0 }}>
+                    {/* Wraps so the required-count chip drops under the day number in a
+                        narrow cell (small window, larger text) instead of spilling out. */}
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "2px", justifyContent: "space-between", alignItems: "center", width: "100%", flexShrink: 0 }}>
                       <span style={{ fontSize: "0.88rem", color: isSelected ? "var(--primary)" : "var(--text-primary)", fontWeight: "bold" }}>
                         {date.getDate()}
                       </span>

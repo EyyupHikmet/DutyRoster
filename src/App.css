@@ -147,7 +147,10 @@
 }
 
 html, body, #root {
-  width: 100vw;
+  /* 100%, not 100vw: 100vw includes the vertical scrollbar, so once the page
+     scrolls (narrow windows) it was wider than the visible area and grew a
+     horizontal scrollbar. */
+  width: 100%;
   height: 100vh;
   margin: 0;
   padding: 0;
@@ -632,7 +635,9 @@ html, body, #root {
   flex-grow: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  /* Scrolls rather than cutting cells off when the month does not fit. */
+  overflow-x: hidden;
+  overflow-y: auto;
   height: 100%;
 }
 
@@ -652,11 +657,14 @@ html, body, #root {
 .calendar-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  grid-template-rows: repeat(6, 1fr); /* Force equal rows on calendar grid */
+  /* One row per week the month spans (--weeks), each at least as tall as its
+     cells' content needs (--row-min, set per calendar). Rows used to be six
+     equal shares of whatever height was left, so on smaller windows or larger
+     text the cells were shorter than their content and clipped it. */
+  grid-template-rows: repeat(var(--weeks, 6), minmax(var(--row-min, 0px), 1fr));
   gap: 6px;
-  flex-grow: 1;
-  height: 100%;
-  overflow: hidden;
+  flex: 1 0 auto;
+  height: auto;
 }
 
 .calendar-cell {
@@ -1134,20 +1142,25 @@ html, body, #root {
   display: flex;
   flex-direction: column;
   height: 100%;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   padding: 24px !important;
 }
 
 .step2-calendar-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  grid-template-rows: repeat(6, 1fr);
+  /* One row per week (--weeks), never shorter than a day cell's content: the
+     number and the Nöbet Var/Tatil badge. See .calendar-grid. */
+  grid-template-rows: repeat(var(--weeks, 6), minmax(6rem, 1fr));
   gap: 12px;
-  flex-grow: 1;
-  height: 100%;
+  flex: 1 0 auto;
+  height: auto;
 }
 
 .step2-calendar-cell {
+  /* Lets the cell's own width decide its compact look (see below). */
+  container-type: inline-size;
   border-radius: 16px;
   padding: 16px;
   font-size: 1.4rem;
@@ -1173,11 +1186,64 @@ html, body, #root {
   box-sizing: border-box;
 }
 
+/* The Standart/Ekstra toggle in a step 2 day cell. */
 .step2-extra-badge {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 2;
   font-size: 0.8rem;
   padding: 4px 8px;
   border-radius: 6px;
   font-weight: 700;
+  background-color: var(--slate-100);
+  color: var(--slate-600);
+  border: 1.5px solid var(--slate-300);
+  cursor: pointer;
+}
+
+.step2-extra-badge.is-extra {
+  background-color: #edd8fd;
+  color: #6b46c1;
+  border-color: #b794f4;
+}
+
+/* Cramped day cells (narrow windows, larger text). The label would cover the
+   day number, so only an extra day is marked, with a small "E"; a standard
+   day's toggle stays in place but invisible until the cell is hovered or the
+   toggle focused. In em of the cell's font size, so it follows the text scale. */
+@container (max-width: 6.5em) {
+  .step2-extra-badge {
+    top: 8px;
+    right: 8px;
+    width: 1.3rem;
+    height: 1.3rem;
+    padding: 0;
+    border-radius: 50%;
+    font-size: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .step2-extra-badge.is-extra::after {
+    content: "E";
+    font-size: 0.7rem;
+  }
+
+  .step2-extra-badge:not(.is-extra) {
+    opacity: 0;
+  }
+
+  .step2-calendar-cell:hover .step2-extra-badge:not(.is-extra),
+  .step2-extra-badge:not(.is-extra):focus-visible {
+    opacity: 1;
+  }
+
+  .step2-cell-badge {
+    padding: 4px;
+    font-size: 0.8rem;
+  }
 }
 
 /* Premium Desktop Responsiveness & Layout Adaptations.
@@ -1245,7 +1311,8 @@ html, body, #root {
   }
 
   .calendar-grid {
-    grid-template-rows: repeat(6, 75px); /* Lock legible cell heights on stacked view */
+    /* Stacked view: rows have no leftover height to share, so they get a legible floor. */
+    grid-template-rows: repeat(var(--weeks, 6), minmax(max(75px, var(--row-min, 0px)), auto));
   }
 
   /* Step 2's own full-width calendar (not part of a split layout) needs the same fixed-row
@@ -1258,7 +1325,7 @@ html, body, #root {
   }
 
   .step2-calendar-grid {
-    grid-template-rows: repeat(6, 100px);
+    grid-template-rows: repeat(var(--weeks, 6), minmax(7.5rem, 1fr));
   }
 }
 
@@ -1277,10 +1344,117 @@ html, body, #root {
   }
 
   .calendar-grid {
-    grid-template-rows: repeat(6, 60px);
+    grid-template-rows: repeat(var(--weeks, 6), minmax(max(60px, var(--row-min, 0px)), auto));
   }
 
   .step2-calendar-grid {
-    grid-template-rows: repeat(6, 88px);
+    grid-template-rows: repeat(var(--weeks, 6), minmax(7rem, 1fr));
+  }
+}
+
+/* Duty post menu in step 1's header */
+.post-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.post-menu-item:hover,
+.post-menu-item:focus-visible {
+  background-color: var(--slate-100);
+  outline: none;
+}
+
+.post-menu-item:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: none;
+}
+
+/* Header row: duty post menu | wizard steps | approved schedules and
+   settings. The sides size to their buttons and share what is left equally,
+   so the steps stay centred and shrink before anything overlaps them. */
+.app-header-row {
+  display: grid;
+  grid-template-columns: minmax(max-content, 1fr) minmax(0, 950px) minmax(max-content, 1fr);
+  align-items: start;
+  gap: 16px;
+  margin-bottom: 16px;
+  flex-shrink: 0;
+  width: 100%;
+}
+
+.app-header-side {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+}
+
+.app-header-side--left {
+  justify-content: flex-start;
+}
+
+.app-header-side--right {
+  justify-content: flex-end;
+}
+
+/* Header buttons shaped like the wizard step pills beside them. */
+.header-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 10px 20px;
+  border-radius: 20px;
+  border: 2px solid var(--border);
+  background-color: var(--bg-surface);
+  color: var(--text-secondary);
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.92rem;
+  white-space: nowrap;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.header-pill-btn > span[aria-hidden="true"]:first-child {
+  font-size: 1.15rem;
+}
+
+.header-pill-btn:hover {
+  transform: translateY(-1px);
+  border-color: var(--border-hover);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
+.header-pill-btn[aria-expanded="true"] {
+  color: var(--primary);
+  border-color: var(--primary);
+  background-image: linear-gradient(var(--primary-light), var(--primary-light));
+}
+
+.header-pill-btn:focus-visible {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+}
+
+@media (max-width: 768px) {
+  .header-pill-btn {
+    min-height: 44px;
+    padding: 8px 12px;
+    font-size: 0.8rem;
   }
 }

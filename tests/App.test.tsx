@@ -24,6 +24,13 @@ vi.mock("../src/db", () => ({
   getApprovedSchedules: vi.fn().mockResolvedValue([]),
   approveSchedule: vi.fn().mockResolvedValue(undefined),
   deleteApprovedSchedule: vi.fn().mockResolvedValue(undefined),
+  getDutyPosts: vi.fn().mockResolvedValue([{ id: "yurt", name: "Yurt" }]),
+  getLastPostId: vi.fn().mockResolvedValue("yurt"),
+  setLastPostId: vi.fn().mockResolvedValue(undefined),
+  addDutyPost: vi.fn(),
+  renameDutyPost: vi.fn(),
+  deleteDutyPost: vi.fn(),
+  moveTeacherToPost: vi.fn().mockResolvedValue(undefined),
 }));
 
 // App.tsx calls exportScheduleToExcel directly (not through a hook),
@@ -619,7 +626,7 @@ describe("App — Excel export save dialog and confirmation", () => {
 describe("App — hard planning rules reach the solver", () => {
   beforeEach(() => {
     mockedDb.getTeachers.mockResolvedValue([
-      { id: "T1", name: "Ahmet Yılmaz", target_hours: 4, priority: 1 },
+      { id: "T1", name: "Ahmet Yılmaz", target_hours: 4, priority: 1, post_id: "yurt" },
     ]);
   });
 
@@ -682,8 +689,8 @@ describe("App — hard planning rules reach the solver", () => {
 describe("App — this month's partner groups and monthly targets reach the solver", () => {
   beforeEach(() => {
     mockedDb.getTeachers.mockResolvedValue([
-      { id: "T1", name: "Ahmet Yılmaz", target_hours: 4, priority: 1 },
-      { id: "T2", name: "Ayşe Demir", target_hours: 4, priority: 1 },
+      { id: "T1", name: "Ahmet Yılmaz", target_hours: 4, priority: 1, post_id: "yurt" },
+      { id: "T2", name: "Ayşe Demir", target_hours: 4, priority: 1, post_id: "yurt" },
     ]);
     // Bu ayın kaydında bir grup ve bir hedef geçersiz kılma var.
     mockedDb.getSchedule.mockResolvedValue({
@@ -735,8 +742,8 @@ describe("App — this month's partner groups and monthly targets reach the solv
 describe("App — blocked target-lowering save is now visible (Important 1)", () => {
   beforeEach(() => {
     mockedDb.getTeachers.mockResolvedValue([
-      { id: "T1", name: "Ali", target_hours: 4, priority: 1 },
-      { id: "T2", name: "Ayşe", target_hours: 4, priority: 1 },
+      { id: "T1", name: "Ali", target_hours: 4, priority: 1, post_id: "yurt" },
+      { id: "T2", name: "Ayşe", target_hours: 4, priority: 1, post_id: "yurt" },
     ]);
     mockedDb.getSchedule.mockResolvedValue({
       id: "s1",
@@ -804,8 +811,8 @@ describe("App — deleting a teacher does not resurrect them in the saved month 
   beforeEach(() => {
     vi.spyOn(window, "confirm").mockReturnValue(true);
     mockedDb.getTeachers.mockResolvedValue([
-      { id: "T1", name: "Ali", target_hours: 4, priority: 1 },
-      { id: "T2", name: "Ayşe", target_hours: 4, priority: 1 },
+      { id: "T1", name: "Ali", target_hours: 4, priority: 1, post_id: "yurt" },
+      { id: "T2", name: "Ayşe", target_hours: 4, priority: 1, post_id: "yurt" },
     ]);
     mockedDb.getSchedule.mockResolvedValue({
       id: "s1",

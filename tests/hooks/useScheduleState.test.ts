@@ -23,7 +23,7 @@ describe("useScheduleState", () => {
     const { result } = renderHook(() => useScheduleState());
 
     await act(async () => {
-      await result.current.loadScheduleData(2026, 9); // September 2026
+      await result.current.loadScheduleData("yurt", 2026, 9); // September 2026
     });
 
     expect(result.current.generatedSchedule).toEqual({});
@@ -58,7 +58,7 @@ describe("useScheduleState", () => {
 
     const { result } = renderHook(() => useScheduleState());
     await act(async () => {
-      await result.current.loadScheduleData(2026, 10);
+      await result.current.loadScheduleData("yurt", 2026, 10);
     });
 
     expect(result.current.generatedSchedule).toEqual({ "2026-10-01": ["T1"] });
@@ -84,7 +84,7 @@ describe("useScheduleState", () => {
 
     const { result } = renderHook(() => useScheduleState());
     await act(async () => {
-      await result.current.loadScheduleData(2026, 10);
+      await result.current.loadScheduleData("yurt", 2026, 10);
     });
 
     expect(result.current.solverMode).toBe("fairness");
@@ -185,7 +185,7 @@ describe("useScheduleState", () => {
       const { result } = renderHook(() => useScheduleState());
 
       await act(async () => {
-        await result.current.loadScheduleData(2026, 9);
+        await result.current.loadScheduleData("yurt", 2026, 9);
       });
 
       expect(result.current.isDirty).toBe(false);
@@ -210,7 +210,7 @@ describe("useScheduleState", () => {
       const { result } = renderHook(() => useScheduleState());
 
       await act(async () => {
-        await result.current.loadScheduleData(2026, 10);
+        await result.current.loadScheduleData("yurt", 2026, 10);
       });
 
       expect(result.current.isDirty).toBe(false);
@@ -221,7 +221,7 @@ describe("useScheduleState", () => {
       const { result } = renderHook(() => useScheduleState());
 
       await act(async () => {
-        await result.current.loadScheduleData(2026, 9);
+        await result.current.loadScheduleData("yurt", 2026, 9);
       });
       expect(result.current.isDirty).toBe(false);
 
@@ -235,7 +235,7 @@ describe("useScheduleState", () => {
       const { result } = renderHook(() => useScheduleState());
 
       await act(async () => {
-        await result.current.loadScheduleData(2026, 9);
+        await result.current.loadScheduleData("yurt", 2026, 9);
       });
 
       act(() => result.current.handleToggleDayEligibility("2026-09-07", false)); // add to holidays
@@ -250,7 +250,7 @@ describe("useScheduleState", () => {
       const { result } = renderHook(() => useScheduleState());
 
       await act(async () => {
-        await result.current.loadScheduleData(2026, 9);
+        await result.current.loadScheduleData("yurt", 2026, 9);
       });
       expect(result.current.isDirty).toBe(false);
 
@@ -264,7 +264,7 @@ describe("useScheduleState", () => {
       const { result } = renderHook(() => useScheduleState());
 
       await act(async () => {
-        await result.current.loadScheduleData(2026, 9);
+        await result.current.loadScheduleData("yurt", 2026, 9);
       });
 
       act(() => {
@@ -298,7 +298,7 @@ describe("useScheduleState", () => {
       const { result } = renderHook(() => useScheduleState());
 
       await act(async () => {
-        await result.current.loadScheduleData(2026, 11);
+        await result.current.loadScheduleData("yurt", 2026, 11);
       });
       act(() => result.current.handleToggleExtraDay("2026-11-05"));
       expect(result.current.isDirty).toBe(true);
@@ -336,7 +336,7 @@ describe("useScheduleState", () => {
 
       const { result } = renderHook(() => useScheduleState());
       await act(async () => {
-        await result.current.loadScheduleData(2026, 10);
+        await result.current.loadScheduleData("yurt", 2026, 10);
       });
 
       expect(result.current.avoidConsecutiveDays).toBe(true);
@@ -355,7 +355,7 @@ describe("useScheduleState", () => {
 
       const { result } = renderHook(() => useScheduleState());
       await act(async () => {
-        await result.current.loadScheduleData(2026, 10);
+        await result.current.loadScheduleData("yurt", 2026, 10);
       });
 
       expect(result.current.avoidConsecutiveDays).toBe(false);
@@ -367,7 +367,7 @@ describe("useScheduleState", () => {
 
       const { result } = renderHook(() => useScheduleState());
       await act(async () => {
-        await result.current.loadScheduleData(2026, 10);
+        await result.current.loadScheduleData("yurt", 2026, 10);
       });
       act(() => {
         result.current.setAvoidConsecutiveDays(true);
@@ -386,7 +386,7 @@ describe("useScheduleState", () => {
 
       const { result } = renderHook(() => useScheduleState());
       await act(async () => {
-        await result.current.loadScheduleData(2026, 10);
+        await result.current.loadScheduleData("yurt", 2026, 10);
       });
       expect(result.current.isDirty).toBe(false);
 
@@ -421,7 +421,7 @@ describe("useScheduleState", () => {
 
       const { result } = renderHook(() => useScheduleState());
       await act(async () => {
-        await result.current.loadScheduleData(2026, 10);
+        await result.current.loadScheduleData("yurt", 2026, 10);
       });
 
       expect(result.current.respectTargets).toBe(true);
@@ -440,7 +440,7 @@ describe("useScheduleState", () => {
 
       const { result } = renderHook(() => useScheduleState());
       await act(async () => {
-        await result.current.loadScheduleData(2026, 10);
+        await result.current.loadScheduleData("yurt", 2026, 10);
       });
 
       expect(result.current.respectTargets).toBe(false);
@@ -452,7 +452,7 @@ describe("useScheduleState", () => {
 
       const { result } = renderHook(() => useScheduleState());
       await act(async () => {
-        await result.current.loadScheduleData(2026, 10);
+        await result.current.loadScheduleData("yurt", 2026, 10);
       });
       act(() => {
         result.current.setRespectTargets(true);
@@ -471,7 +471,7 @@ describe("useScheduleState", () => {
 
       const { result } = renderHook(() => useScheduleState());
       await act(async () => {
-        await result.current.loadScheduleData(2026, 10);
+        await result.current.loadScheduleData("yurt", 2026, 10);
       });
       expect(result.current.isDirty).toBe(false);
 
@@ -508,7 +508,7 @@ describe("aylık nöbet grupları ve hedefleri", () => {
 
     const { result } = renderHook(() => useScheduleState());
     await act(async () => {
-      await result.current.loadScheduleData(2026, 10);
+      await result.current.loadScheduleData("yurt", 2026, 10);
     });
 
     expect(result.current.partnerGroups).toEqual([
@@ -530,7 +530,7 @@ describe("aylık nöbet grupları ve hedefleri", () => {
 
     const { result } = renderHook(() => useScheduleState());
     await act(async () => {
-      await result.current.loadScheduleData(2026, 10);
+      await result.current.loadScheduleData("yurt", 2026, 10);
     });
 
     expect(result.current.partnerGroups).toEqual([]);
@@ -541,7 +541,7 @@ describe("aylık nöbet grupları ve hedefleri", () => {
     vi.mocked(getSchedule).mockResolvedValue(null);
     const { result } = renderHook(() => useScheduleState());
     await act(async () => {
-      await result.current.loadScheduleData(2026, 10);
+      await result.current.loadScheduleData("yurt", 2026, 10);
     });
     expect(result.current.isDirty).toBe(false);
 
@@ -555,7 +555,7 @@ describe("aylık nöbet grupları ve hedefleri", () => {
     vi.mocked(getSchedule).mockResolvedValue(null);
     const { result } = renderHook(() => useScheduleState());
     await act(async () => {
-      await result.current.loadScheduleData(2026, 10);
+      await result.current.loadScheduleData("yurt", 2026, 10);
     });
     // Prove a flip, not just that it ends up true — matches the sibling
     // partnerGroups test above.
@@ -571,7 +571,7 @@ describe("aylık nöbet grupları ve hedefleri", () => {
     vi.mocked(getSchedule).mockResolvedValue(null);
     const { result } = renderHook(() => useScheduleState());
     await act(async () => {
-      await result.current.loadScheduleData(2026, 10);
+      await result.current.loadScheduleData("yurt", 2026, 10);
     });
 
     act(() => {
@@ -607,7 +607,7 @@ describe("aylık nöbet grupları ve hedefleri", () => {
 
     const { result } = renderHook(() => useScheduleState());
     await act(async () => {
-      await result.current.loadScheduleData(2026, 10);
+      await result.current.loadScheduleData("yurt", 2026, 10);
       await result.current.copyPartnersFromMonth(2026, 9, ["T1", "T2"]);
     });
 
@@ -640,7 +640,7 @@ describe("aylık nöbet grupları ve hedefleri", () => {
 
     const { result } = renderHook(() => useScheduleState());
     await act(async () => {
-      await result.current.loadScheduleData(2026, 10);
+      await result.current.loadScheduleData("yurt", 2026, 10);
       await result.current.copyPartnersFromMonth(2026, 9, ["T1", "T2"]);
     });
 
@@ -673,7 +673,7 @@ describe("aylık nöbet grupları ve hedefleri", () => {
       });
       const { result } = renderHook(() => useScheduleState());
       await act(async () => {
-        await result.current.loadScheduleData(2026, 10);
+        await result.current.loadScheduleData("yurt", 2026, 10);
       });
       return result;
     }
@@ -741,7 +741,7 @@ describe("aylık nöbet grupları ve hedefleri", () => {
 
       const { result } = renderHook(() => useScheduleState());
       await act(async () => {
-        await result.current.loadScheduleData(2026, 10);
+        await result.current.loadScheduleData("yurt", 2026, 10);
         result.current.setSelectedYear(2026);
         result.current.setSelectedMonth(10);
       });
@@ -750,5 +750,141 @@ describe("aylık nöbet grupları ve hedefleri", () => {
 
       expect(months).toEqual([{ year: 2026, month: 9 }]);
     });
+  });
+});
+
+describe("duty posts", () => {
+  const row = (overrides: Record<string, unknown> = {}) => ({
+    id: "s1",
+    post_id: "kiz",
+    year: 2026,
+    month: 10,
+    assignments: "{}",
+    holidays: "[]",
+    weekend_duty_days: "[]",
+    config: JSON.stringify({ mode: "fairness", teachersPerDay: 1 }),
+    ...overrides,
+  });
+
+  it("loads the given post's month", async () => {
+    vi.mocked(getSchedule).mockResolvedValue(null);
+    const { result } = renderHook(() => useScheduleState());
+
+    await act(async () => {
+      await result.current.loadScheduleData("kiz", 2026, 10);
+    });
+
+    expect(getSchedule).toHaveBeenCalledWith("kiz", 2026, 10);
+  });
+
+  it("saves into the selected post", async () => {
+    vi.mocked(saveSchedule).mockResolvedValue("s1");
+    const { result } = renderHook(() => useScheduleState());
+    act(() => {
+      result.current.setSelectedPostId("kiz");
+      result.current.setSelectedYear(2026);
+      result.current.setSelectedMonth(10);
+    });
+
+    await act(async () => {
+      await result.current.saveGeneratedScheduleToDb({});
+    });
+
+    expect(saveSchedule).toHaveBeenCalledWith(expect.objectContaining({ post_id: "kiz", year: 2026, month: 10 }));
+  });
+
+  it("copies another post's day settings for the same month, leaving pins and partner groups alone", async () => {
+    vi.mocked(getSchedule).mockImplementation(async (postId) =>
+      postId === "erkek"
+        ? row({
+            post_id: "erkek",
+            holidays: JSON.stringify(["2026-10-29"]),
+            weekend_duty_days: JSON.stringify(["2026-10-03"]),
+            config: JSON.stringify({
+              teachersPerDay: 2,
+              daySpecificTeachers: { "2026-10-03": 3 },
+              extraDays: ["2026-10-03", "2026-10-29"],
+              pinnedAssignments: { "2026-10-01": ["X"] },
+              partnerGroups: [{ id: "g", memberIds: ["X", "Y"], goalDays: 1 }],
+            }),
+          })
+        : null
+    );
+    const { result } = renderHook(() => useScheduleState());
+    await act(async () => {
+      await result.current.loadScheduleData("kiz", 2026, 10);
+    });
+    act(() => {
+      result.current.setSelectedPostId("kiz");
+      result.current.setSelectedYear(2026);
+      result.current.setSelectedMonth(10);
+      result.current.setPinnedAssignments({ "2026-10-02": ["T1"] });
+    });
+
+    let copied: boolean | undefined;
+    await act(async () => {
+      copied = await result.current.copyDaySettingsFromPost("erkek");
+    });
+
+    expect(copied).toBe(true);
+    expect(getSchedule).toHaveBeenCalledWith("erkek", 2026, 10);
+    expect(result.current.holidays).toEqual(["2026-10-29"]);
+    expect(result.current.weekendDutyDays).toEqual(["2026-10-03"]);
+    expect(result.current.extraDays).toEqual(["2026-10-03", "2026-10-29"]);
+    expect(result.current.teachersPerDay).toBe(2);
+    expect(result.current.daySpecificTeachers).toEqual({ "2026-10-03": 3 });
+    expect(result.current.pinnedAssignments).toEqual({ "2026-10-02": ["T1"] });
+    expect(result.current.partnerGroups).toEqual([]);
+    expect(result.current.isDirty).toBe(true);
+  });
+
+  it("copies nothing when the other post has no saved setup for the month", async () => {
+    vi.mocked(getSchedule).mockResolvedValue(null);
+    const { result } = renderHook(() => useScheduleState());
+    act(() => {
+      result.current.setSelectedPostId("kiz");
+      result.current.setHolidays(["2026-10-01"]);
+    });
+
+    let copied: boolean | undefined;
+    await act(async () => {
+      copied = await result.current.copyDaySettingsFromPost("erkek");
+    });
+
+    expect(copied).toBe(false);
+    expect(result.current.holidays).toEqual(["2026-10-01"]);
+  });
+
+  it("offers the other posts that have a saved setup for the selected month", async () => {
+    vi.mocked(getAllSchedules).mockResolvedValue([
+      row({ id: "a", post_id: "erkek" }),
+      row({ id: "b", post_id: "kiz" }),
+      row({ id: "c", post_id: "cam", month: 11 }),
+    ] as never);
+    const { result } = renderHook(() => useScheduleState());
+    act(() => {
+      result.current.setSelectedPostId("kiz");
+      result.current.setSelectedYear(2026);
+      result.current.setSelectedMonth(10);
+    });
+
+    let posts: string[] | undefined;
+    await act(async () => {
+      posts = await result.current.postsWithMonthSetup();
+    });
+
+    expect(posts).toEqual(["erkek"]);
+  });
+
+  it("offers partner groups to copy only from the selected post's other months", async () => {
+    vi.mocked(getAllSchedules).mockResolvedValue([]);
+    const { result } = renderHook(() => useScheduleState());
+    act(() => result.current.setSelectedPostId("kiz"));
+
+    await act(async () => {
+      await result.current.availablePartnerMonths();
+    });
+
+    expect(getAllSchedules).toHaveBeenCalledWith("kiz");
   });
 });

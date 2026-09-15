@@ -64,6 +64,9 @@ export const buildExportFilename = (year: number, month: number, version: number
   return `${year}_${monthName}_Nöbet_Raporu_v${version}.xlsx`;
 };
 
+/** A teacher read from an import sheet, before joining a duty post's staff. */
+export type ImportedTeacher = Omit<DbTeacher, "post_id">;
+
 export type ExportScheduleResult =
   | { status: "saved"; path: string; filename: string }
   | { status: "canceled" }
@@ -112,7 +115,7 @@ const SINGLE_COLUMN_HEADERS = new Set([
  * recognised: that case still imports nothing, as before, rather than importing
  * a column of the wrong thing.
  */
-const parseSingleColumnRoster = (rawRows: unknown[][]): DbTeacher[] => {
+const parseSingleColumnRoster = (rawRows: unknown[][]): ImportedTeacher[] => {
   const populatedColumns = new Set<number>();
   for (const row of rawRows) {
     if (!Array.isArray(row)) continue;
@@ -153,13 +156,13 @@ const parseSingleColumnRoster = (rawRows: unknown[][]): DbTeacher[] => {
 export const parseExcelRoster = (
   binaryData: string,
   xlsxReader: { read: (data: any, options: any) => any; utils: { sheet_to_json: (sheet: any, options?: any) => any[] } } = XLSX
-): DbTeacher[] => {
+): ImportedTeacher[] => {
   const workbook = xlsxReader.read(binaryData, { type: "binary" });
   const sheetName = workbook.SheetNames[0];
   const sheet = workbook.Sheets[sheetName];
   const rows = xlsxReader.utils.sheet_to_json(sheet);
 
-  const importedTeachers: DbTeacher[] = [];
+  const importedTeachers: ImportedTeacher[] = [];
   
   for (const row of rows) {
     // Headers are compared folded, so "ÖĞRETMEN ADI", "Öğretmen Adı" and " Adı "
