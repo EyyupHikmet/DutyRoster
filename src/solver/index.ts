@@ -261,70 +261,66 @@ export function solve(
     }
 
     const dateToAssign = bestDate;
-    let orderedTeachers = [...bestDateOptions];
 
-    // Order values (LCV & Mode Specific)
-    if (mode === "random") {
-      orderedTeachers = shuffleArray(orderedTeachers);
-    } else {
-      orderedTeachers.sort((a, b) => {
-        if (pendingGroups.length > 0) {
-          const aCompletes = completesGroup(a.id, dateToAssign);
-          const bCompletes = completesGroup(b.id, dateToAssign);
-          if (aCompletes !== bCompletes) return aCompletes ? -1 : 1;
-        }
+    // One order shared by every distribution rule. A duty target is not just a
+    // sort key a preference can jump over: a teacher who has reached their
+    // target is considered only once nobody below theirs can take the date.
+    //
+    //   1. below their target, before those who have reached it
+    //   2. completes a partner group's shared duty day
+    //   3. Tercihli, before Uygun
+    //   4. whatever the rule itself adds
+    //
+    // Random is sorted like the others; shuffling first is what makes step 4
+    // random rather than a free-for-all that ignores steps 1 to 3.
+    const orderedTeachers = mode === "random" ? shuffleArray(bestDateOptions) : [...bestDateOptions];
+    const remainingTarget = (t: Teacher) => t.target_hours - assignmentCounts[t.id];
+    const belowTarget = (t: Teacher) => remainingTarget(t) > 0;
 
-        const aStatus = availabilities[a.id]?.[dateToAssign] || "available";
-        const bStatus = availabilities[b.id]?.[dateToAssign] || "available";
+    orderedTeachers.sort((a, b) => {
+      if (belowTarget(a) !== belowTarget(b)) return belowTarget(a) ? -1 : 1;
 
-        // In all non-random modes, ALWAYS prefer "preferred" over "available"
-        if (aStatus === "preferred" && bStatus !== "preferred") return -1;
-        if (bStatus === "preferred" && aStatus !== "preferred") return 1;
+      if (pendingGroups.length > 0) {
+        const aCompletes = completesGroup(a.id, dateToAssign);
+        const bCompletes = completesGroup(b.id, dateToAssign);
+        if (aCompletes !== bCompletes) return aCompletes ? -1 : 1;
+      }
 
-        if (mode === "fairness") {
-          // "Görevleri Eşit Dağıt" (Fairness First)
-          // 1. Prioritize teachers with fewer total assignments so far
-          const countDiff = assignmentCounts[a.id] - assignmentCounts[b.id];
-          if (countDiff !== 0) return countDiff;
+      const aPrefers = (availabilities[a.id]?.[dateToAssign] || "available") === "preferred";
+      const bPrefers = (availabilities[b.id]?.[dateToAssign] || "available") === "preferred";
+      if (aPrefers !== bPrefers) return aPrefers ? -1 : 1;
 
-          // 2. Prioritize teachers who are further below their target
-          const aTargetDiff = a.target_hours - assignmentCounts[a.id];
-          const bTargetDiff = b.target_hours - assignmentCounts[b.id];
-          if (aTargetDiff !== bTargetDiff) return bTargetDiff - aTargetDiff; // higher difference first
+      if (mode === "fairness") {
+        // "Görevleri Eşit Dağıt": fewest duties so far.
+        const countDiff = assignmentCounts[a.id] - assignmentCounts[b.id];
+        if (countDiff !== 0) return countDiff;
+        const targetDiff = remainingTarget(b) - remainingTarget(a);
+        if (targetDiff !== 0) return targetDiff;
+        return b.priority - a.priority;
+      }
 
-          // 3. Fallback to priority weight
-          return b.priority - a.priority;
-        } else if (mode === "priority") {
-          // "Kıdem Önceliği Kullan" (Priority Listing)
-          // 1. Prioritize teachers with higher priority weights (seniority)
-          const priorityDiff = b.priority - a.priority;
-          if (priorityDiff !== 0) return priorityDiff;
+      if (mode === "priority") {
+        // "Kıdem Önceliği Kullan": higher priority weight.
+        const priorityDiff = b.priority - a.priority;
+        if (priorityDiff !== 0) return priorityDiff;
+        const targetDiff = remainingTarget(b) - remainingTarget(a);
+        if (targetDiff !== 0) return targetDiff;
+        return assignmentCounts[a.id] - assignmentCounts[b.id];
+      }
 
-          // 2. Prioritize teachers who have more remaining targets
-          const aTargetDiff = a.target_hours - assignmentCounts[a.id];
-          const bTargetDiff = b.target_hours - assignmentCounts[b.id];
-          if (aTargetDiff !== bTargetDiff) return bTargetDiff - aTargetDiff;
+      if (mode === "strict") {
+        // "Hedef Odaklı": most of their target still to serve.
+        const targetDiff = remainingTarget(b) - remainingTarget(a);
+        if (targetDiff !== 0) return targetDiff;
+        return assignmentCounts[a.id] - assignmentCounts[b.id];
+      }
 
-          // 3. Fallback to fewer assignments
-          return assignmentCounts[a.id] - assignmentCounts[b.id];
-        } else {
-          // "strict" or standard: Balance remaining targets
-          const aTargetDiff = a.target_hours - assignmentCounts[a.id];
-          const bTargetDiff = b.target_hours - assignmentCounts[b.id];
-          if (aTargetDiff !== bTargetDiff) return bTargetDiff - aTargetDiff;
-
-          return assignmentCounts[a.id] - assignmentCounts[b.id];
-        }
-      });
-    }
+      // "Rastgele": the shuffle above already decided, so nothing separates them.
+      return 0;
+    });
 
     // Try assigning teachers
     for (const t of orderedTeachers) {
-      // Soft constraint guard: If not random/fairness, try not to exceed target_hours
-      // unless there are no other options. If a teacher is at or above target, we can
-      // still assign them, but we let them be explored.
-      
-      // Apply assignment
       assignments[dateToAssign].push(t.id);
       assignmentCounts[t.id]++;
 

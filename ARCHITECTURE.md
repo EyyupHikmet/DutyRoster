@@ -71,14 +71,24 @@ be filled. This matters more than it sounds: an unsolvable roster is the normal
 case when a principal has over-restricted availability, and "it didn't work" is
 useless to them.
 
-Four strategies are exposed: distribute evenly, weight by seniority, honour
-manually pinned assignments, and random fill. They change the order in which
-candidates are considered, not the correctness of the result.
+Four distribution rules are exposed: distribute evenly, priority first,
+target-focused, and random fill. They change the order in which candidates are
+considered, not the correctness of the result. Pins apply under every rule.
 
-Orthogonal to all four is the `respectTargets` flag. By default a teacher's
-monthly duty target is only a sort key — the search has to fill every slot or
-fail, so it will hand someone a fourth duty when their target is two. With the
-flag on, the target becomes a hard constraint, and the search is allowed to
+Every rule shares the same order, and the rule itself only breaks the last tie:
+a teacher below their effective target comes before one who has reached it,
+then a candidate who completes a partner group's shared duty day, then Tercihli
+before Uygun, and finally the rule's own criterion (fewest duties so far, most
+target remaining, higher priority, or random). A teacher's target therefore
+outranks both a preference and a priority weight: someone who asked for two
+duties is not given a third while a colleague is still short of theirs.
+
+Orthogonal to all four is the `respectTargets` flag, the target cap, which a
+month that has never been saved starts with **on**; a saved month keeps what it
+was saved with, months saved before the flag existed included. With it off, the
+order above still holds but a teacher at their target can be used as a last
+resort, so the search fills the day rather than leaving it open. With it on,
+the target becomes a hard constraint, and the search is allowed to
 give up on a day (adding it to a `skipped` set) rather than on the month:
 the result is a partly filled schedule plus an `unfilled` report of every day
 that came out short. Pinned assignments are exempt, since they are placed

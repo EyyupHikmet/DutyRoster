@@ -3,6 +3,8 @@ import { DbTeacher } from "../db";
 import { DAYS_TR, getMonthDatesWithPadding, formatDateYYYYMMDD } from "../utils/dateUtils";
 import { CustomSelect } from "./CustomSelect";
 import { PartnerGroup, creditPartnerGroups } from "../solver/partners";
+import { AvailabilityStatus } from "../solver";
+import { pinWarnings } from "../utils/pinWarnings";
 import { turkishPossessiveSuffix } from "../utils/turkishNumberSuffix";
 import { formatApprovalDate } from "../utils/approvedSchedules";
 
@@ -45,6 +47,10 @@ interface Step3SolverProps {
   postCount?: number;
   includeAllPosts?: boolean;
   setIncludeAllPosts?: (include: boolean) => void;
+  /** Who is Uygun Değil or Tercihli on which day, for the pin warnings. */
+  availabilities?: Record<string, Record<string, AvailabilityStatus>>;
+  /** This month's target overrides, which the pin warnings measure against. */
+  monthlyTargets?: Record<string, number>;
 }
 
 // The hard rules that sit under the four distribution modes. Deliberately
@@ -126,7 +132,9 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
   postName,
   postCount = 1,
   includeAllPosts = false,
-  setIncludeAllPosts
+  setIncludeAllPosts,
+  availabilities = {},
+  monthlyTargets = {}
 }) => {
   const paddedDates = getMonthDatesWithPadding(selectedYear, selectedMonth);
 
@@ -200,6 +208,13 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
         .join(" + "),
     }));
 
+  // Pins that break a limit. They never block planning: a pin is the
+  // principal's decision and always wins, so this only tells them what they
+  // asked for (#18).
+  const pins = pinWarnings({ teachers, pinnedAssignments, monthlyTargets, availabilities });
+  const dayOfMonth = (dateStr: string) =>
+    new Date(dateStr).toLocaleDateString("tr-TR", { day: "numeric", month: "long" });
+
   const isGroupDay = (dateStr: string): boolean => {
     const present = new Set(generatedSchedule[dateStr] ?? []);
     return partnerGroups.some(
@@ -231,10 +246,10 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
 
             <div role="radiogroup" aria-label="Dağıtım Kuralı">
               {([
-                { mode: "fairness" as const, title: "Eşit Dağıt (Adalet)", desc: "Aylık nöbet yüklerini tüm kadroya olabildiğince eşit paylaştırır." },
-                { mode: "priority" as const, title: "Kıdem Öncelikli", desc: "Yüksek kıdemli öğretmenlerin izin ve tercihlerini öncelikli korur." },
-                { mode: "strict" as const, title: "Dengeli (Hedef Odaklı)", desc: "Her öğretmenin belirlediği aylık nöbet hedefini yakalamaya çalışır." },
-                { mode: "random" as const, title: "Rastgele Doldur", desc: "Belirtilen kısıtlar altında boş günleri tamamen rastgele dağıtır." }
+                { mode: "fairness" as const, title: "Eşit Dağıt (Adalet)", desc: "Hedefine ulaşmamış öğretmenler arasından en az nöbet tutanı seçer. Hedefini dolduran bir öğretmene, o günü alabilecek başka kimse kalmadıysa görev verilir." },
+                { mode: "priority" as const, title: "Kıdem Öncelikli", desc: "Hedefine ulaşmamış öğretmenler arasından önceliği yüksek olanı seçer." },
+                { mode: "strict" as const, title: "Dengeli (Hedef Odaklı)", desc: "Hedefine ulaşmamış öğretmenler arasından hedefinden en çok nöbeti kalanı seçer." },
+                { mode: "random" as const, title: "Rastgele Doldur", desc: "Hedefine ulaşmamış öğretmenler arasından rastgele seçer." }
               ]).map((opt, idx) => {
                 const isSelected = solverMode === opt.mode;
                 return (
@@ -255,6 +270,10 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
                 );
               })}
             </div>
+
+            <p style={{ margin: "8px 0 0 0", fontSize: "0.72rem", lineHeight: "1.05rem", color: "var(--text-secondary)" }}>
+              Her kuralda sıra aynı: önce aylık hedefine ulaşmamış öğretmenler, sonra o günü tercih edenler, en sonda kuralın kendi ölçütü.
+            </p>
 
             <HardRuleCheckbox
               id="respect-targets-checkbox"
@@ -295,7 +314,25 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
 
           {/* Trigger Buttons Card */}
           <div className="card" style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "10px" }}>
-            <button 
+            {/* Pins that break a limit. Planning goes ahead either way: the pin
+                is the principal's decision, this only makes sure they know. */}
+            {(pins.overTarget.length > 0 || pins.unavailable.length > 0) && (
+              <div className="alert alert-warning" style={{ margin: 0, padding: "8px 12px", fontSize: "0.76rem" }}>
+                <strong>Sabitleme uyarısı:</strong>
+                <ul style={{ margin: "4px 0 0 0", paddingLeft: "18px", lineHeight: "1.15rem" }}>
+                  {pins.overTarget.map((pin) => (
+                    <li key={`over-${pin.id}`}>{`${pin.name}: ${pin.pinned} güne sabitlendi, hedefi ${pin.target}`}</li>
+                  ))}
+                  {pins.unavailable.map((pin) => (
+                    <li key={`unavailable-${pin.id}-${pin.date}`}>
+                      {`${pin.name}: ${dayOfMonth(pin.date)} gününde Uygun Değil olarak işaretli`}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <button
               onClick={handleGenerateSchedule}
               className="btn btn-success"
               style={{ width: "100%", padding: "10px 16px", fontSize: "0.92rem", borderRadius: "8px" }}
@@ -658,7 +695,12 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
                   <div key={slotIdx} style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
                     <span style={{ fontSize: "0.72rem", color: "var(--text-secondary)", fontWeight: "600" }}>Nöbetçi {slotIdx + 1}:</span>
                     <CustomSelect
-                      options={teachers.map(t => ({ value: t.id, label: t.name }))}
+                      // Teachers who marked this day Uygun Değil stay in the
+                      // list — a pin may still be the right call — but say so.
+                      options={teachers.map(t => ({
+                        value: t.id,
+                        label: availabilities[t.id]?.[selectedDateStr] === "unavailable" ? `${t.name} (Uygun Değil)` : t.name,
+                      }))}
                       value={pinnedIds[slotIdx] || ""}
                       placeholder="Öğretmen Seç (Boş Slot)..."
                       variant="pinned"

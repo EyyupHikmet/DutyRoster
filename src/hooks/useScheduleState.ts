@@ -67,7 +67,11 @@ export function useScheduleState() {
   // Hard-cap toggle: when on, no teacher is assigned past their monthly duty
   // target, even if that leaves days open. Orthogonal to solverMode, which
   // only decides the order candidates are considered in.
-  const [respectTargets, setRespectTargets] = useState<boolean>(false);
+  // A month the principal has not saved yet starts with the target cap on
+  // (#18): a tight month should show open days rather than quietly give
+  // someone more duties than they agreed to. Saved months keep what they were
+  // saved with, months saved before the cap existed included.
+  const [respectTargets, setRespectTargets] = useState<boolean>(true);
   // Second hard rule: when on, no teacher is given duty on two adjacent
   // calendar days. Orthogonal to both solverMode and respectTargets.
   const [avoidConsecutiveDays, setAvoidConsecutiveDays] = useState<boolean>(false);
@@ -185,6 +189,9 @@ export function useScheduleState() {
         setDaySpecificTeachers({});
         setPartnerGroups([]);
         setMonthlyTargets({});
+        // A never-saved month starts with the target cap on, whatever the
+        // month the principal was just looking at had.
+        setRespectTargets(true);
         // Note: solverMode/teachersPerDay are deliberately NOT reset here —
         // that matches this function's pre-existing behavior (they carry
         // over from whatever month was last active) and is out of this
@@ -198,7 +205,7 @@ export function useScheduleState() {
           extraDays: defaultWeekends,
           daySpecificTeachers: {},
           solverMode,
-          respectTargets,
+          respectTargets: true,
           avoidConsecutiveDays,
           teachersPerDay,
           pinnedAssignments: {},

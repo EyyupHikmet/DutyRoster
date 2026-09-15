@@ -307,4 +307,74 @@ describe("Step3Solver", () => {
       expect(screen.queryByText(/nöbet grubu/i)).not.toBeInTheDocument();
     });
   });
+  describe("sabitleme uyarıları", () => {
+    // A pin always wins; these warnings only make sure the principal knows.
+    const elifPinnedThrice = {
+      teachers: [{ id: "T1", name: "Elif", target_hours: 2, priority: 1, post_id: "kiz" }],
+      pinnedAssignments: { "2026-10-01": ["T1"], "2026-10-05": ["T1"], "2026-10-08": ["T1"] },
+    };
+
+    it("hedefinden fazla güne sabitlenen öğretmeni bildirir", () => {
+      renderStep3(elifPinnedThrice);
+
+      expect(screen.getByText("Elif: 3 güne sabitlendi, hedefi 2")).toBeInTheDocument();
+    });
+
+    it("ayın hedefi değiştirilmişse onu esas alır", () => {
+      renderStep3({
+        teachers: [{ id: "T1", name: "Elif", target_hours: 5, priority: 1, post_id: "kiz" }],
+        pinnedAssignments: { "2026-10-01": ["T1"], "2026-10-05": ["T1"] },
+        monthlyTargets: { T1: 1 },
+      });
+
+      expect(screen.getByText("Elif: 2 güne sabitlendi, hedefi 1")).toBeInTheDocument();
+    });
+
+    it("öğretmenin Uygun Değil işaretlediği güne sabitlemeyi bildirir", () => {
+      renderStep3({
+        teachers: [{ id: "T1", name: "Elif", target_hours: 4, priority: 1, post_id: "kiz" }],
+        pinnedAssignments: { "2026-10-05": ["T1"] },
+        availabilities: { T1: { "2026-10-05": "unavailable" } },
+      });
+
+      expect(screen.getByText("Elif: 5 Ekim gününde Uygun Değil olarak işaretli")).toBeInTheDocument();
+    });
+
+    it("sınırı aşan sabitleme yoksa uyarı göstermez", () => {
+      renderStep3({
+        teachers: [{ id: "T1", name: "Elif", target_hours: 4, priority: 1, post_id: "kiz" }],
+        pinnedAssignments: { "2026-10-01": ["T1"] },
+      });
+
+      expect(screen.queryByText(/sabitlendi|Uygun Değil olarak işaretli/)).not.toBeInTheDocument();
+    });
+
+    it("uyarı planlamayı engellemez", async () => {
+      const user = userEvent.setup();
+      const props = baseProps(elifPinnedThrice);
+      render(<Step3Solver {...props} />);
+
+      await user.click(screen.getByText("⚡ Programı Hazırla"));
+
+      expect(props.handleGenerateSchedule).toHaveBeenCalled();
+    });
+  });
+
+  describe("dağıtım kuralı açıklamaları", () => {
+    it("her kuralda hedefine ulaşmamış öğretmenlerin önce geldiğini söyler", () => {
+      renderStep3();
+
+      expect(screen.getByText(/Her kuralda sıra aynı/)).toBeInTheDocument();
+      for (const description of screen.getAllByText(/[Hh]edefine ulaşmamış/)) {
+        expect(description).toBeInTheDocument();
+      }
+      expect(screen.getAllByText(/[Hh]edefine ulaşmamış/).length).toBeGreaterThanOrEqual(4);
+    });
+
+    it("kıdem kuralının açıklamasında izinden söz etmez", () => {
+      renderStep3();
+
+      expect(screen.queryByText(/izin/)).not.toBeInTheDocument();
+    });
+  });
 });

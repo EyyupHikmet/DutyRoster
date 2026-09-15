@@ -637,7 +637,7 @@ describe("App — hard planning rules reach the solver", () => {
     expect(screen.getByText(/Adım 3: Planlama Seçenekleri/)).toBeInTheDocument();
   }
 
-  it("passes both rules as off by default", async () => {
+  it("passes the target cap on and the back-to-back rule off for a month never saved", async () => {
     const user = userEvent.setup();
     await goToStepThree(user);
 
@@ -645,7 +645,7 @@ describe("App — hard planning rules reach the solver", () => {
 
     await waitFor(() => expect(mockedSolve).toHaveBeenCalled());
     const config = mockedSolve.mock.calls[0][3];
-    expect(config.respectTargets).toBe(false);
+    expect(config.respectTargets).toBe(true);
     expect(config.avoidConsecutiveDays).toBe(false);
   });
 
@@ -659,10 +659,10 @@ describe("App — hard planning rules reach the solver", () => {
     await waitFor(() => expect(mockedSolve).toHaveBeenCalled());
     const config = mockedSolve.mock.calls[0][3];
     expect(config.avoidConsecutiveDays, "Kural çözücüye iletilmeli").toBe(true);
-    expect(config.respectTargets, "Diğer kural etkilenmemeli").toBe(false);
+    expect(config.respectTargets, "Diğer kural etkilenmemeli").toBe(true);
   });
 
-  it("forwards both rules when both checkboxes are ticked", async () => {
+  it("forwards the target cap switched off, with the back-to-back rule on", async () => {
     const user = userEvent.setup();
     await goToStepThree(user);
 
@@ -672,7 +672,7 @@ describe("App — hard planning rules reach the solver", () => {
 
     await waitFor(() => expect(mockedSolve).toHaveBeenCalled());
     const config = mockedSolve.mock.calls[0][3];
-    expect(config.respectTargets).toBe(true);
+    expect(config.respectTargets).toBe(false);
     expect(config.avoidConsecutiveDays).toBe(true);
   });
 });
