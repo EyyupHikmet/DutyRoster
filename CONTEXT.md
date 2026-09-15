@@ -4,10 +4,17 @@ A school principal's tool for planning a month of teachers' overnight dormitory 
 
 ## Language
 
+### Duty posts
+
+**Duty post**:
+A place that needs overnight supervision, such as a dormitory or a building on the campus. Each duty post has its own staff, and every month it can have its own schedule. Duty posts last across months.
+_Turkish_: Nöbet Yeri
+_Avoid_: Schedule, dormitory, building, unit
+
 ### People and availability
 
 **Staff**:
-The teachers who can be given duty.
+The teachers of one duty post, who can be given duty there. A teacher belongs to exactly one duty post.
 _Turkish_: Kadro
 _Avoid_: Roster, teacher list
 
@@ -121,7 +128,7 @@ _Avoid_: Unfilled group, incomplete group
 ### Generating the schedule
 
 **Schedule**:
-The month's assignment of teachers to duty days.
+One duty post's assignment of teachers to duty days for a month.
 _Turkish_: Nöbet Çizelgesi
 _Avoid_: Roster, shift plan
 
@@ -170,7 +177,7 @@ _Avoid_: Excel export, Excel file
 ### The month
 
 **Month setup**:
-Everything the principal has configured for one month.
+Everything the principal has configured for one duty post in one month. A teacher's availability is not part of it: it belongs to the teacher.
 
 **Draft**:
 A month setup for which no schedule has been generated yet.
@@ -187,7 +194,7 @@ To make a generated schedule official, keeping a frozen copy of it permanently. 
 _Turkish_: Onayla
 
 **Approved schedule**:
-The frozen copy of a schedule made when the principal approves it, together with everything its duty report needs: teacher names, effective targets, extra duty days and non-duty days. Later changes to the staff or the month setup never alter it. It may contain open slots.
+The frozen copy of a schedule made when the principal approves it, together with everything its duty report needs: the duty post's name, teacher names, effective targets, extra duty days and non-duty days. Later changes to the staff or the month setup never alter it. It may contain open slots.
 _Turkish_: Onaylı Çizelge
 _Avoid_: Saved schedule, archive, final schedule
 
