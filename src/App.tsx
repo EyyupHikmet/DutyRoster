@@ -6,6 +6,7 @@ import { parseExcelRoster, exportScheduleToExcel, exportDutyReport, ExportSchedu
 import { freezeScheduleReport, sameReport } from "./utils/scheduleReport";
 import { approvedCopyFor, earlierInSchoolYear, formatApprovalDate } from "./utils/approvedSchedules";
 import { creditPartnerGroups } from "./solver/partners";
+import { splitImportByName } from "./utils/teacherNames";
 import { useApprovedSchedules, ApprovedSchedule } from "./hooks/useApprovedSchedules";
 import { getDutyDates, findUnfilledDays, MONTHS_TR } from "./utils/dateUtils";
 import { effectiveTarget } from "./utils/targets";
@@ -439,14 +440,27 @@ export default function App() {
           return;
         }
 
-        // Save imported list to SQLite
-        for (const t of imported) {
+        // A name already in the staff, or repeated earlier in the file, is
+        // skipped rather than saved as a second teacher (see teacherNames.ts).
+        const { added, skipped } = splitImportByName(imported, teachers);
+        for (const t of added) {
           await saveTeacher(t);
         }
         await loadTeachers();
-        
-        setSuccessMessage(`${imported.length} öğretmen başarıyla yüklendi.`);
-        setTimeout(() => setSuccessMessage(null), 4000);
+
+        const skippedNote =
+          skipped.length > 0
+            ? ` ${skipped.length} isim zaten kadroda olduğu için atlandı: ${skipped.join(", ")}.`
+            : "";
+        if (added.length === 0) {
+          setSuccessMessage(`Yeni öğretmen eklenmedi.${skippedNote}`);
+        } else if (skipped.length === 0) {
+          setSuccessMessage(`${added.length} öğretmen başarıyla yüklendi.`);
+        } else {
+          setSuccessMessage(`${added.length} öğretmen yüklendi.${skippedNote}`);
+        }
+        // A list of skipped names needs longer on screen to be read.
+        setTimeout(() => setSuccessMessage(null), skipped.length > 0 ? 8000 : 4000);
       } catch (err) {
         console.error("İçe aktarma sırasında hata oluştu:", err);
         alert("Dosya okunurken bir hata oluştu. Lütfen dosya formatını kontrol edin.");

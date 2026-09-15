@@ -200,6 +200,81 @@ describe("useTeachers", () => {
   });
 });
 
+describe("teacher names are unique in the staff", () => {
+  const ctx = () => ({ partnerGroups: [], monthlyTargets: {}, applyMonthlyTarget: vi.fn() });
+  const staff = [
+    { id: "T1", name: "Ayşe Yılmaz", target_hours: 4, priority: 1 },
+    { id: "T2", name: "Çağlar Demir", target_hours: 4, priority: 1 },
+  ];
+
+  async function loadedHook() {
+    mockedDb.getTeachers.mockResolvedValue(staff);
+    mockedDb.saveTeacher.mockResolvedValue(undefined);
+    const hook = renderHook(() => useTeachers());
+    await act(async () => {
+      await hook.result.current.loadTeachers();
+    });
+    return hook.result;
+  }
+
+  it("refuses to add a teacher whose name another teacher already has", async () => {
+    const result = await loadedHook();
+    act(() => result.current.setTeacherName("  AYŞE   YILMAZ "));
+
+    let saved: boolean | undefined;
+    await act(async () => {
+      saved = await result.current.handleSaveTeacherSubmit(undefined, ctx());
+    });
+
+    expect(saved).toBe(false);
+    expect(mockedDb.saveTeacher).not.toHaveBeenCalled();
+    expect(result.current.teacherError).toBe(
+      "“Ayşe Yılmaz” adında bir öğretmen zaten var. İki öğretmeni ayırt edebilmek için adı değiştirin (ör. “Ayşe Yılmaz (Mat.)”)."
+    );
+  });
+
+  it("refuses to rename a teacher to another teacher's name", async () => {
+    const result = await loadedHook();
+    act(() => {
+      result.current.handleEditTeacherClick(staff[1]);
+      result.current.setTeacherName("ayşe yılmaz");
+    });
+
+    let saved: boolean | undefined;
+    await act(async () => {
+      saved = await result.current.handleSaveTeacherSubmit(undefined, ctx());
+    });
+
+    expect(saved).toBe(false);
+    expect(mockedDb.saveTeacher).not.toHaveBeenCalled();
+  });
+
+  it("lets a teacher keep their own name in different capitals", async () => {
+    const result = await loadedHook();
+    act(() => {
+      result.current.handleEditTeacherClick(staff[1]);
+      result.current.setTeacherName("ÇAĞLAR DEMİR");
+    });
+
+    await act(async () => {
+      await result.current.handleSaveTeacherSubmit(undefined, ctx());
+    });
+
+    expect(mockedDb.saveTeacher).toHaveBeenCalledWith(expect.objectContaining({ id: "T2", name: "ÇAĞLAR DEMİR" }));
+  });
+
+  it("accepts a name that differs only in Turkish letters", async () => {
+    const result = await loadedHook();
+    act(() => result.current.setTeacherName("Caglar Demir"));
+
+    await act(async () => {
+      await result.current.handleSaveTeacherSubmit(undefined, ctx());
+    });
+
+    expect(mockedDb.saveTeacher).toHaveBeenCalledWith(expect.objectContaining({ name: "Caglar Demir" }));
+  });
+});
+
 describe("aylık nöbet hedefi", () => {
   // Note: adapted from the task brief to this file's existing mocking
   // convention (mockedDb.getTeachers rather than a standalone vi.mocked

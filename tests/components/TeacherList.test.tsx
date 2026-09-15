@@ -60,6 +60,20 @@ describe("TeacherList", () => {
     expect(screen.getByText("Öğretmen Kadrosu (2)")).toBeInTheDocument();
   });
 
+  it("marks teachers who share a name, so the principal can rename them", () => {
+    renderList({
+      teachers: [
+        { id: "T1", name: "Ayşe Yılmaz", target_hours: 4, priority: 1 },
+        { id: "T2", name: "ayşe  yılmaz", target_hours: 4, priority: 1 },
+        { id: "T3", name: "Şule Kaya", target_hours: 4, priority: 1 },
+        { id: "T4", name: "Sule Kaya", target_hours: 4, priority: 1 },
+      ],
+    });
+
+    // Only the two Ayşe Yılmaz rows: Şule and Sule are different names.
+    expect(screen.getAllByText("Aynı isimde başka öğretmen var")).toHaveLength(2);
+  });
+
   it("clicking a teacher row calls onSelectTeacher with its id", async () => {
     const user = userEvent.setup();
     const onSelectTeacher = vi.fn();
