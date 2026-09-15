@@ -170,7 +170,7 @@ _Turkish_: Sıkışma
 _Avoid_: Error date, failure date
 
 **Duty report**:
-The exported workbook of one or more schedules, each with its teachers' duty totals, plus a running total when it holds more than one.
+The exported workbook of one or more schedules, each with its teachers' duty totals, plus a running total when it holds more than one. It covers one duty post, or every duty post at once: then each post's sheets are together, posts in Turkish alphabetical order.
 _Turkish_: Nöbet Raporu
 _Avoid_: Excel export, Excel file
 
@@ -203,5 +203,5 @@ The moment a schedule was approved.
 _Turkish_: Onay tarihi
 
 **Running total**:
-Each teacher's duties added up across every schedule included in one duty report. Teachers are matched by name, so a teacher renamed between schedules counts as two.
+Each teacher's duties added up across every schedule included in one duty report. Teachers are matched by name, so a teacher renamed between schedules counts as two. A report covering every duty post names each teacher's post as well.
 _Avoid_: Annual total (it covers only what the report includes)

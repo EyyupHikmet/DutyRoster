@@ -256,6 +256,7 @@ const REPORT_HEADER = [
 
 interface DutyTotals {
   name: string;
+  post: string;
   target: number;
   total: number;
   weekday: number;
@@ -265,7 +266,7 @@ interface DutyTotals {
 
 /** One teacher's duty totals within one schedule. */
 const totalsFor = (report: ScheduleReport, teacher: ReportTeacher): DutyTotals => {
-  const totals: DutyTotals = { name: teacher.name, target: teacher.target, total: 0, weekday: 0, weekend: 0, extra: 0 };
+  const totals: DutyTotals = { name: teacher.name, post: report.postName ?? "", target: teacher.target, total: 0, weekday: 0, weekend: 0, extra: 0 };
 
   for (const d of getDaysInMonth(report.year, report.month)) {
     const dateStr = formatDateYYYYMMDD(d);
@@ -297,7 +298,7 @@ const reportRows = (report: ScheduleReport): unknown[][] => [
  * schedule. Teachers are matched by name (ADR-0006), so a teacher imported
  * again under a new id is still one row, named as in the latest schedule.
  */
-const runningTotalRows = (latestFirst: ScheduleReport[]): unknown[][] => {
+const runningTotalRows = (latestFirst: ScheduleReport[], withPost = false): unknown[][] => {
   const byName = new Map<string, DutyTotals>();
   for (const report of [...latestFirst].reverse()) {
     for (const teacher of report.teachers) {
@@ -309,6 +310,7 @@ const runningTotalRows = (latestFirst: ScheduleReport[]): unknown[][] => {
         continue;
       }
       sum.name = month.name;
+      sum.post = month.post;
       sum.target += month.target;
       sum.total += month.total;
       sum.weekday += month.weekday;
@@ -316,8 +318,12 @@ const runningTotalRows = (latestFirst: ScheduleReport[]): unknown[][] => {
       sum.extra += month.extra;
     }
   }
-  const sums = [...byName.values()].sort((a, b) => a.name.localeCompare(b.name, "tr"));
-  return [REPORT_HEADER, ...sums.map(totalsRow)];
+  const sums = [...byName.values()].sort(
+    (a, b) => (withPost ? a.post.localeCompare(b.post, "tr") : 0) || a.name.localeCompare(b.name, "tr")
+  );
+  return withPost
+    ? [["Nöbet Yeri", ...REPORT_HEADER], ...sums.map((t) => [t.post, ...totalsRow(t)])]
+    : [REPORT_HEADER, ...sums.map(totalsRow)];
 };
 
 const monthIndex = (report: ScheduleReport) => report.year * 12 + report.month;
@@ -327,7 +333,8 @@ const monthLabel = (report: ScheduleReport) => `${MONTHS_TR[report.month - 1]} $
 const appendSheet = (workbook: XLSX.WorkBook, name: string, rows: unknown[][]) => {
   const sheet = XLSX.utils.aoa_to_sheet(rows);
   // Size columns to their content, within limits.
-  sheet["!cols"] = rows[0].map((_, col) => {
+  const columns = Math.max(...rows.map((row) => row.length));
+  sheet["!cols"] = Array.from({ length: columns }, (_, col) => {
     const width = Math.max(...rows.map((row) => String(row[col] ?? "").length));
     return { wch: Math.min(Math.max(width + 3, 10), 35) };
   });
@@ -339,8 +346,61 @@ const appendSheet = (workbook: XLSX.WorkBook, name: string, rows: unknown[][]) =
  * its two familiar sheets. Several get a list and a report sheet each, latest
  * month first so the workbook opens on it, then the running total.
  */
-export const buildDutyReportWorkbook = (reports: ScheduleReport[]): XLSX.WorkBook => {
+/** Options for a duty report. */
+export interface DutyReportOptions {
+  /** Every duty post's schedules in one workbook, grouped by post (#28). */
+  allPosts?: boolean;
+}
+
+const EXCEL_SHEET_NAME_MAX = 31;
+
+/**
+ * A sheet name for one post's schedule, e.g. "Kız Yurdu – Aralık 2026 – Liste".
+ * Excel allows 31 characters and refuses : \ / ? * [ ], and names must be
+ * unique (ignoring case): the month is shortened first ("Ara 2026"), then the
+ * post's name with "…", and a repeated name gets a number.
+ */
+const postSheetName = (report: ScheduleReport, kind: "Liste" | "Rapor", used: Set<string>): string => {
+  const post = (report.postName ?? "").replace(/[:\\/?*[\]]/g, "-").trim();
+  const fullMonth = `${MONTHS_TR[report.month - 1]} ${report.year}`;
+  const shortMonth = `${MONTHS_TR[report.month - 1].slice(0, 3)} ${report.year}`;
+  for (let copy = 1; ; copy++) {
+    const tag = copy === 1 ? "" : ` ${copy}`;
+    const compose = (name: string, month: string) => `${name}${tag} – ${month} – ${kind}`;
+    let sheet = compose(post, fullMonth);
+    if (sheet.length > EXCEL_SHEET_NAME_MAX) sheet = compose(post, shortMonth);
+    if (sheet.length > EXCEL_SHEET_NAME_MAX) {
+      const room = EXCEL_SHEET_NAME_MAX - compose("", shortMonth).length;
+      sheet = compose(`${post.slice(0, Math.max(room - 1, 1))}…`, shortMonth);
+    }
+    const key = sheet.toLocaleLowerCase("tr");
+    if (!used.has(key)) {
+      used.add(key);
+      return sheet;
+    }
+  }
+};
+
+export const buildDutyReportWorkbook = (reports: ScheduleReport[], options: DutyReportOptions = {}): XLSX.WorkBook => {
   const workbook = XLSX.utils.book_new();
+
+  // Every post: each post's sheets together, posts in Turkish order and each
+  // post's latest month first, every sheet titled with the post and month in
+  // full, then one running total with a post column.
+  if (options.allPosts) {
+    const byPost = [...reports].sort(
+      (a, b) => (a.postName ?? "").localeCompare(b.postName ?? "", "tr") || monthIndex(b) - monthIndex(a)
+    );
+    const used = new Set<string>();
+    for (const report of byPost) {
+      const title = [`${report.postName ?? ""} – ${monthLabel(report)}`];
+      appendSheet(workbook, postSheetName(report, "Liste", used), [title, ...listRows(report)]);
+      appendSheet(workbook, postSheetName(report, "Rapor", used), [title, ...reportRows(report)]);
+    }
+    if (byPost.length > 1) appendSheet(workbook, "Toplam", runningTotalRows(latestFirst(reports), true));
+    return workbook;
+  }
+
   const ordered = latestFirst(reports);
 
   if (ordered.length === 1) {
@@ -362,9 +422,17 @@ export const buildDutyReportWorkbook = (reports: ScheduleReport[]): XLSX.WorkBoo
  * are named by school year and the months they span, e.g.
  * `2026-2027_Eylül-Aralık_Nöbet_Raporu_v1.xlsx`.
  */
-export const buildDutyReportFilename = (reports: ScheduleReport[], version: number): string => {
+export const buildDutyReportFilename = (reports: ScheduleReport[], version: number, options: DutyReportOptions = {}): string => {
   const ordered = latestFirst(reports);
   const latest = ordered[0];
+  if (options.allPosts) {
+    const earliestOfAll = ordered[ordered.length - 1];
+    if (monthIndex(earliestOfAll) === monthIndex(latest)) {
+      return `${latest.year}_${MONTHS_TR[latest.month - 1]}_Tüm_Nöbet_Yerleri_Nöbet_Raporu_v${version}.xlsx`;
+    }
+    const startYear = schoolYearStart(latest.year, latest.month);
+    return `${startYear}-${startYear + 1}_${MONTHS_TR[earliestOfAll.month - 1]}-${MONTHS_TR[latest.month - 1]}_Tüm_Nöbet_Yerleri_Nöbet_Raporu_v${version}.xlsx`;
+  }
   if (ordered.length === 1) return buildExportFilename(latest.year, latest.month, version);
 
   const earliest = ordered[ordered.length - 1];
@@ -417,21 +485,23 @@ export const exportScheduleToExcel = async (
  */
 export const exportDutyReport = async (
   reports: ScheduleReport[],
-  deps: ExportScheduleDeps = {}
+  deps: ExportScheduleDeps = {},
+  options: DutyReportOptions = {}
 ): Promise<ExportScheduleResult> => {
   const doSaveDialog = deps.saveDialog ?? saveDialog;
   const doWriteFile = deps.writeFile ?? writeFsFile;
   const xlsxWriter = deps.xlsxWriter ?? XLSX;
 
-  const workbook = buildDutyReportWorkbook(reports);
+  const workbook = buildDutyReportWorkbook(reports, options);
 
   // Ask the user where to save it (native Save-As dialog) instead of the old
   // silent XLSX.writeFile() browser-download. The suggested name carries the
   // in-session version indicator documented above; the user is free to rename
   // or overwrite it in the dialog exactly like any normal OS Save-As.
-  const key = reportVersionKey(reports);
+  // Every-post reports count their versions apart from one post's.
+  const key = `${options.allPosts ? "all:" : ""}${reportVersionKey(reports)}`;
   const version = (exportVersionCounters.get(key) ?? 0) + 1;
-  const suggestedFilename = buildDutyReportFilename(reports, version);
+  const suggestedFilename = buildDutyReportFilename(reports, version, options);
 
   let targetPath: string | null;
   try {

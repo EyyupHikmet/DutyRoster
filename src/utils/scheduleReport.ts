@@ -74,13 +74,14 @@ export function freezeScheduleReport(month: MonthForReport, teachers: DbTeacher[
   };
 }
 
+/** Duty days with fewer teachers than they require. */
+export function openDays(report: ScheduleReport) {
+  return findUnfilledDays(Object.keys(report.requiredCounts), report.assignments, (date) => report.requiredCounts[date]);
+}
+
 /** Slots no teacher fills, summed over the month's duty days. */
 export function openSlotCount(report: ScheduleReport): number {
-  return findUnfilledDays(
-    Object.keys(report.requiredCounts),
-    report.assignments,
-    (date) => report.requiredCounts[date]
-  ).reduce((sum, day) => sum + (day.required - day.assigned), 0);
+  return openDays(report).reduce((sum, day) => sum + (day.required - day.assigned), 0);
 }
 
 /**

@@ -41,6 +41,10 @@ interface Step3SolverProps {
   setIncludeEarlierApproved?: (include: boolean) => void;
   /** The duty post whose month this is, named next to the title. */
   postName?: string;
+  /** How many duty posts there are; an export can include them all when there are several. */
+  postCount?: number;
+  includeAllPosts?: boolean;
+  setIncludeAllPosts?: (include: boolean) => void;
 }
 
 // The hard rules that sit under the four distribution modes. Deliberately
@@ -119,7 +123,10 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
   earlierApprovedCount = 0,
   includeEarlierApproved = true,
   setIncludeEarlierApproved,
-  postName
+  postName,
+  postCount = 1,
+  includeAllPosts = false,
+  setIncludeAllPosts
 }) => {
   const paddedDates = getMonthDatesWithPadding(selectedYear, selectedMonth);
 
@@ -359,6 +366,38 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
                       : includeEarlierApproved
                         ? `${earlierApprovedCount} onaylı çizelge eklenecek`
                         : `${earlierApprovedCount} onaylı çizelge eklenmeyecek`}
+                  </span>
+                </div>
+
+                {/* Every duty post's schedules can go into one workbook (#28). */}
+                <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                  <label
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      fontSize: "0.8rem",
+                      fontWeight: 600,
+                      color: postCount > 1 ? "var(--text-primary)" : "var(--text-secondary)",
+                      cursor: postCount > 1 ? "pointer" : "not-allowed",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={postCount > 1 && includeAllPosts}
+                      disabled={postCount <= 1}
+                      onChange={(e) => setIncludeAllPosts?.(e.target.checked)}
+                      aria-describedby="include-all-posts-hint"
+                      style={{ accentColor: "var(--primary)" }}
+                    />
+                    Tüm nöbet yerlerini ekle
+                  </label>
+                  <span id="include-all-posts-hint" style={{ fontSize: "0.72rem", color: "var(--text-secondary)", paddingLeft: "24px" }}>
+                    {postCount <= 1
+                      ? "Başka nöbet yeri yok"
+                      : includeAllPosts
+                        ? `${postCount} nöbet yeri tek raporda`
+                        : "Yalnızca bu nöbet yeri aktarılacak"}
                   </span>
                 </div>
               </>
