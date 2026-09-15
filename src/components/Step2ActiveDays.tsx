@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { MONTHS_TR, DAYS_TR, getMonthDatesWithPadding, formatDateYYYYMMDD } from "../utils/dateUtils";
 import { CustomSelect } from "./CustomSelect";
 
@@ -12,6 +12,11 @@ interface Step2ActiveDaysProps {
   extraDays: string[];
   handleToggleExtraDay: (dateStr: string) => void;
   handleToggleDayEligibility: (dateStr: string, isWeekend: boolean) => void;
+  /** The duty post whose month this is, named next to the title. */
+  postName?: string;
+  /** Other posts with a saved setup for this month, to copy day settings from. */
+  copyPosts?: { id: string; name: string }[];
+  onCopyFromPost?: (postId: string) => void;
 }
 
 export const Step2ActiveDays: React.FC<Step2ActiveDaysProps> = ({
@@ -23,9 +28,16 @@ export const Step2ActiveDays: React.FC<Step2ActiveDaysProps> = ({
   weekendDutyDays,
   extraDays,
   handleToggleExtraDay,
-  handleToggleDayEligibility
+  handleToggleDayEligibility,
+  postName,
+  copyPosts = [],
+  onCopyFromPost
 }) => {
   const paddedDates = getMonthDatesWithPadding(selectedYear, selectedMonth);
+  const [copySource, setCopySource] = useState<string>("");
+  // Falls back to the first offered post until one is picked, and after the
+  // picked one stops being offered (another month, or it was deleted).
+  const source = copyPosts.some((p) => p.id === copySource) ? copySource : copyPosts[0]?.id ?? "";
 
   return (
     <div className="fill-column">
@@ -47,7 +59,7 @@ export const Step2ActiveDays: React.FC<Step2ActiveDaysProps> = ({
       >
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <h2 className="step-title" style={{ margin: 0, fontSize: "1.15rem", fontWeight: "800" }}>
-            📅 Ay Seçimi & Aktif Günler
+            📅 Ay Seçimi & Aktif Günler{postName ? ` — ${postName}` : ""}
           </h2>
           
           <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
@@ -71,6 +83,33 @@ export const Step2ActiveDays: React.FC<Step2ActiveDaysProps> = ({
               ariaLabel="Ay seçimi"
             />
           </div>
+
+          {/* Day settings are often the same across posts (a bayram closes
+              every dormitory), so another post's can be copied into this
+              month. Only non-duty days, extra days and required counts. */}
+          {copyPosts.length > 0 && onCopyFromPost && (
+            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+              <select
+                className="form-control"
+                aria-label="Gün ayarlarının kopyalanacağı nöbet yeri"
+                value={source}
+                onChange={(e) => setCopySource(e.target.value)}
+                style={{ width: "auto", minWidth: "150px", padding: "6px 10px", fontSize: "0.85rem" }}
+              >
+                {copyPosts.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ padding: "6px 12px", fontSize: "0.8rem" }}
+                onClick={() => source && onCopyFromPost(source)}
+              >
+                Başka nöbet yerinden kopyala
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Compact Color Guides inline */}

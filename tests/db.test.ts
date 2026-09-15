@@ -218,11 +218,11 @@ describe("db.ts — Schedules: (year, month) dedup migration + upsert", () => {
     insert.run("new-uuid", 2026, 5, "{}", "[]", "[]", "{}"); // higher rowid (most recent)
 
     __setNextRawDb(raw);
-    const { getSchedule } = await import("../src/db");
+    const { getSchedule, getDutyPosts } = await import("../src/db");
 
     // getSchedule() calls getDb() internally, which runs initDb()'s dedup + unique
     // index migration as a side effect on first call.
-    const result = await getSchedule(2026, 5);
+    const result = await getSchedule((await getDutyPosts())[0].id, 2026, 5);
 
     const remainingRows = raw.prepare("SELECT id FROM schedules").all() as { id: string }[];
     expect(remainingRows).toHaveLength(1);
@@ -230,16 +230,18 @@ describe("db.ts — Schedules: (year, month) dedup migration + upsert", () => {
     expect(result?.id).toBe("new-uuid");
 
     const index = raw
-      .prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_schedules_year_month'")
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_schedules_post_year_month'")
       .get();
-    expect(index, "CREATE UNIQUE INDEX idx_schedules_year_month should exist after initDb()").toBeDefined();
+    expect(index, "CREATE UNIQUE INDEX idx_schedules_post_year_month should exist after initDb()").toBeDefined();
   });
 
   it("saveSchedule() called twice for the same (year, month) with a fresh UUID each time REPLACES, not duplicates", async () => {
-    const { saveSchedule, getSchedule, raw } = await freshDb();
+    const { saveSchedule, getSchedule, getDutyPosts, raw } = await freshDb();
+    const post = (await getDutyPosts())[0].id;
 
     await saveSchedule({
       id: "uuid-1",
+      post_id: post,
       year: 2026,
       month: 6,
       assignments: JSON.stringify({ "2026-06-01": ["T1"] }),
@@ -252,6 +254,7 @@ describe("db.ts — Schedules: (year, month) dedup migration + upsert", () => {
     // saveGeneratedScheduleToDb always mints a brand-new crypto.randomUUID().
     await saveSchedule({
       id: "uuid-2",
+      post_id: post,
       year: 2026,
       month: 6,
       assignments: JSON.stringify({ "2026-06-01": ["T2"] }),
@@ -268,17 +271,19 @@ describe("db.ts — Schedules: (year, month) dedup migration + upsert", () => {
     // can keep pointing at the schedule it came from (ADR-0006).
     expect(rows[0].id).toBe("uuid-1");
 
-    const loaded = await getSchedule(2026, 6);
+    const loaded = await getSchedule(post, 2026, 6);
     expect(loaded?.id).toBe("uuid-1");
     expect(JSON.parse(loaded!.assignments)).toEqual({ "2026-06-01": ["T2"] });
     expect(JSON.parse(loaded!.config)).toEqual({ mode: "priority" });
   });
 
   it("saveSchedule() for a DIFFERENT (year, month) does not disturb the existing row", async () => {
-    const { saveSchedule, raw } = await freshDb();
+    const { saveSchedule, getDutyPosts, raw } = await freshDb();
+    const post = (await getDutyPosts())[0].id;
 
     await saveSchedule({
       id: "uuid-may",
+      post_id: post,
       year: 2026,
       month: 5,
       assignments: "{}",
@@ -288,6 +293,7 @@ describe("db.ts — Schedules: (year, month) dedup migration + upsert", () => {
     });
     await saveSchedule({
       id: "uuid-june",
+      post_id: post,
       year: 2026,
       month: 6,
       assignments: "{}",
@@ -304,20 +310,22 @@ describe("db.ts — Schedules: (year, month) dedup migration + upsert", () => {
   });
 
   it("getSchedule() for a (year, month) with no saved schedule returns null", async () => {
-    const { getSchedule } = await freshDb();
-    expect(await getSchedule(2099, 1)).toBeNull();
+    const { getSchedule, getDutyPosts } = await freshDb();
+    expect(await getSchedule((await getDutyPosts())[0].id, 2099, 1)).toBeNull();
   });
 });
 
 describe("db.ts — resetDb()", () => {
   it("wipes all rows from teachers, availabilities, and schedules", async () => {
-    const { saveTeacher, saveAvailability, saveSchedule, resetDb, getTeachers, getAvailabilities, getSchedule } =
+    const { saveTeacher, saveAvailability, saveSchedule, resetDb, getTeachers, getAvailabilities, getSchedule, getDutyPosts } =
       await freshDb();
+    const post = (await getDutyPosts())[0].id;
 
-    await saveTeacher({ id: "T1", name: "Ahmet", target_hours: 4, priority: 1 });
+    await saveTeacher({ id: "T1", name: "Ahmet", target_hours: 4, priority: 1, post_id: post });
     await saveAvailability({ teacher_id: "T1", date: "2026-10-01", status: "preferred" });
     await saveSchedule({
       id: "s1",
+      post_id: post,
       year: 2026,
       month: 10,
       assignments: "{}",
@@ -330,7 +338,7 @@ describe("db.ts — resetDb()", () => {
 
     expect(await getTeachers()).toHaveLength(0);
     expect(await getAvailabilities()).toHaveLength(0);
-    expect(await getSchedule(2026, 10)).toBeNull();
+    expect(await getSchedule(post, 2026, 10)).toBeNull();
   });
 
   it("keeps approved schedules unless asked to delete them too", async () => {
@@ -349,6 +357,7 @@ function approvedCopy(overrides: Partial<import("../src/db").DbApprovedSchedule>
   return {
     id: "a1",
     schedule_id: "s1",
+    post_id: "p1",
     year: 2026,
     month: 9,
     approved_at: "2026-09-30T10:00:00.000Z",
@@ -357,9 +366,222 @@ function approvedCopy(overrides: Partial<import("../src/db").DbApprovedSchedule>
   };
 }
 
-function monthRow(id: string, year: number, month: number) {
-  return { id, year, month, assignments: "{}", holidays: "[]", weekend_duty_days: "[]", config: "{}" };
+
+/** A database as saved by the app before duty posts existed. */
+async function legacyDb(seed: (raw: InstanceType<typeof SqliteDatabase>) => void) {
+  vi.resetModules();
+  const raw = new SqliteDatabase(":memory:");
+  raw.exec(`
+    CREATE TABLE teachers (id TEXT PRIMARY KEY, name TEXT NOT NULL, target_hours REAL NOT NULL, priority INTEGER NOT NULL);
+    CREATE TABLE availabilities (teacher_id TEXT NOT NULL, date TEXT NOT NULL, status TEXT NOT NULL, PRIMARY KEY (teacher_id, date));
+    CREATE TABLE schedules (id TEXT PRIMARY KEY, year INTEGER NOT NULL, month INTEGER NOT NULL, assignments TEXT NOT NULL,
+      holidays TEXT NOT NULL, weekend_duty_days TEXT NOT NULL, config TEXT NOT NULL);
+    CREATE UNIQUE INDEX idx_schedules_year_month ON schedules (year, month);
+    CREATE TABLE approved_schedules (id TEXT PRIMARY KEY, schedule_id TEXT NOT NULL UNIQUE, year INTEGER NOT NULL,
+      month INTEGER NOT NULL, approved_at TEXT NOT NULL, report TEXT NOT NULL);
+  `);
+  seed(raw);
+  __setNextRawDb(raw);
+  const dbModule = await import("../src/db");
+  return { raw, ...dbModule };
 }
+
+describe("db.ts — duty posts", () => {
+  it("turns an existing database into a single post named Yurt that owns everything", async () => {
+    const { getDutyPosts, getTeachers, getSchedule, getApprovedSchedules, getAvailabilities } = await legacyDb((raw) => {
+      raw.exec(`
+        INSERT INTO teachers VALUES ('T1', 'Çağlar', 4, 1);
+        INSERT INTO availabilities VALUES ('T1', '2026-09-01', 'preferred');
+        INSERT INTO schedules VALUES ('s9', 2026, 9, '{"2026-09-01":["T1"]}', '[]', '[]', '{}');
+        INSERT INTO approved_schedules VALUES ('a9', 's9', 2026, 9, '2026-09-30T10:00:00.000Z', '{}');
+      `);
+    });
+
+    const posts = await getDutyPosts();
+    expect(posts.map((p) => p.name)).toEqual(["Yurt"]);
+    const yurt = posts[0].id;
+
+    expect(await getTeachers(yurt)).toEqual([{ id: "T1", name: "Çağlar", target_hours: 4, priority: 1, post_id: yurt }]);
+    expect((await getSchedule(yurt, 2026, 9))?.id).toBe("s9");
+    expect((await getApprovedSchedules()).map((c) => c.post_id)).toEqual([yurt]);
+    expect(await getAvailabilities()).toHaveLength(1);
+  });
+
+  it("upgrades an existing database only once", async () => {
+    const { raw, getDutyPosts } = await legacyDb(() => {});
+    await getDutyPosts();
+
+    // The next launch reads the same file again.
+    vi.resetModules();
+    __setNextRawDb(raw);
+    const again = await import("../src/db");
+
+    expect((await again.getDutyPosts()).map((p) => p.name)).toEqual(["Yurt"]);
+  });
+
+  it("starts a new database with one empty post named Yurt, which is the one selected", async () => {
+    const { getDutyPosts, getTeachers, getLastPostId } = await freshDb();
+
+    const posts = await getDutyPosts();
+    expect(posts.map((p) => p.name)).toEqual(["Yurt"]);
+    expect(await getTeachers(posts[0].id)).toEqual([]);
+    expect(await getLastPostId()).toBe(posts[0].id);
+  });
+
+  it("adds posts and lists them in Turkish alphabetical order", async () => {
+    const { addDutyPost, getDutyPosts } = await freshDb();
+
+    await addDutyPost("Kız Yurdu");
+    await addDutyPost("  Çamlık Binası ");
+
+    expect((await getDutyPosts()).map((p) => p.name)).toEqual(["Çamlık Binası", "Kız Yurdu", "Yurt"]);
+  });
+
+  it("refuses a post name another post already has, compared like teacher names", async () => {
+    const { addDutyPost, getDutyPosts } = await freshDb();
+    await addDutyPost("Kız Yurdu");
+
+    expect((await addDutyPost("KIZ  YURDU")).status).toBe("duplicate");
+    expect((await addDutyPost("Kiz Yurdu")).status).toBe("added");
+    expect((await addDutyPost("   ")).status).toBe("empty");
+    expect(await getDutyPosts()).toHaveLength(3);
+  });
+
+  it("renames a post, refusing another post's name but allowing its own in new capitals", async () => {
+    const { addDutyPost, renameDutyPost, getDutyPosts } = await freshDb();
+    const kiz = await addDutyPost("Kız Yurdu");
+    if (kiz.status !== "added") throw new Error("setup");
+    const yurt = (await getDutyPosts()).find((p) => p.name === "Yurt")!;
+
+    expect((await renameDutyPost(yurt.id, "kız yurdu")).status).toBe("duplicate");
+    expect((await renameDutyPost(yurt.id, "Erkek Yurdu")).status).toBe("renamed");
+    expect((await renameDutyPost(kiz.post.id, "KIZ YURDU")).status).toBe("renamed");
+
+    expect((await getDutyPosts()).map((p) => p.name)).toEqual(["Erkek Yurdu", "KIZ YURDU"]);
+  });
+
+  it("remembers the last selected post, falling back to the first when it no longer exists", async () => {
+    const { addDutyPost, setLastPostId, getLastPostId, getDutyPosts } = await freshDb();
+    const kiz = await addDutyPost("Kız Yurdu");
+    if (kiz.status !== "added") throw new Error("setup");
+
+    await setLastPostId(kiz.post.id);
+    expect(await getLastPostId()).toBe(kiz.post.id);
+
+    await setLastPostId("gone");
+    expect(await getLastPostId()).toBe((await getDutyPosts())[0].id);
+  });
+});
+
+describe("db.ts — each duty post has its own staff and months", () => {
+  async function twoPosts() {
+    const dbModule = await freshDb();
+    const yurt = (await dbModule.getDutyPosts())[0].id;
+    const added = await dbModule.addDutyPost("Kız Yurdu");
+    if (added.status !== "added") throw new Error("setup");
+    return { ...dbModule, yurt, kiz: added.post.id };
+  }
+
+  const setup = (id: string, postId: string, year: number, month: number, config = "{}") => ({
+    id,
+    post_id: postId,
+    year,
+    month,
+    assignments: "{}",
+    holidays: "[]",
+    weekend_duty_days: "[]",
+    config,
+  });
+
+  it("keeps the same month of two posts apart", async () => {
+    const { saveSchedule, getSchedule, yurt, kiz } = await twoPosts();
+    await saveSchedule(setup("y11", yurt, 2026, 11));
+    await saveSchedule(setup("k11", kiz, 2026, 11));
+
+    const again = await saveSchedule(setup("fresh-id", yurt, 2026, 11, '{"mode":"random"}'));
+
+    expect(again).toBe("y11");
+    expect((await getSchedule(yurt, 2026, 11))?.config).toBe('{"mode":"random"}');
+    expect((await getSchedule(kiz, 2026, 11))?.id).toBe("k11");
+  });
+
+  it("lists one post's teachers, or every teacher when no post is given", async () => {
+    const { saveTeacher, getTeachers, yurt, kiz } = await twoPosts();
+    await saveTeacher({ id: "T1", name: "Ayşe", target_hours: 4, priority: 1, post_id: yurt });
+    await saveTeacher({ id: "T2", name: "Çağlar", target_hours: 4, priority: 1, post_id: kiz });
+
+    expect((await getTeachers(kiz)).map((t) => t.id)).toEqual(["T2"]);
+    expect((await getTeachers()).map((t) => t.id)).toEqual(["T1", "T2"]);
+  });
+
+  it("deletes a post with its teachers, their availability and its months, but keeps its approved schedules", async () => {
+    const {
+      saveTeacher, saveAvailability, saveSchedule, approveSchedule, deleteDutyPost,
+      getDutyPosts, getTeachers, getAvailabilities, getSchedule, getApprovedSchedules, yurt, kiz,
+    } = await twoPosts();
+    await saveTeacher({ id: "T1", name: "Ayşe", target_hours: 4, priority: 1, post_id: yurt });
+    await saveTeacher({ id: "T2", name: "Çağlar", target_hours: 4, priority: 1, post_id: kiz });
+    await saveAvailability({ teacher_id: "T1", date: "2026-11-02", status: "preferred" });
+    await saveAvailability({ teacher_id: "T2", date: "2026-11-02", status: "preferred" });
+    await saveSchedule(setup("k11", kiz, 2026, 11));
+    await approveSchedule({
+      id: "a11", schedule_id: "k11", post_id: kiz, year: 2026, month: 11,
+      approved_at: "2026-11-30T10:00:00.000Z", report: "{}",
+    });
+
+    expect((await deleteDutyPost(kiz)).status).toBe("deleted");
+
+    expect((await getDutyPosts()).map((p) => p.name)).toEqual(["Yurt"]);
+    expect((await getTeachers()).map((t) => t.id)).toEqual(["T1"]);
+    expect((await getAvailabilities()).map((a) => a.teacher_id)).toEqual(["T1"]);
+    expect(await getSchedule(kiz, 2026, 11)).toBeNull();
+    expect((await getApprovedSchedules()).map((c) => c.id)).toEqual(["a11"]);
+  });
+
+  it("refuses to delete the last post", async () => {
+    const { getDutyPosts, deleteDutyPost } = await freshDb();
+    const [only] = await getDutyPosts();
+
+    expect((await deleteDutyPost(only.id)).status).toBe("last");
+    expect(await getDutyPosts()).toHaveLength(1);
+  });
+
+  it("moves a teacher to another post, cleaning them out of the old post's month setups", async () => {
+    const { saveTeacher, saveAvailability, saveSchedule, moveTeacherToPost, getTeachers, getAvailabilities, getSchedule, yurt, kiz } =
+      await twoPosts();
+    await saveTeacher({ id: "T1", name: "Ayşe", target_hours: 4, priority: 1, post_id: yurt });
+    await saveTeacher({ id: "T3", name: "Burak", target_hours: 4, priority: 1, post_id: yurt });
+    await saveAvailability({ teacher_id: "T1", date: "2026-10-01", status: "unavailable" });
+    await saveSchedule(
+      setup("y10", yurt, 2026, 10, JSON.stringify({
+        partnerGroups: [{ id: "g1", memberIds: ["T1", "T3"], goalDays: 1 }],
+        monthlyTargets: { T1: 3, T3: 2 },
+      }))
+    );
+
+    await moveTeacherToPost("T1", kiz);
+
+    expect((await getTeachers(kiz)).map((t) => t.id)).toEqual(["T1"]);
+    expect((await getTeachers(yurt)).map((t) => t.id)).toEqual(["T3"]);
+    expect(await getAvailabilities("T1")).toHaveLength(1);
+    const config = JSON.parse((await getSchedule(yurt, 2026, 10))!.config);
+    expect(config.partnerGroups).toEqual([]);
+    expect(config.monthlyTargets).toEqual({ T3: 2 });
+  });
+
+  it("resets to a single empty post named Yurt, which becomes the selected one", async () => {
+    const { saveTeacher, setLastPostId, resetDb, getDutyPosts, getTeachers, getLastPostId, kiz } = await twoPosts();
+    await saveTeacher({ id: "T2", name: "Çağlar", target_hours: 4, priority: 1, post_id: kiz });
+    await setLastPostId(kiz);
+
+    await resetDb();
+
+    const posts = await getDutyPosts();
+    expect(posts.map((p) => p.name)).toEqual(["Yurt"]);
+    expect(await getTeachers()).toEqual([]);
+    expect(await getLastPostId()).toBe(posts[0].id);
+  });
+});
 
 describe("db.ts — approved schedules", () => {
   it("stores an approved schedule and reads it back unchanged", async () => {
@@ -411,20 +633,6 @@ describe("db.ts — approved schedules", () => {
     expect(await getApprovedSchedules()).toEqual([copy]);
   });
 
-  it("a month saved again after a reset takes back the id its approved copy points at", async () => {
-    // Reset keeps approved copies but deletes the months they came from. When
-    // that month is set up again, approving it must replace the old copy
-    // rather than add a second one for the same month.
-    const { saveSchedule, approveSchedule, resetDb, getSchedule } = await freshDb();
-    await saveSchedule(monthRow("s11", 2026, 11));
-    await approveSchedule(approvedCopy({ schedule_id: "s11", year: 2026, month: 11 }));
-    await resetDb();
-
-    const id = await saveSchedule(monthRow("fresh-id", 2026, 11));
-
-    expect(id).toBe("s11");
-    expect((await getSchedule(2026, 11))?.id).toBe("s11");
-  });
 });
 
 describe("öğretmen silindiğinde aylık gruplar ve hedefler temizlenir", () => {
@@ -440,9 +648,13 @@ describe("öğretmen silindiğinde aylık gruplar ve hedefler temizlenir", () =>
       monthlyTargets: { T1: 5, T2: 3 },
     });
 
-    const mockSelect = vi.fn().mockResolvedValue([
-      { id: "s1", year: 2026, month: 10, assignments: "{}", holidays: "[]", weekend_duty_days: "[]", config },
-    ]);
+    // Only month setups come back: setting up the database also reads other
+    // tables (duty posts, column lists), which must look empty here.
+    const mockSelect = vi.fn(async (sql: string) =>
+      sql.includes("FROM schedules")
+        ? [{ id: "s1", post_id: "p1", year: 2026, month: 10, assignments: "{}", holidays: "[]", weekend_duty_days: "[]", config }]
+        : []
+    );
     const mockExecute = vi.fn().mockResolvedValue({ rowsAffected: 0, lastInsertId: 0 });
 
     vi.resetModules();
@@ -452,7 +664,7 @@ describe("öğretmen silindiğinde aylık gruplar ve hedefler temizlenir", () =>
     await deleteTeacher("T1");
 
     const rewrite = mockExecute.mock.calls.find(
-      ([sql]) => typeof sql === "string" && sql.includes("UPDATE schedules")
+      ([sql]) => typeof sql === "string" && sql.includes("UPDATE schedules SET config")
     );
     expect(rewrite).toBeDefined();
     const written = JSON.parse(rewrite![1][0] as string);
@@ -466,9 +678,13 @@ describe("öğretmen silindiğinde aylık gruplar ve hedefler temizlenir", () =>
 
   it("grubu olmayan aylara dokunmaz", async () => {
     const config = JSON.stringify({ mode: "fairness", teachersPerDay: 1, pinnedAssignments: {} });
-    const mockSelect = vi.fn().mockResolvedValue([
-      { id: "s1", year: 2026, month: 10, assignments: "{}", holidays: "[]", weekend_duty_days: "[]", config },
-    ]);
+    // Only month setups come back: setting up the database also reads other
+    // tables (duty posts, column lists), which must look empty here.
+    const mockSelect = vi.fn(async (sql: string) =>
+      sql.includes("FROM schedules")
+        ? [{ id: "s1", post_id: "p1", year: 2026, month: 10, assignments: "{}", holidays: "[]", weekend_duty_days: "[]", config }]
+        : []
+    );
     const mockExecute = vi.fn().mockResolvedValue({ rowsAffected: 0, lastInsertId: 0 });
 
     vi.resetModules();
@@ -478,7 +694,7 @@ describe("öğretmen silindiğinde aylık gruplar ve hedefler temizlenir", () =>
     await deleteTeacher("T1");
 
     const rewrite = mockExecute.mock.calls.find(
-      ([sql]) => typeof sql === "string" && sql.includes("UPDATE schedules")
+      ([sql]) => typeof sql === "string" && sql.includes("UPDATE schedules SET config")
     );
     expect(rewrite).toBeUndefined();
   });

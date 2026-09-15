@@ -39,6 +39,8 @@ interface Step3SolverProps {
   earlierApprovedCount?: number;
   includeEarlierApproved?: boolean;
   setIncludeEarlierApproved?: (include: boolean) => void;
+  /** The duty post whose month this is, named next to the title. */
+  postName?: string;
 }
 
 // The hard rules that sit under the four distribution modes. Deliberately
@@ -116,7 +118,8 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
   approval = null,
   earlierApprovedCount = 0,
   includeEarlierApproved = true,
-  setIncludeEarlierApproved
+  setIncludeEarlierApproved,
+  postName
 }) => {
   const paddedDates = getMonthDatesWithPadding(selectedYear, selectedMonth);
 
@@ -200,7 +203,7 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
   return (
     <div className="fill-column">
       <h2 className="step-title" style={{ margin: "0 0 12px 0", flexShrink: 0 }}>
-        <span>Adım 3: Planlama Seçenekleri & Çizelge Hazırlama</span>
+        <span>Adım 3: Planlama Seçenekleri & Çizelge Hazırlama{postName ? ` — ${postName}` : ""}</span>
         <div className="tooltip-container tooltip-container--title">
           <span className="tooltip-icon">?</span>
           <div className="tooltip-content">

@@ -1,5 +1,5 @@
 import React from "react";
-import { DbTeacher } from "../db";
+import { DbDutyPost, DbTeacher } from "../db";
 import { AvailabilityStatus } from "../solver";
 import { PartnerGroup } from "../solver/partners";
 import { TeacherForm } from "./TeacherForm";
@@ -49,6 +49,11 @@ interface Step1RosterProps {
   onChangeGroups: (groups: PartnerGroup[]) => void;
   copyMonths: { year: number; month: number }[];
   onCopyFromMonth: (year: number, month: number) => void;
+  /** Duty posts (ADR-0007), for the teacher form's post field. */
+  posts?: DbDutyPost[];
+  selectedPostId?: string | null;
+  teacherPostId?: string | null;
+  setTeacherPostId?: (postId: string | null) => void;
 }
 
 export const Step1Roster: React.FC<Step1RosterProps> = ({
@@ -80,7 +85,11 @@ export const Step1Roster: React.FC<Step1RosterProps> = ({
   monthlyTargets,
   onChangeGroups,
   copyMonths,
-  onCopyFromMonth
+  onCopyFromMonth,
+  posts = [],
+  selectedPostId = null,
+  teacherPostId = null,
+  setTeacherPostId
 }) => {
   return (
     <div className="fill-column">
@@ -149,10 +158,14 @@ export const Step1Roster: React.FC<Step1RosterProps> = ({
               setTeacherTarget(4);
               setTeacherPriority(1);
               setTeacherError(null);
+              setTeacherPostId?.(null);
             }}
             monthLabel={monthLabel}
             usualTarget={teachers.find((t) => t.id === editingTeacherId)?.target_hours ?? null}
             error={teacherError}
+            posts={posts}
+            postId={teacherPostId ?? selectedPostId}
+            setPostId={(id) => setTeacherPostId?.(id)}
           />
           <PartnerGroups
             teachers={teachers}

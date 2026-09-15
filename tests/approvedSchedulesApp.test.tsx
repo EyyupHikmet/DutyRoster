@@ -25,6 +25,13 @@ vi.mock("../src/db", () => ({
   getApprovedSchedules: vi.fn(),
   approveSchedule: vi.fn(),
   deleteApprovedSchedule: vi.fn(),
+  getDutyPosts: vi.fn(),
+  addDutyPost: vi.fn(),
+  renameDutyPost: vi.fn(),
+  deleteDutyPost: vi.fn(),
+  getLastPostId: vi.fn(),
+  setLastPostId: vi.fn(),
+  moveTeacherToPost: vi.fn(),
 }));
 
 vi.mock("../src/utils/excelUtils", async () => {
@@ -41,7 +48,7 @@ vi.mock("@tauri-apps/plugin-opener", () => ({
 const mockedDb = vi.mocked(db);
 const mockedExcel = vi.mocked(excelUtils);
 
-const ahmet: db.DbTeacher = { id: "T1", name: "Ahmet", target_hours: 4, priority: 1 };
+const ahmet: db.DbTeacher = { id: "T1", name: "Ahmet", target_hours: 4, priority: 1, post_id: "yurt" };
 
 /** A saved month with Ahmet on every duty day, unless `assignments` says otherwise. */
 function monthRow(year: number, month: number, assignments?: Record<string, string[]>): db.DbSchedule {
@@ -49,6 +56,7 @@ function monthRow(year: number, month: number, assignments?: Record<string, stri
   for (const date of getDutyDates(year, month, [], [])) full[date] = ["T1"];
   return {
     id: `sched-${year}-${month}`,
+    post_id: "yurt",
     year,
     month,
     assignments: JSON.stringify(assignments ?? full),
@@ -64,6 +72,7 @@ function reportOf(row: db.DbSchedule): ScheduleReport {
     {
       year: row.year,
       month: row.month,
+      postName: "Yurt",
       generatedSchedule: JSON.parse(row.assignments),
       holidays: [],
       weekendDutyDays: [],
@@ -81,6 +90,7 @@ function approved(row: db.DbSchedule, overrides: Partial<db.DbApprovedSchedule> 
   return {
     id: `approved-${row.year}-${row.month}`,
     schedule_id: row.id,
+    post_id: row.post_id,
     year: row.year,
     month: row.month,
     approved_at: new Date(row.year, row.month - 1, 3, 10).toISOString(),
@@ -95,7 +105,8 @@ const aralik = monthRow(2026, 12);
 
 function savedMonths(...rows: db.DbSchedule[]) {
   mockedDb.getSchedule.mockImplementation(
-    async (year, month) => rows.find((r) => r.year === year && r.month === month) ?? null
+    async (postId, year, month) =>
+      rows.find((r) => r.post_id === postId && r.year === year && r.month === month) ?? null
   );
 }
 
@@ -105,6 +116,9 @@ beforeEach(() => {
   vi.useFakeTimers({ shouldAdvanceTime: true });
   vi.setSystemTime(new Date(2026, 11, 8));
 
+  mockedDb.getDutyPosts.mockResolvedValue([{ id: "yurt", name: "Yurt" }]);
+  mockedDb.getLastPostId.mockResolvedValue("yurt");
+  mockedDb.setLastPostId.mockResolvedValue(undefined);
   mockedDb.getTeachers.mockResolvedValue([ahmet]);
   mockedDb.getAvailabilities.mockResolvedValue([]);
   mockedDb.getAllSchedules.mockResolvedValue([]);

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { getSchedule, saveSchedule, getAllSchedules, DbSchedule } from "../db";
 import { getDaysInMonth, formatDateYYYYMMDD } from "../utils/dateUtils";
 import { PartnerGroup } from "../solver/partners";
+import { daySettingsOf } from "../utils/monthSetup";
 
 // Snapshot of every field that makes up "this month's draft" for
 // dirty-tracking. Captured once right after loadScheduleData()/a successful save,
@@ -51,6 +52,9 @@ function snapshotsEqual(a: ScheduleSnapshot, b: ScheduleSnapshot): boolean {
 export function useScheduleState() {
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1); // 1-indexed
+  // The duty post whose month is being edited (ADR-0007). Null until the
+  // app has read which post to open.
+  const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
 
   // Schedule Dates and Configuration States
   const [holidays, setHolidays] = useState<string[]>([]); // list of YYYY-MM-DD excluded from duty
@@ -107,9 +111,9 @@ export function useScheduleState() {
     monthlyTargets,
   });
 
-  const loadScheduleData = async (year: number, month: number) => {
+  const loadScheduleData = async (postId: string, year: number, month: number) => {
     try {
-      const savedSched = await getSchedule(year, month);
+      const savedSched = await getSchedule(postId, year, month);
       const daysInMonth = getDaysInMonth(year, month);
       const defaultWeekends = daysInMonth
         .filter(d => d.getDay() === 0 || d.getDay() === 6)
@@ -252,6 +256,7 @@ export function useScheduleState() {
     try {
       const scheduleToSave: DbSchedule = {
         id: scheduleId ?? crypto.randomUUID(),
+        post_id: selectedPostId ?? "",
         year: selectedYear,
         month: selectedMonth,
         assignments: JSON.stringify(scheduleResult),
@@ -317,7 +322,7 @@ export function useScheduleState() {
    */
   const availablePartnerMonths = async (): Promise<{ year: number; month: number }[]> => {
     try {
-      const rows = await getAllSchedules();
+      const rows = await getAllSchedules(selectedPostId ?? undefined);
       return rows
         .filter((row) => {
           if (row.year === selectedYear && row.month === selectedMonth) return false;
@@ -374,7 +379,7 @@ export function useScheduleState() {
     teacherIds: string[]
   ): Promise<boolean> => {
     try {
-      const rows = await getAllSchedules();
+      const rows = await getAllSchedules(selectedPostId ?? undefined);
       const source = rows.find((row) => row.year === year && row.month === month);
       if (!source) return false;
 
@@ -405,9 +410,46 @@ export function useScheduleState() {
     }
   };
 
+  /**
+   * Seeds this month's day settings from another duty post's setup for the
+   * same month: non-duty days, extra duty days and required counts only
+   * (see daySettingsOf). Returns false when that post has nothing to copy.
+   */
+  const copyDaySettingsFromPost = async (sourcePostId: string): Promise<boolean> => {
+    try {
+      const source = await getSchedule(sourcePostId, selectedYear, selectedMonth);
+      const settings = source ? daySettingsOf(source) : null;
+      if (!settings) return false;
+      setHolidays(settings.holidays);
+      setWeekendDutyDays(settings.weekendDutyDays);
+      setExtraDays(settings.extraDays);
+      setTeachersPerDay(settings.teachersPerDay);
+      setDaySpecificTeachers(settings.daySpecificTeachers);
+      return true;
+    } catch (err) {
+      console.error("Gün ayarları kopyalanamadı:", err);
+      return false;
+    }
+  };
+
+  /** Other duty posts with a saved setup for the selected month, to copy day settings from. */
+  const postsWithMonthSetup = async (): Promise<string[]> => {
+    try {
+      const rows = await getAllSchedules();
+      return rows
+        .filter((row) => row.post_id !== selectedPostId && row.year === selectedYear && row.month === selectedMonth)
+        .map((row) => row.post_id);
+    } catch (err) {
+      console.error("Nöbet yerlerinin ayları okunamadı:", err);
+      return [];
+    }
+  };
+
   return {
     selectedYear,
     setSelectedYear,
+    selectedPostId,
+    setSelectedPostId,
     selectedMonth,
     setSelectedMonth,
     holidays,
@@ -445,6 +487,8 @@ export function useScheduleState() {
     saveGeneratedScheduleToDb,
     saveDraftToDb,
     copyPartnersFromMonth,
+    copyDaySettingsFromPost,
+    postsWithMonthSetup,
     availablePartnerMonths,
     pruneTeacherFromMonth,
     isDirty,

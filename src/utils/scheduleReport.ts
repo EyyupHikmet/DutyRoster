@@ -18,6 +18,11 @@ export interface ReportTeacher {
 export interface ScheduleReport {
   year: number;
   month: number;
+  /**
+   * The duty post's name when the report was made (ADR-0007). Schedules
+   * approved before duty posts existed have none.
+   */
+  postName?: string;
   /** In Turkish alphabetical order. */
   teachers: ReportTeacher[];
   assignments: Record<string, string[]>;
@@ -32,6 +37,7 @@ export interface ScheduleReport {
 export interface MonthForReport {
   year: number;
   month: number;
+  postName?: string;
   generatedSchedule: Record<string, string[]>;
   holidays: string[];
   weekendDutyDays: string[];
@@ -56,6 +62,7 @@ export function freezeScheduleReport(month: MonthForReport, teachers: DbTeacher[
   return {
     year: month.year,
     month: month.month,
+    postName: month.postName,
     teachers: teachers
       .map((t) => ({ id: t.id, name: t.name, target: effectiveTarget(t, month.monthlyTargets) }))
       .sort((a, b) => a.name.localeCompare(b.name, "tr")),
@@ -78,7 +85,8 @@ export function openSlotCount(report: ScheduleReport): number {
 
 /**
  * Whether two reports would produce the same duty report. The order days,
- * teachers or assigned ids happen to be listed in does not count.
+ * teachers or assigned ids happen to be listed in does not count, and neither
+ * does the post's name: renaming a post does not change its schedule.
  */
 export function sameReport(a: ScheduleReport, b: ScheduleReport): boolean {
   return JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));

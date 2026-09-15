@@ -22,12 +22,12 @@ export function findNameConflict(name: string, teachers: DbTeacher[], exceptId?:
  * Splits imported teachers into those to add and the names to skip: a name
  * already in the staff, or already earlier in the same file, is skipped.
  */
-export function splitImportByName(
-  imported: DbTeacher[],
-  existing: DbTeacher[]
-): { added: DbTeacher[]; skipped: string[] } {
+export function splitImportByName<T extends { name: string }>(
+  imported: T[],
+  existing: { name: string }[]
+): { added: T[]; skipped: string[] } {
   const seen = new Set(existing.map((t) => foldName(t.name)));
-  const added: DbTeacher[] = [];
+  const added: T[] = [];
   const skipped: string[] = [];
   for (const t of imported) {
     const key = foldName(t.name);

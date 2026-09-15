@@ -39,6 +39,10 @@ describe("freezeScheduleReport", () => {
     expect(report.extraDays).toEqual(["2026-09-06"]);
   });
 
+  it("keeps the duty post's name", () => {
+    expect(freezeScheduleReport(eylul({ postName: "Kız Yurdu" }), staff()).postName).toBe("Kız Yurdu");
+  });
+
   it("records the required count of every duty day and of no other day", () => {
     const report = freezeScheduleReport(eylul(), staff());
 
@@ -93,6 +97,13 @@ describe("sameReport", () => {
     );
 
     expect(sameReport(a, b)).toBe(true);
+  });
+
+  it("does not count a renamed duty post as a change to the schedule", () => {
+    const before = freezeScheduleReport(eylul({ postName: "Yurt" }), staff());
+    const after = freezeScheduleReport(eylul({ postName: "Erkek Yurdu" }), staff());
+
+    expect(sameReport(before, after)).toBe(true);
   });
 
   it("notices a changed assignment", () => {

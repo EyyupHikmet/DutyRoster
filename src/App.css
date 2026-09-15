@@ -1284,3 +1284,110 @@ html, body, #root {
     grid-template-rows: repeat(6, 88px);
   }
 }
+
+/* Duty post menu in step 1's header */
+.post-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.post-menu-item:hover,
+.post-menu-item:focus-visible {
+  background-color: var(--slate-100);
+  outline: none;
+}
+
+.post-menu-item:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: none;
+}
+
+/* Header row: duty post menu | wizard steps | approved schedules and
+   settings. The sides size to their buttons and share what is left equally,
+   so the steps stay centred and shrink before anything overlaps them. */
+.app-header-row {
+  display: grid;
+  grid-template-columns: minmax(max-content, 1fr) minmax(0, 950px) minmax(max-content, 1fr);
+  align-items: start;
+  gap: 16px;
+  margin-bottom: 16px;
+  flex-shrink: 0;
+  width: 100%;
+}
+
+.app-header-side {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+}
+
+.app-header-side--left {
+  justify-content: flex-start;
+}
+
+.app-header-side--right {
+  justify-content: flex-end;
+}
+
+/* Header buttons shaped like the wizard step pills beside them. */
+.header-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 10px 20px;
+  border-radius: 20px;
+  border: 2px solid var(--border);
+  background-color: var(--bg-surface);
+  color: var(--text-secondary);
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.92rem;
+  white-space: nowrap;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.header-pill-btn > span[aria-hidden="true"]:first-child {
+  font-size: 1.15rem;
+}
+
+.header-pill-btn:hover {
+  transform: translateY(-1px);
+  border-color: var(--border-hover);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
+.header-pill-btn[aria-expanded="true"] {
+  color: var(--primary);
+  border-color: var(--primary);
+  background-image: linear-gradient(var(--primary-light), var(--primary-light));
+}
+
+.header-pill-btn:focus-visible {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+}
+
+@media (max-width: 768px) {
+  .header-pill-btn {
+    min-height: 44px;
+    padding: 8px 12px;
+    font-size: 0.8rem;
+  }
+}

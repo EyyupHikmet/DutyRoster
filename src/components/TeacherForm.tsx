@@ -1,5 +1,6 @@
 import React from "react";
 import { CustomSelect } from "./CustomSelect";
+import { DbDutyPost } from "../db";
 
 interface TeacherFormProps {
   editingTeacherId: string | null;
@@ -28,6 +29,10 @@ interface TeacherFormProps {
    * never caches or reinterprets it.
    */
   error: string | null;
+  /** Every duty post. With two or more, the form can move a teacher to another post. */
+  posts?: DbDutyPost[];
+  postId?: string | null;
+  setPostId?: (postId: string) => void;
 }
 
 export const TeacherForm: React.FC<TeacherFormProps> = ({
@@ -42,7 +47,10 @@ export const TeacherForm: React.FC<TeacherFormProps> = ({
   onCancel,
   monthLabel,
   usualTarget,
-  error
+  error,
+  posts = [],
+  postId,
+  setPostId
 }) => {
   return (
     <div className="card" style={{ marginBottom: "20px" }}>
@@ -63,6 +71,22 @@ export const TeacherForm: React.FC<TeacherFormProps> = ({
             required
           />
         </div>
+
+        {posts.length >= 2 && (
+          <div className="form-group">
+            <label htmlFor="teacher-post-select">Nöbet Yeri</label>
+            <select
+              id="teacher-post-select"
+              className="form-control"
+              value={postId ?? ""}
+              onChange={(e) => setPostId?.(e.target.value)}
+            >
+              {posts.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div className="grid-2col" style={{ gap: "16px", marginBottom: "16px" }}>
           <div className="form-group" style={{ marginBottom: 0 }}>

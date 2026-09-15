@@ -6,7 +6,14 @@ import {
   searchApprovedSchedules,
 } from "../src/utils/approvedSchedules";
 
-const copy = (id: string, year: number, month: number, schedule_id = `s-${id}`) => ({ id, schedule_id, year, month });
+const copy = (id: string, year: number, month: number, schedule_id = `s-${id}`, post_id = "yurt", postName = "Yurt") => ({
+  id,
+  schedule_id,
+  post_id,
+  postName,
+  year,
+  month,
+});
 
 const copies = [
   copy("ocak27", 2027, 1),
@@ -28,19 +35,26 @@ describe("schoolYearStart", () => {
 
 describe("earlierInSchoolYear", () => {
   it("picks approved schedules of earlier months in the same school year, latest first", () => {
-    expect(earlierInSchoolYear(copies, 2026, 12).map((c) => c.id)).toEqual(["kasim26", "eylul26"]);
+    expect(earlierInSchoolYear(copies, "yurt", 2026, 12).map((c) => c.id)).toEqual(["kasim26", "eylul26"]);
   });
 
   it("reaches back across the new year, but not past Eylül", () => {
-    expect(earlierInSchoolYear(copies, 2027, 1).map((c) => c.id)).toEqual(["aralik26", "kasim26", "eylul26"]);
+    expect(earlierInSchoolYear(copies, "yurt", 2027, 1).map((c) => c.id)).toEqual(["aralik26", "kasim26", "eylul26"]);
   });
 
   it("finds nothing for Eylül, whose Ağustos belongs to the previous school year", () => {
-    expect(earlierInSchoolYear(copies, 2026, 9)).toEqual([]);
+    expect(earlierInSchoolYear(copies, "yurt", 2026, 9)).toEqual([]);
   });
 
   it("never includes the working month's own approved schedule", () => {
-    expect(earlierInSchoolYear(copies, 2026, 11).map((c) => c.id)).toEqual(["eylul26"]);
+    expect(earlierInSchoolYear(copies, "yurt", 2026, 11).map((c) => c.id)).toEqual(["eylul26"]);
+  });
+
+  it("leaves out another post's approved schedules, even with the same months", () => {
+    const withKiz = [...copies, copy("kiz-kasim26", 2026, 11, "s-kk", "kiz", "Kız Yurdu")];
+
+    expect(earlierInSchoolYear(withKiz, "yurt", 2026, 12).map((c) => c.id)).toEqual(["kasim26", "eylul26"]);
+    expect(earlierInSchoolYear(withKiz, "kiz", 2026, 12).map((c) => c.id)).toEqual(["kiz-kasim26"]);
   });
 });
 
@@ -57,6 +71,14 @@ describe("searchApprovedSchedules", () => {
     expect(searchApprovedSchedules(copies, "eylul").map((c) => c.id)).toEqual(["eylul26"]);
   });
 
+  it("matches the post's name as it was frozen, ignoring case and Turkish marks", () => {
+    const withKiz = [...copies, copy("kiz-kasim26", 2026, 11, "s-kk", "kiz", "Kız Yurdu")];
+
+    expect(searchApprovedSchedules(withKiz, "kiz").map((c) => c.id)).toEqual(["kiz-kasim26"]);
+    expect(searchApprovedSchedules(withKiz, "KIZ YURDU kasım").map((c) => c.id)).toEqual(["kiz-kasim26"]);
+    expect(searchApprovedSchedules(withKiz, "kasim 2026").map((c) => c.id).sort()).toEqual(["kasim26", "kiz-kasim26"]);
+  });
+
   it("matches the year, and month and year together", () => {
     expect(searchApprovedSchedules(copies, "2027").map((c) => c.id)).toEqual(["ocak27"]);
     expect(searchApprovedSchedules(copies, "ağustos 2026").map((c) => c.id)).toEqual(["agustos26"]);
@@ -66,15 +88,16 @@ describe("searchApprovedSchedules", () => {
 
 describe("approvedCopyFor", () => {
   it("finds the approved schedule of the working schedule by its id", () => {
-    expect(approvedCopyFor(copies, "s-kasim26", 2026, 11)?.id).toBe("kasim26");
+    expect(approvedCopyFor(copies, "s-kasim26")?.id).toBe("kasim26");
   });
 
   it("finds nothing when the working schedule has no approved copy", () => {
-    expect(approvedCopyFor(copies, "some-other-schedule", 2026, 11)).toBeUndefined();
+    expect(approvedCopyFor(copies, "some-other-schedule")).toBeUndefined();
   });
 
-  it("falls back to the month for a month not saved yet, such as one set up again after a reset", () => {
-    expect(approvedCopyFor(copies, null, 2026, 11)?.id).toBe("kasim26");
-    expect(approvedCopyFor(copies, null, 2026, 10)).toBeUndefined();
+  it("finds nothing for a month that has not been saved yet, even when another post has a copy for it", () => {
+    // A copy belongs to the schedule it was approved from. Matching by month
+    // alone would pick up another post's copy, or one left from a deleted post.
+    expect(approvedCopyFor(copies, null)).toBeUndefined();
   });
 });
