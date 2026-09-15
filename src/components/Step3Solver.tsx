@@ -4,6 +4,7 @@ import { DAYS_TR, getMonthDatesWithPadding, formatDateYYYYMMDD } from "../utils/
 import { CustomSelect } from "./CustomSelect";
 import { PartnerGroup, creditPartnerGroups } from "../solver/partners";
 import { turkishPossessiveSuffix } from "../utils/turkishNumberSuffix";
+import { formatApprovalDate } from "../utils/approvedSchedules";
 
 interface Step3SolverProps {
   teachers: DbTeacher[];
@@ -30,6 +31,14 @@ interface Step3SolverProps {
   handleExportSchedule: () => void;
   unfilledDays: Array<{ date: string; required: number; assigned: number }>;
   partnerGroups: PartnerGroup[];
+  /** Approves the schedule on screen. Without it, no Onayla button is shown. */
+  handleApproveSchedule?: () => void;
+  /** Set when the working schedule has an approved copy. */
+  approval?: { approvedAt: string; changed: boolean } | null;
+  /** Earlier approved schedules of the school year an export can include. */
+  earlierApprovedCount?: number;
+  includeEarlierApproved?: boolean;
+  setIncludeEarlierApproved?: (include: boolean) => void;
 }
 
 // The hard rules that sit under the four distribution modes. Deliberately
@@ -102,7 +111,12 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
   handleGenerateSchedule,
   handleExportSchedule,
   unfilledDays,
-  partnerGroups
+  partnerGroups,
+  handleApproveSchedule,
+  approval = null,
+  earlierApprovedCount = 0,
+  includeEarlierApproved = true,
+  setIncludeEarlierApproved
 }) => {
   const paddedDates = getMonthDatesWithPadding(selectedYear, selectedMonth);
 
@@ -280,13 +294,71 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
             </button>
             
             {Object.keys(generatedSchedule).length > 0 && (
-              <button 
-                onClick={handleExportSchedule}
-                className="btn btn-primary"
-                style={{ width: "100%", padding: "10px 16px", fontSize: "0.92rem", borderRadius: "8px" }}
-              >
-                📥 Excel'e Aktar
-              </button>
+              <>
+                {/* Onayla makes the schedule official by keeping a frozen copy
+                    of it (ADR-0006). The month stays editable afterwards. */}
+                {handleApproveSchedule && (
+                  <button
+                    onClick={handleApproveSchedule}
+                    className="btn btn-secondary"
+                    style={{ width: "100%", padding: "10px 16px", fontSize: "0.92rem", borderRadius: "8px" }}
+                  >
+                    <span aria-hidden="true">✅</span> Onayla
+                  </button>
+                )}
+
+                {approval && (
+                  <div
+                    className={approval.changed ? "alert alert-warning" : "alert alert-success"}
+                    style={{ margin: 0, padding: "8px 12px", fontSize: "0.76rem" }}
+                  >
+                    {approval.changed
+                      ? `Onaylandıktan sonra değişti (onay: ${formatApprovalDate(approval.approvedAt)}). Onaylı çizelgeyi güncellemek için yeniden onaylayın.`
+                      : `Onaylandı: ${formatApprovalDate(approval.approvedAt)}`}
+                  </div>
+                )}
+
+                <button
+                  onClick={handleExportSchedule}
+                  className="btn btn-primary"
+                  style={{ width: "100%", padding: "10px 16px", fontSize: "0.92rem", borderRadius: "8px" }}
+                >
+                  📥 Excel'e Aktar
+                </button>
+
+                {/* Earlier approved schedules of the school year can go into
+                    the same workbook, with a running total. */}
+                <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                  <label
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      fontSize: "0.8rem",
+                      fontWeight: 600,
+                      color: earlierApprovedCount > 0 ? "var(--text-primary)" : "var(--text-secondary)",
+                      cursor: earlierApprovedCount > 0 ? "pointer" : "not-allowed",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={earlierApprovedCount > 0 && includeEarlierApproved}
+                      disabled={earlierApprovedCount === 0}
+                      onChange={(e) => setIncludeEarlierApproved?.(e.target.checked)}
+                      aria-describedby="include-earlier-approved-hint"
+                      style={{ accentColor: "var(--primary)" }}
+                    />
+                    Önceki onaylı çizelgeleri ekle
+                  </label>
+                  <span id="include-earlier-approved-hint" style={{ fontSize: "0.72rem", color: "var(--text-secondary)", paddingLeft: "24px" }}>
+                    {earlierApprovedCount === 0
+                      ? "Bu eğitim-öğretim yılında önceki onaylı çizelge yok"
+                      : includeEarlierApproved
+                        ? `${earlierApprovedCount} onaylı çizelge eklenecek`
+                        : `${earlierApprovedCount} onaylı çizelge eklenmeyecek`}
+                  </span>
+                </div>
+              </>
             )}
           </div>
 

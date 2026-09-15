@@ -3,7 +3,9 @@ import { save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { writeFile as writeFsFile } from "@tauri-apps/plugin-fs";
 import { DbTeacher } from "../db";
 import { MONTHS_TR, getDaysInMonth, formatDateYYYYMMDD } from "./dateUtils";
-import { effectiveTarget } from "./targets";
+import { foldForSearch, foldName } from "./turkishText";
+import { freezeScheduleReport, ReportTeacher, ScheduleReport } from "./scheduleReport";
+import { schoolYearStart } from "./approvedSchedules";
 
 // Real destination picker + versioned filename + real bytes on disk,
 // replacing the old silent XLSX.writeFile() browser-style download.
@@ -85,17 +87,8 @@ export interface ExportScheduleDeps {
 const DEFAULT_TARGET_HOURS = 1;
 const DEFAULT_PRIORITY = 1;
 
-/** Case/diacritic-insensitive fold for header matching. Turkish needs the
- * explicit i/ı/İ mapping: NFD does not decompose the dotless i, and
- * "İSİM".toLowerCase() produces a combining dot rather than a plain "i". */
-const foldHeader = (value: unknown): string =>
-  String(value)
-    .replace(/[İIı]/g, "i")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
+/** Header matching is as forgiving as search (AGENTS.md, "Turkish text"). */
+const foldHeader = foldForSearch;
 
 /** Words that, alone in the first cell of a single-column sheet, mean "this row
  * is a header, not a teacher". */
@@ -214,15 +207,186 @@ export const parseExcelRoster = (
   return importedTeachers;
 };
 
+/** Rows of one schedule's day-by-day list sheet. */
+const listRows = (report: ScheduleReport): unknown[][] => {
+  const rows: unknown[][] = [["Tarih", "Gün", "Nöbetçi Öğretmen(ler)", "Nöbet Tipi", "Durum"]];
+  const nameOf = (id: string) => report.teachers.find((t) => t.id === id)?.name || "Bilinmeyen Öğretmen";
+
+  for (const d of getDaysInMonth(report.year, report.month)) {
+    const dateStr = formatDateYYYYMMDD(d);
+    const dayName = d.toLocaleDateString("tr-TR", { weekday: "long" });
+    const dateFriendly = d.toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
+    const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+
+    let status = "Nöbet Günü";
+    if (isWeekend && !report.weekendDutyDays.includes(dateStr)) {
+      status = "Hafta Sonu (Tatil)";
+    } else if (!isWeekend && report.holidays.includes(dateStr)) {
+      status = "Resmi Tatil / Okul Kapalı";
+    }
+
+    const assignedIds = report.assignments[dateStr] || [];
+    const assignedNames = assignedIds.map(nameOf).join(", ");
+    const isExtra = report.extraDays.includes(dateStr);
+    const dutyType = assignedIds.length > 0 ? (isExtra ? "Ekstra Nöbet" : "Standart Nöbet") : "-";
+
+    rows.push([
+      dateFriendly,
+      dayName,
+      assignedNames || (status !== "Nöbet Günü" ? "-" : "Atanamadı"),
+      dutyType,
+      status
+    ]);
+  }
+  return rows;
+};
+
+const REPORT_HEADER = [
+  "Öğretmen Adı Soyadı",
+  "Hedef Görev Sayısı",
+  "Toplam Atanan Nöbet",
+  "Hafta İçi (Standart)",
+  "Hafta Sonu",
+  "Toplam Ekstra Nöbet",
+  "Fark (Hedef - Atanan)"
+];
+
+interface DutyTotals {
+  name: string;
+  target: number;
+  total: number;
+  weekday: number;
+  weekend: number;
+  extra: number;
+}
+
+/** One teacher's duty totals within one schedule. */
+const totalsFor = (report: ScheduleReport, teacher: ReportTeacher): DutyTotals => {
+  const totals: DutyTotals = { name: teacher.name, target: teacher.target, total: 0, weekday: 0, weekend: 0, extra: 0 };
+
+  for (const d of getDaysInMonth(report.year, report.month)) {
+    const dateStr = formatDateYYYYMMDD(d);
+    if (!(report.assignments[dateStr] || []).includes(teacher.id)) continue;
+
+    const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+    const isExtra = report.extraDays.includes(dateStr);
+    totals.total++;
+    if (isExtra) totals.extra++;
+    if (isWeekend) {
+      totals.weekend++;
+    } else if (!isExtra) {
+      totals.weekday++;
+    }
+  }
+  return totals;
+};
+
+const totalsRow = (t: DutyTotals): unknown[] => [t.name, t.target, t.total, t.weekday, t.weekend, t.extra, t.target - t.total];
+
+/** Rows of one schedule's teacher report sheet. */
+const reportRows = (report: ScheduleReport): unknown[][] => [
+  REPORT_HEADER,
+  ...report.teachers.map((t) => totalsRow(totalsFor(report, t)))
+];
+
 /**
- * Exports the monthly duty schedule to a multi-sheet Excel (.xlsx) file.
+ * Rows of the running total: each teacher's duties added up across every
+ * schedule. Teachers are matched by name (ADR-0006), so a teacher imported
+ * again under a new id is still one row, named as in the latest schedule.
+ */
+const runningTotalRows = (latestFirst: ScheduleReport[]): unknown[][] => {
+  const byName = new Map<string, DutyTotals>();
+  for (const report of [...latestFirst].reverse()) {
+    for (const teacher of report.teachers) {
+      const month = totalsFor(report, teacher);
+      const key = foldName(teacher.name);
+      const sum = byName.get(key);
+      if (!sum) {
+        byName.set(key, month);
+        continue;
+      }
+      sum.name = month.name;
+      sum.target += month.target;
+      sum.total += month.total;
+      sum.weekday += month.weekday;
+      sum.weekend += month.weekend;
+      sum.extra += month.extra;
+    }
+  }
+  const sums = [...byName.values()].sort((a, b) => a.name.localeCompare(b.name, "tr"));
+  return [REPORT_HEADER, ...sums.map(totalsRow)];
+};
+
+const monthIndex = (report: ScheduleReport) => report.year * 12 + report.month;
+const latestFirst = (reports: ScheduleReport[]) => [...reports].sort((a, b) => monthIndex(b) - monthIndex(a));
+const monthLabel = (report: ScheduleReport) => `${MONTHS_TR[report.month - 1]} ${report.year}`;
+
+const appendSheet = (workbook: XLSX.WorkBook, name: string, rows: unknown[][]) => {
+  const sheet = XLSX.utils.aoa_to_sheet(rows);
+  // Size columns to their content, within limits.
+  sheet["!cols"] = rows[0].map((_, col) => {
+    const width = Math.max(...rows.map((row) => String(row[col] ?? "").length));
+    return { wch: Math.min(Math.max(width + 3, 10), 35) };
+  });
+  XLSX.utils.book_append_sheet(workbook, sheet, name);
+};
+
+/**
+ * The duty report workbook for one or more schedules. A single schedule keeps
+ * its two familiar sheets. Several get a list and a report sheet each, latest
+ * month first so the workbook opens on it, then the running total.
+ */
+export const buildDutyReportWorkbook = (reports: ScheduleReport[]): XLSX.WorkBook => {
+  const workbook = XLSX.utils.book_new();
+  const ordered = latestFirst(reports);
+
+  if (ordered.length === 1) {
+    appendSheet(workbook, "Nöbet Listesi", listRows(ordered[0]));
+    appendSheet(workbook, "Öğretmen Analiz Raporu", reportRows(ordered[0]));
+    return workbook;
+  }
+
+  for (const report of ordered) {
+    appendSheet(workbook, `${monthLabel(report)} – Liste`, listRows(report));
+    appendSheet(workbook, `${monthLabel(report)} – Rapor`, reportRows(report));
+  }
+  appendSheet(workbook, "Toplam", runningTotalRows(ordered));
+  return workbook;
+};
+
+/**
+ * The suggested file name. A single schedule keeps its familiar name; several
+ * are named by school year and the months they span, e.g.
+ * `2026-2027_Eylül-Aralık_Nöbet_Raporu_v1.xlsx`.
+ */
+export const buildDutyReportFilename = (reports: ScheduleReport[], version: number): string => {
+  const ordered = latestFirst(reports);
+  const latest = ordered[0];
+  if (ordered.length === 1) return buildExportFilename(latest.year, latest.month, version);
+
+  const earliest = ordered[ordered.length - 1];
+  const start = schoolYearStart(latest.year, latest.month);
+  return `${start}-${start + 1}_${MONTHS_TR[earliest.month - 1]}-${MONTHS_TR[latest.month - 1]}_Nöbet_Raporu_v${version}.xlsx`;
+};
+
+/** Export counters are kept per distinct report: one month, or one span of months. */
+const reportVersionKey = (reports: ScheduleReport[]): string => {
+  const ordered = latestFirst(reports);
+  const latest = ordered[0];
+  if (ordered.length === 1) return versionKey(latest.year, latest.month);
+  const earliest = ordered[ordered.length - 1];
+  return `${versionKey(earliest.year, earliest.month)}..${versionKey(latest.year, latest.month)}`;
+};
+
+/**
+ * Exports the working month's duty report, optionally together with earlier
+ * approved schedules, to an Excel (.xlsx) file.
  *
  * This now opens a native Save-As dialog so the user chooses the
  * destination (instead of the old silent XLSX.writeFile() browser-download,
  * which always landed silently in the OS Downloads folder inside the Tauri
  * webview), and writes the real .xlsx bytes to that chosen path via
- * @tauri-apps/plugin-fs. The workbook content/sheets themselves are
- * byte-for-byte unchanged from before this task.
+ * @tauri-apps/plugin-fs.
  */
 export const exportScheduleToExcel = async (
   year: number,
@@ -233,133 +397,38 @@ export const exportScheduleToExcel = async (
   weekendDutyDays: string[],
   extraDays: string[],
   deps: ExportScheduleDeps = {},
-  monthlyTargets: Record<string, number> = {}
+  monthlyTargets: Record<string, number> = {},
+  earlierReports: ScheduleReport[] = []
+): Promise<ExportScheduleResult> => {
+  // Required counts do not appear in any sheet, so the defaults are harmless here.
+  const working = freezeScheduleReport(
+    { year, month, generatedSchedule, holidays, weekendDutyDays, extraDays, teachersPerDay: 1, daySpecificTeachers: {}, monthlyTargets },
+    teachers
+  );
+  return exportDutyReport([working, ...earlierReports], deps);
+};
+
+/**
+ * Exports the duty report of one or more schedules (the working month,
+ * approved schedules, or both) to an Excel file at a place the user picks.
+ */
+export const exportDutyReport = async (
+  reports: ScheduleReport[],
+  deps: ExportScheduleDeps = {}
 ): Promise<ExportScheduleResult> => {
   const doSaveDialog = deps.saveDialog ?? saveDialog;
   const doWriteFile = deps.writeFile ?? writeFsFile;
   const xlsxWriter = deps.xlsxWriter ?? XLSX;
 
-  const daysInMonth = getDaysInMonth(year, month);
-  
-  // Sheet 1: Nöbet Listesi (Day-by-Day schedule)
-  const exportRows1: any[][] = [];
-  exportRows1.push(["Tarih", "Gün", "Nöbetçi Öğretmen(ler)", "Nöbet Tipi", "Durum"]);
-
-  for (const d of daysInMonth) {
-    const dateStr = formatDateYYYYMMDD(d);
-    const dayName = d.toLocaleDateString("tr-TR", { weekday: "long" });
-    const dateFriendly = d.toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
-    const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-
-    let status = "Nöbet Günü";
-    if (isWeekend && !weekendDutyDays.includes(dateStr)) {
-      status = "Hafta Sonu (Tatil)";
-    } else if (!isWeekend && holidays.includes(dateStr)) {
-      status = "Resmi Tatil / Okul Kapalı";
-    }
-
-    const assignedIds = generatedSchedule[dateStr] || [];
-    const assignedNames = assignedIds
-      .map((id) => teachers.find((t) => t.id === id)?.name || "Bilinmeyen Öğretmen")
-      .join(", ");
-
-    const isExtra = extraDays.includes(dateStr);
-    const dutyType = assignedIds.length > 0 ? (isExtra ? "Ekstra Nöbet" : "Standart Nöbet") : "-";
-
-    exportRows1.push([
-      dateFriendly,
-      dayName,
-      assignedNames || (status !== "Nöbet Günü" ? "-" : "Atanamadı"),
-      dutyType,
-      status
-    ]);
-  }
-
-  // Sheet 2: Öğretmen Raporu (Detailed Summary & Analytics)
-  const exportRows2: any[][] = [];
-  exportRows2.push([
-    "Öğretmen Adı Soyadı", 
-    "Hedef Görev Sayısı", 
-    "Toplam Atanan Nöbet", 
-    "Hafta İçi (Standart)", 
-    "Hafta Sonu", 
-    "Toplam Ekstra Nöbet", 
-    "Fark (Hedef - Atanan)"
-  ]);
-
-  // Calculate statistics for each teacher
-  for (const t of teachers) {
-    let totalAssigned = 0;
-    let weekdayDuties = 0;
-    let weekendDuties = 0;
-    let extraDutiesCount = 0;
-
-    for (const d of daysInMonth) {
-      const dateStr = formatDateYYYYMMDD(d);
-      const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-      const assignedIds = generatedSchedule[dateStr] || [];
-
-      if (assignedIds.includes(t.id)) {
-        totalAssigned++;
-        const isExtra = extraDays.includes(dateStr);
-
-        if (isExtra) {
-          extraDutiesCount++;
-        }
-
-        if (isWeekend) {
-          weekendDuties++;
-        } else {
-          if (!isExtra) {
-            weekdayDuties++;
-          }
-        }
-      }
-    }
-
-    const target = effectiveTarget(t, monthlyTargets);
-    const difference = target - totalAssigned;
-
-    exportRows2.push([
-      t.name,
-      target,
-      totalAssigned,
-      weekdayDuties,
-      weekendDuties,
-      extraDutiesCount,
-      difference
-    ]);
-  }
-
-  // Build Multi-sheet Excel Sheet using xlsx
-  const workbook = XLSX.utils.book_new();
-
-  // Tab 1: Nöbet Listesi
-  const worksheet1 = XLSX.utils.aoa_to_sheet(exportRows1);
-  XLSX.utils.book_append_sheet(workbook, worksheet1, "Nöbet Listesi");
-  
-  // Tab 2: Öğretmen Raporu
-  const worksheet2 = XLSX.utils.aoa_to_sheet(exportRows2);
-  XLSX.utils.book_append_sheet(workbook, worksheet2, "Öğretmen Analiz Raporu");
-
-  // Auto-size columns slightly for sheet 1
-  const maxColWidth1 = exportRows1[0].map((_, colIdx) => 
-    Math.max(...exportRows1.map(row => String(row[colIdx] || '').length))
-  );
-  worksheet1["!cols"] = maxColWidth1.map(w => ({ wch: Math.min(Math.max(w + 3, 10), 35) }));
-
-  // Auto-size columns slightly for sheet 2
-  const maxColWidth2 = exportRows2[0].map((_, colIdx) =>
-    Math.max(...exportRows2.map(row => String(row[colIdx] || '').length))
-  );
-  worksheet2["!cols"] = maxColWidth2.map(w => ({ wch: Math.min(Math.max(w + 3, 10), 35) }));
+  const workbook = buildDutyReportWorkbook(reports);
 
   // Ask the user where to save it (native Save-As dialog) instead of the old
   // silent XLSX.writeFile() browser-download. The suggested name carries the
   // in-session version indicator documented above; the user is free to rename
   // or overwrite it in the dialog exactly like any normal OS Save-As.
-  const version = getNextExportVersion(year, month);
-  const suggestedFilename = buildExportFilename(year, month, version);
+  const key = reportVersionKey(reports);
+  const version = (exportVersionCounters.get(key) ?? 0) + 1;
+  const suggestedFilename = buildDutyReportFilename(reports, version);
 
   let targetPath: string | null;
   try {
@@ -404,7 +473,7 @@ export const exportScheduleToExcel = async (
 
   // Only advance the in-session counter on genuine success (see the
   // documented limitation above the counter's declaration).
-  recordExportVersion(year, month, version);
+  exportVersionCounters.set(key, version);
 
   const filename = targetPath.split(/[\\/]/).pop() ?? suggestedFilename;
   return { status: "saved", path: targetPath, filename };

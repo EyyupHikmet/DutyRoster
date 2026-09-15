@@ -542,6 +542,17 @@ html, body, #root {
   background-color: var(--primary-light);
 }
 
+/* A disabled button must look unavailable, whatever its colour: without this,
+   a disabled .btn-danger looked exactly like an enabled one. */
+.btn:disabled,
+.btn:disabled:hover {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: none;
+  transform: none;
+  box-shadow: none;
+}
+
 .btn-disabled {
   background-color: var(--slate-200);
   color: var(--slate-500);

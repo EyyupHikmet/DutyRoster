@@ -264,10 +264,12 @@ describe("db.ts — Schedules: (year, month) dedup migration + upsert", () => {
       id: string;
     }[];
     expect(rows, "regenerating must replace the row, not append a duplicate").toHaveLength(1);
-    expect(rows[0].id).toBe("uuid-2");
+    // The month keeps the id it was first saved with, so an approved schedule
+    // can keep pointing at the schedule it came from (ADR-0006).
+    expect(rows[0].id).toBe("uuid-1");
 
     const loaded = await getSchedule(2026, 6);
-    expect(loaded?.id).toBe("uuid-2");
+    expect(loaded?.id).toBe("uuid-1");
     expect(JSON.parse(loaded!.assignments)).toEqual({ "2026-06-01": ["T2"] });
     expect(JSON.parse(loaded!.config)).toEqual({ mode: "priority" });
   });
@@ -329,6 +331,99 @@ describe("db.ts — resetDb()", () => {
     expect(await getTeachers()).toHaveLength(0);
     expect(await getAvailabilities()).toHaveLength(0);
     expect(await getSchedule(2026, 10)).toBeNull();
+  });
+
+  it("keeps approved schedules unless asked to delete them too", async () => {
+    const { approveSchedule, getApprovedSchedules, resetDb } = await freshDb();
+    await approveSchedule(approvedCopy({ id: "a1", schedule_id: "s1", year: 2026, month: 10 }));
+
+    await resetDb();
+    expect((await getApprovedSchedules()).map((c) => c.id)).toEqual(["a1"]);
+
+    await resetDb({ includeApproved: true });
+    expect(await getApprovedSchedules()).toEqual([]);
+  });
+});
+
+function approvedCopy(overrides: Partial<import("../src/db").DbApprovedSchedule>) {
+  return {
+    id: "a1",
+    schedule_id: "s1",
+    year: 2026,
+    month: 9,
+    approved_at: "2026-09-30T10:00:00.000Z",
+    report: JSON.stringify({ marker: overrides.id ?? "a1" }),
+    ...overrides,
+  };
+}
+
+function monthRow(id: string, year: number, month: number) {
+  return { id, year, month, assignments: "{}", holidays: "[]", weekend_duty_days: "[]", config: "{}" };
+}
+
+describe("db.ts — approved schedules", () => {
+  it("stores an approved schedule and reads it back unchanged", async () => {
+    const { approveSchedule, getApprovedSchedules } = await freshDb();
+    const copy = approvedCopy({ id: "a1", schedule_id: "s1", year: 2026, month: 9 });
+
+    await approveSchedule(copy);
+
+    expect(await getApprovedSchedules()).toEqual([copy]);
+  });
+
+  it("lists approved schedules latest month first", async () => {
+    const { approveSchedule, getApprovedSchedules } = await freshDb();
+    await approveSchedule(approvedCopy({ id: "eylul", schedule_id: "s9", year: 2026, month: 9 }));
+    await approveSchedule(approvedCopy({ id: "ocak", schedule_id: "s1", year: 2027, month: 1 }));
+    await approveSchedule(approvedCopy({ id: "kasim", schedule_id: "s11", year: 2026, month: 11 }));
+
+    expect((await getApprovedSchedules()).map((c) => c.id)).toEqual(["ocak", "kasim", "eylul"]);
+  });
+
+  it("approving the same schedule again replaces its approved copy", async () => {
+    const { approveSchedule, getApprovedSchedules } = await freshDb();
+    await approveSchedule(approvedCopy({ id: "first", schedule_id: "s11", month: 11 }));
+    await approveSchedule(approvedCopy({ id: "other", schedule_id: "s10", month: 10 }));
+
+    await approveSchedule(approvedCopy({ id: "second", schedule_id: "s11", month: 11 }));
+
+    expect((await getApprovedSchedules()).map((c) => c.id)).toEqual(["second", "other"]);
+  });
+
+  it("deletes one approved schedule and leaves the rest", async () => {
+    const { approveSchedule, deleteApprovedSchedule, getApprovedSchedules } = await freshDb();
+    await approveSchedule(approvedCopy({ id: "eylul", schedule_id: "s9", month: 9 }));
+    await approveSchedule(approvedCopy({ id: "ekim", schedule_id: "s10", month: 10 }));
+
+    await deleteApprovedSchedule("ekim");
+
+    expect((await getApprovedSchedules()).map((c) => c.id)).toEqual(["eylul"]);
+  });
+
+  it("deleting a teacher leaves approved schedules untouched", async () => {
+    const { saveTeacher, approveSchedule, deleteTeacher, getApprovedSchedules } = await freshDb();
+    await saveTeacher({ id: "T1", name: "Çağlar", target_hours: 4, priority: 1 });
+    const copy = approvedCopy({ report: JSON.stringify({ teachers: [{ id: "T1", name: "Çağlar" }] }) });
+    await approveSchedule(copy);
+
+    await deleteTeacher("T1");
+
+    expect(await getApprovedSchedules()).toEqual([copy]);
+  });
+
+  it("a month saved again after a reset takes back the id its approved copy points at", async () => {
+    // Reset keeps approved copies but deletes the months they came from. When
+    // that month is set up again, approving it must replace the old copy
+    // rather than add a second one for the same month.
+    const { saveSchedule, approveSchedule, resetDb, getSchedule } = await freshDb();
+    await saveSchedule(monthRow("s11", 2026, 11));
+    await approveSchedule(approvedCopy({ schedule_id: "s11", year: 2026, month: 11 }));
+    await resetDb();
+
+    const id = await saveSchedule(monthRow("fresh-id", 2026, 11));
+
+    expect(id).toBe("s11");
+    expect((await getSchedule(2026, 11))?.id).toBe("s11");
   });
 });
 

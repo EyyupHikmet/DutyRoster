@@ -88,6 +88,10 @@ export function useScheduleState() {
   // call), in which case isDirty is always false.
   const [baseline, setBaseline] = useState<ScheduleSnapshot | null>(null);
 
+  // The id the current month is saved under, or null while it has never been
+  // saved. An approved schedule points at it (ADR-0006).
+  const [scheduleId, setScheduleId] = useState<string | null>(null);
+
   const isDirty = baseline !== null && !snapshotsEqual(baseline, {
     holidays,
     weekendDutyDays,
@@ -112,6 +116,7 @@ export function useScheduleState() {
         .map(d => formatDateYYYYMMDD(d));
 
       if (savedSched) {
+        setScheduleId(savedSched.id);
         const loadedSchedule = JSON.parse(savedSched.assignments);
         const loadedHolidays = JSON.parse(savedSched.holidays);
         const loadedWeekendDutyDays = JSON.parse(savedSched.weekend_duty_days);
@@ -167,6 +172,7 @@ export function useScheduleState() {
 
         return savedSched;
       } else {
+        setScheduleId(null);
         setGeneratedSchedule({});
         setHolidays([]);
         setWeekendDutyDays([]);
@@ -245,7 +251,7 @@ export function useScheduleState() {
   const saveGeneratedScheduleToDb = async (scheduleResult: Record<string, string[]>) => {
     try {
       const scheduleToSave: DbSchedule = {
-        id: crypto.randomUUID(),
+        id: scheduleId ?? crypto.randomUUID(),
         year: selectedYear,
         month: selectedMonth,
         assignments: JSON.stringify(scheduleResult),
@@ -263,7 +269,9 @@ export function useScheduleState() {
           monthlyTargets: monthlyTargets
         })
       };
-      await saveSchedule(scheduleToSave);
+      // The database may keep an earlier id for this month; it is the one to use.
+      const savedId = (await saveSchedule(scheduleToSave)) ?? scheduleToSave.id;
+      setScheduleId(savedId);
       // Successful save is also a new baseline: whatever the in-session
       // edits were, they are now what's persisted for this (year, month),
       // so they're no longer "unsaved changes" (AC2/AC6 — this must hold
@@ -283,10 +291,10 @@ export function useScheduleState() {
         partnerGroups,
         monthlyTargets,
       });
-      return true;
+      return savedId;
     } catch (err) {
       console.error("Çizelge veritabanına kaydedilemedi:", err);
-      return false;
+      return null;
     }
   };
 
@@ -439,6 +447,7 @@ export function useScheduleState() {
     copyPartnersFromMonth,
     availablePartnerMonths,
     pruneTeacherFromMonth,
-    isDirty
+    isDirty,
+    scheduleId
   };
 }
