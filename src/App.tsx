@@ -1237,6 +1237,8 @@ export default function App() {
             includeEarlierApproved={includeEarlierApproved}
             setIncludeEarlierApproved={setIncludeEarlierApproved}
             postName={selectedPost?.name}
+            availabilities={availabilities}
+            monthlyTargets={monthlyTargets}
             postCount={posts.length}
             includeAllPosts={includeAllPosts}
             setIncludeAllPosts={setIncludeAllPosts}

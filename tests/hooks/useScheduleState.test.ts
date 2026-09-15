@@ -403,8 +403,65 @@ describe("useScheduleState", () => {
   });
 
   describe("respectTargets (aylık hedefleri kesinlikle aşma)", () => {
-    it("defaults to off", () => {
+    it("starts on for a month that has never been saved, without counting as a change", async () => {
+      mockedDb.getSchedule.mockResolvedValue(null);
       const { result } = renderHook(() => useScheduleState());
+      expect(result.current.respectTargets).toBe(true);
+
+      await act(async () => {
+        await result.current.loadScheduleData("yurt", 2026, 10);
+      });
+
+      expect(result.current.respectTargets).toBe(true);
+      expect(result.current.isDirty).toBe(false);
+    });
+
+    it("goes back on when a saved month with the cap off is left for a new one", async () => {
+      mockedDb.getSchedule.mockResolvedValueOnce({
+        id: "s1",
+        year: 2026,
+        month: 10,
+        assignments: "{}",
+        holidays: "[]",
+        weekend_duty_days: "[]",
+        config: JSON.stringify({ mode: "fairness", respectTargets: false }),
+      });
+      mockedDb.getSchedule.mockResolvedValue(null);
+
+      const { result } = renderHook(() => useScheduleState());
+      await act(async () => {
+        await result.current.loadScheduleData("yurt", 2026, 10);
+      });
+      expect(result.current.respectTargets).toBe(false);
+
+      await act(async () => {
+        await result.current.loadScheduleData("yurt", 2026, 11);
+      });
+
+      expect(result.current.respectTargets).toBe(true);
+      expect(result.current.isDirty).toBe(false);
+    });
+
+    it("is left alone by copying another duty post's day settings", async () => {
+      mockedDb.getSchedule.mockResolvedValue({
+        id: "s1",
+        year: 2026,
+        month: 10,
+        assignments: "{}",
+        holidays: JSON.stringify(["2026-10-29"]),
+        weekend_duty_days: "[]",
+        config: JSON.stringify({ mode: "fairness", respectTargets: false }),
+      });
+
+      const { result } = renderHook(() => useScheduleState());
+      await act(async () => {
+        await result.current.loadScheduleData("yurt", 2026, 10);
+      });
+      await act(async () => {
+        await result.current.copyDaySettingsFromPost("erkek");
+      });
+
+      expect(result.current.holidays).toEqual(["2026-10-29"]);
       expect(result.current.respectTargets).toBe(false);
     });
 
@@ -455,14 +512,14 @@ describe("useScheduleState", () => {
         await result.current.loadScheduleData("yurt", 2026, 10);
       });
       act(() => {
-        result.current.setRespectTargets(true);
+        result.current.setRespectTargets(false);
       });
       await act(async () => {
         await result.current.saveDraftToDb();
       });
 
       const saved = mockedDb.saveSchedule.mock.calls[0][0];
-      expect(JSON.parse(saved.config).respectTargets).toBe(true);
+      expect(JSON.parse(saved.config).respectTargets).toBe(false);
     });
 
     it("counts as an unsaved change, and saving clears it", async () => {
@@ -476,7 +533,7 @@ describe("useScheduleState", () => {
       expect(result.current.isDirty).toBe(false);
 
       act(() => {
-        result.current.setRespectTargets(true);
+        result.current.setRespectTargets(false);
       });
       expect(result.current.isDirty).toBe(true);
 
