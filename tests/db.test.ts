@@ -112,6 +112,20 @@ describe("db.ts — Teachers CRUD", () => {
     expect(teachers[0]).toMatchObject({ id: "T1", target_hours: 5, priority: 3 });
   });
 
+  it("getTeachers lists the staff in Turkish alphabetical order", async () => {
+    const { saveTeacher, getTeachers } = await freshDb();
+
+    const names = ["Zeynep", "Şule", "Çağlar", "İsmail", "Ümit", "Davut", "Ömer", "Sule", "Ilgın", "Cengiz", "Uğur", "Oya"];
+    for (const [i, name] of names.entries()) {
+      await saveTeacher({ id: `T${i}`, name, target_hours: 1, priority: 1 });
+    }
+
+    const teachers = await getTeachers();
+    expect(teachers.map((t) => t.name)).toEqual([
+      "Cengiz", "Çağlar", "Davut", "Ilgın", "İsmail", "Oya", "Ömer", "Sule", "Şule", "Uğur", "Ümit", "Zeynep",
+    ]);
+  });
+
   it("saveTeacher with an existing id upserts (INSERT OR REPLACE) rather than duplicating", async () => {
     const { saveTeacher, getTeachers } = await freshDb();
 

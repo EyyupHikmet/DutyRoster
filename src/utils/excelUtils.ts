@@ -53,13 +53,13 @@ export const resetExportVersionCounters = (): void => {
 
 /**
  * Builds the default suggested filename for a month's export: the existing
- * `${year}_${monthName}_Nobet_Raporu` scheme, plus a `_v${version}` suffix so
+ * `${year}_${monthName}_Nöbet_Raporu` scheme, plus a `_v${version}` suffix so
  * repeated exports for the same month are distinguishable by default in the
  * Save-As dialog.
  */
 export const buildExportFilename = (year: number, month: number, version: number): string => {
   const monthName = MONTHS_TR[month - 1];
-  return `${year}_${monthName}_Nobet_Raporu_v${version}.xlsx`;
+  return `${year}_${monthName}_Nöbet_Raporu_v${version}.xlsx`;
 };
 
 export type ExportScheduleResult =
@@ -169,10 +169,22 @@ export const parseExcelRoster = (
   const importedTeachers: DbTeacher[] = [];
   
   for (const row of rows) {
-    // Robust column parsing supporting exact Turkish headers or common synonyms
-    const name = row["Ad"] || row["Adı"] || row["Öğretmen Adı"] || row["Name"] || row["Teacher"];
-    const target = row["Hedef Saat"] || row["Hedef"] || row["Saat"] || row["Target Hours"] || row["Hours"] || DEFAULT_TARGET_HOURS;
-    const priorityStr = row["Öncelik"] || row["Kıdem"] || row["Priority"] || 1;
+    // Headers are compared folded, so "ÖĞRETMEN ADI", "Öğretmen Adı" and " Adı "
+    // all find their column. An exact key lookup misses capitalised Turkish
+    // headers entirely ("Adı" !== "ADI").
+    const cells = new Map(Object.entries(row).map(([header, value]) => [foldHeader(header), value]));
+    const pick = (...headers: string[]): any => {
+      for (const header of headers) {
+        const value = cells.get(foldHeader(header));
+        if (value) return value;
+      }
+      return undefined;
+    };
+
+    // Robust column parsing supporting Turkish headers or common synonyms
+    const name = pick("Ad", "Adı", "Öğretmen Adı", "Name", "Teacher");
+    const target = pick("Hedef Saat", "Hedef", "Saat", "Target Hours", "Hours") || DEFAULT_TARGET_HOURS;
+    const priorityStr = pick("Öncelik", "Kıdem", "Priority") || 1;
 
     if (name) {
       let priority = 1; // Default Düşük/Orta/Yüksek weight

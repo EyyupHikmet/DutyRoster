@@ -48,6 +48,26 @@ describe("Excel Yardımcı Programı Testleri (excelUtils)", () => {
     expect(result[2].priority, "Standart kıdem priority 1 olarak eşleşmeli").toBe(1);
   });
 
+  it("parseExcelRoster recognises Turkish headers written in capitals or with stray spaces", () => {
+    const mockXlsxReader = {
+      read: () => ({ SheetNames: ["Sheet1"], Sheets: { Sheet1: {} } }) as any,
+      utils: {
+        sheet_to_json: () =>
+          [
+            { "ÖĞRETMEN ADI": "İlber Ortaylı", "HEDEF SAAT": 4, "KIDEM": "YÜKSEK" },
+            { " Adı ": "Işıl Çelik", "hedef": "2", "ÖNCELİK": "Orta" },
+          ] as any,
+      },
+    };
+
+    const result = parseExcelRoster("dummy_binary_string", mockXlsxReader);
+
+    expect(result.map((t) => [t.name, t.target_hours, t.priority])).toEqual([
+      ["İlber Ortaylı", 4, 3],
+      ["Işıl Çelik", 2, 2],
+    ]);
+  });
+
   it("Test 2: parseExcelRoster with English headers (DI)", () => {
     const mockXlsxReader = {
       read: () => ({ SheetNames: ["Sheet1"], Sheets: { Sheet1: {} } }) as any,
@@ -157,9 +177,9 @@ describe("excelUtils — buildExportFilename / version counter", () => {
   });
 
   it("buildExportFilename keeps the existing year+month scheme and adds _v{version}", () => {
-    expect(buildExportFilename(2026, 9, 1)).toBe("2026_Eylül_Nobet_Raporu_v1.xlsx");
-    expect(buildExportFilename(2026, 9, 3)).toBe("2026_Eylül_Nobet_Raporu_v3.xlsx");
-    expect(buildExportFilename(2027, 1, 2)).toBe("2027_Ocak_Nobet_Raporu_v2.xlsx");
+    expect(buildExportFilename(2026, 9, 1)).toBe("2026_Eylül_Nöbet_Raporu_v1.xlsx");
+    expect(buildExportFilename(2026, 9, 3)).toBe("2026_Eylül_Nöbet_Raporu_v3.xlsx");
+    expect(buildExportFilename(2027, 1, 2)).toBe("2027_Ocak_Nöbet_Raporu_v2.xlsx");
   });
 
   it("getNextExportVersion starts at 1 for a month never exported this session", () => {
@@ -198,7 +218,7 @@ describe("excelUtils — exportScheduleToExcel (save dialog + fs write)", () => 
 
   function makeDeps(overrides: Partial<ExportScheduleDeps> = {}): ExportScheduleDeps {
     return {
-      saveDialog: async () => "C:\\Users\\test\\Belgeler\\2026_Eylül_Nobet_Raporu_v1.xlsx",
+      saveDialog: async () => "C:\\Users\\test\\Belgeler\\2026_Eylül_Nöbet_Raporu_v1.xlsx",
       writeFile: async () => {},
       xlsxWriter: { write: () => new Uint8Array([1, 2, 3]) },
       ...overrides
@@ -221,10 +241,10 @@ describe("excelUtils — exportScheduleToExcel (save dialog + fs write)", () => 
 
     expect(result.status).toBe("saved");
     if (result.status === "saved") {
-      expect(result.path).toBe("C:\\Users\\test\\Belgeler\\2026_Eylül_Nobet_Raporu_v1.xlsx");
-      expect(result.filename).toBe("2026_Eylül_Nobet_Raporu_v1.xlsx");
+      expect(result.path).toBe("C:\\Users\\test\\Belgeler\\2026_Eylül_Nöbet_Raporu_v1.xlsx");
+      expect(result.filename).toBe("2026_Eylül_Nöbet_Raporu_v1.xlsx");
     }
-    expect(writtenPath).toBe("C:\\Users\\test\\Belgeler\\2026_Eylül_Nobet_Raporu_v1.xlsx");
+    expect(writtenPath).toBe("C:\\Users\\test\\Belgeler\\2026_Eylül_Nöbet_Raporu_v1.xlsx");
     expect(writtenBytes).toBeInstanceOf(Uint8Array);
   });
 
@@ -238,10 +258,10 @@ describe("excelUtils — exportScheduleToExcel (save dialog + fs write)", () => 
     });
 
     await exportScheduleToExcel(2026, 9, {}, teachers, [], [], [], deps);
-    expect(seenDefaultPath).toBe("2026_Eylül_Nobet_Raporu_v1.xlsx");
+    expect(seenDefaultPath).toBe("2026_Eylül_Nöbet_Raporu_v1.xlsx");
 
     await exportScheduleToExcel(2026, 9, {}, teachers, [], [], [], deps);
-    expect(seenDefaultPath).toBe("2026_Eylül_Nobet_Raporu_v2.xlsx");
+    expect(seenDefaultPath).toBe("2026_Eylül_Nöbet_Raporu_v2.xlsx");
   });
 
   it("cancel path: a null path from the dialog returns status 'canceled', never writes, and does not advance the version counter", async () => {
