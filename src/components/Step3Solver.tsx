@@ -424,7 +424,11 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
               {DAYS_TR.map(d => <div key={d}>{d}</div>)}
             </div>
 
-            <div className="calendar-grid" style={{ flexGrow: 1, height: "100%" }}>
+            <div
+              className="calendar-grid"
+              // Taller floor than step 1: a day lists its teachers.
+              style={{ "--weeks": Math.ceil(paddedDates.length / 7), "--row-min": "5rem" } as React.CSSProperties}
+            >
               {paddedDates.map((date, idx) => {
                 if (!date) return <div key={`empty-${idx}`} className="calendar-cell-empty" />;
                 
@@ -474,7 +478,9 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
                       }
                     }}
                   >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", flexShrink: 0 }}>
+                    {/* Wraps so the required-count chip drops under the day number in a
+                        narrow cell (small window, larger text) instead of spilling out. */}
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "2px", justifyContent: "space-between", alignItems: "center", width: "100%", flexShrink: 0 }}>
                       <span style={{ fontSize: "0.88rem", color: isSelected ? "var(--primary)" : "var(--text-primary)", fontWeight: "bold" }}>
                         {date.getDate()}
                       </span>

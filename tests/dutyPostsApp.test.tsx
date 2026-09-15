@@ -337,3 +337,28 @@ describe("working on a post's month", () => {
     expect(within(drawer).getByText(/Erkek Yurdu/)).toBeInTheDocument();
   });
 });
+
+describe("the header on a narrow window", () => {
+  const setWidth = (width: number) => {
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: width });
+    window.dispatchEvent(new Event("resize"));
+  };
+
+  afterEach(() => setWidth(1024));
+
+  it("keeps only the icons of the post and approved schedules buttons, still announcing their names", async () => {
+    setWidth(800);
+    await openApp();
+
+    expect(screen.getByRole("button", { name: "Nöbet yeri: Erkek Yurdu" })).not.toHaveTextContent("Erkek Yurdu");
+    expect(screen.getByRole("button", { name: "Onaylı Çizelgeler" })).not.toHaveTextContent("Onaylı Çizelgeler");
+  });
+
+  it("shows their names when there is room", async () => {
+    setWidth(1400);
+    await openApp();
+
+    expect(screen.getByRole("button", { name: "Nöbet yeri: Erkek Yurdu" })).toHaveTextContent("Erkek Yurdu");
+    expect(screen.getByRole("button", { name: "Onaylı Çizelgeler" })).toHaveTextContent("Onaylı Çizelgeler");
+  });
+});

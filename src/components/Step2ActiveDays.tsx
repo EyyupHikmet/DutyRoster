@@ -166,7 +166,10 @@ export const Step2ActiveDays: React.FC<Step2ActiveDaysProps> = ({
           {DAYS_TR.map(d => <div key={d}>{d}</div>)}
         </div>
 
-        <div className="step2-calendar-grid">
+        <div
+          className="step2-calendar-grid"
+          style={{ "--weeks": Math.ceil(paddedDates.length / 7) } as React.CSSProperties}
+        >
           {paddedDates.map((date, idx) => {
             if (!date) return <div key={`empty-${idx}`} className="calendar-cell-empty" />;
             
@@ -242,19 +245,8 @@ export const Step2ActiveDays: React.FC<Step2ActiveDaysProps> = ({
 
                 {isIncluded && (
                   <span
-                    className="step2-extra-badge"
-                    style={{
-                      position: "absolute",
-                      top: "14px",
-                      right: "14px",
-                      zIndex: 2,
-                      padding: "4px 8px",
-                      borderRadius: "6px",
-                      backgroundColor: isExtra ? "#edd8fd" : "var(--slate-100)",
-                      color: isExtra ? "#6b46c1" : "var(--slate-600)",
-                      border: `1.5px solid ${isExtra ? "#b794f4" : "var(--slate-300)"}`,
-                      cursor: "pointer"
-                    }}
+                    // Styled in App.css, which also compacts it in cramped cells.
+                    className={`step2-extra-badge${isExtra ? " is-extra" : ""}`}
                     role="button"
                     tabIndex={0}
                     aria-label={extraToggleLabel}

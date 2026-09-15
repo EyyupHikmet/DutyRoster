@@ -13,6 +13,8 @@ interface PostMenuProps {
   onRenamePost: (name: string) => Promise<string | null>;
   /** Deletes the selected post, once its name has been typed. */
   onDeletePost: () => void | Promise<void>;
+  /** Shows only the icon, for a narrow header. The name stays in the label and tooltip. */
+  compact?: boolean;
 }
 
 const itemSelector = '[role="menuitem"]:not([disabled]), [role="menuitemradio"]:not([disabled])';
@@ -22,7 +24,7 @@ const itemSelector = '[role="menuitem"]:not([disabled]), [role="menuitemradio"]:
  * months are on screen, plus adding, renaming and deleting posts. A menu
  * button with arrow-key navigation, following the WAI-ARIA menu button pattern.
  */
-export const PostMenu: React.FC<PostMenuProps> = ({ posts, selectedPostId, onSelectPost, onAddPost, onRenamePost, onDeletePost }) => {
+export const PostMenu: React.FC<PostMenuProps> = ({ posts, selectedPostId, onSelectPost, onAddPost, onRenamePost, onDeletePost, compact = false }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [dialog, setDialog] = useState<"add" | "rename" | "delete" | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -75,10 +77,11 @@ export const PostMenu: React.FC<PostMenuProps> = ({ posts, selectedPostId, onSel
         aria-expanded={isOpen}
         aria-controls="duty-post-menu"
         aria-label={`Nöbet yeri: ${selected?.name ?? ""}`}
+        title={selected?.name}
         onClick={() => setIsOpen((open) => !open)}
       >
         <span aria-hidden="true">🏠</span>
-        {selected?.name}
+        {!compact && selected?.name}
         <span aria-hidden="true">▾</span>
       </button>
 

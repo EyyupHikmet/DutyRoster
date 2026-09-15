@@ -259,6 +259,19 @@ export default function App() {
     document.documentElement.style.fontSize = `${16 * fontSizeFactor}px`;
   }, [fontSizeFactor]);
 
+  // On a narrow window the header's side buttons keep only their icons, so the
+  // wizard steps are never covered. Measured in the app's own text scale (the
+  // header row is the window less the page padding): larger text compacts
+  // sooner. JS rather than a CSS container query, because containing the header
+  // would trap its dropdowns and dialogs inside it.
+  const [windowWidth, setWindowWidth] = useState<number>(() => window.innerWidth);
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+  const compactHeader = windowWidth - 48 < 47.5 * 16 * fontSizeFactor;
+
   // Load state and action managers via custom hooks
   const {
     selectedYear,
@@ -928,6 +941,7 @@ export default function App() {
                 onAddPost={handleAddPost}
                 onRenamePost={handleRenamePost}
                 onDeletePost={handleDeletePost}
+                compact={compactHeader}
               />
             )}
           </div>
@@ -948,7 +962,7 @@ export default function App() {
               aria-controls="approved-schedules-drawer"
             >
               <span aria-hidden="true">📚</span>
-              Onaylı Çizelgeler
+              {!compactHeader && <span>Onaylı Çizelgeler</span>}
             </button>
 
         <div style={{ position: "relative" }} ref={settingsWrapperRef}>
