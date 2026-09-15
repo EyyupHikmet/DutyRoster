@@ -1,8 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTeachers } from "./hooks/useTeachers";
 import { useAvailabilities } from "./hooks/useAvailabilities";
 import { useScheduleState } from "./hooks/useScheduleState";
-import { parseExcelRoster, exportScheduleToExcel } from "./utils/excelUtils";
+import { parseExcelRoster, exportScheduleToExcel, exportDutyReport, ExportScheduleResult } from "./utils/excelUtils";
+import { freezeScheduleReport, sameReport } from "./utils/scheduleReport";
+import { approvedCopyFor, earlierInSchoolYear, formatApprovalDate } from "./utils/approvedSchedules";
+import { creditPartnerGroups } from "./solver/partners";
+import { useApprovedSchedules, ApprovedSchedule } from "./hooks/useApprovedSchedules";
 import { getDutyDates, findUnfilledDays, MONTHS_TR } from "./utils/dateUtils";
 import { effectiveTarget } from "./utils/targets";
 import { solve, Teacher, SolverConfig, SolverResult } from "./solver";
@@ -19,6 +23,9 @@ import { WizardNav } from "./components/WizardNav";
 import { Step1Roster } from "./components/Step1Roster";
 import { Step2ActiveDays } from "./components/Step2ActiveDays";
 import { Step3Solver } from "./components/Step3Solver";
+import { ApprovedSchedulesDrawer } from "./components/ApprovedSchedulesDrawer";
+import { DeleteApprovedDialog } from "./components/DeleteApprovedDialog";
+import { ModalDialog } from "./components/ModalDialog";
 
 export default function App() {
   const [activeStep, setActiveStep] = useState<number>(1);
@@ -52,6 +59,16 @@ export default function App() {
   // the partial sheet to fill in by hand — so this warns rather than blocks.
   const [isIncompleteExportConfirmOpen, setIsIncompleteExportConfirmOpen] = useState<boolean>(false);
   const incompleteExportModalRef = useRef<HTMLDivElement>(null);
+  // What accepting that confirmation goes on to do.
+  const [incompleteAction, setIncompleteAction] = useState<"export" | "approve">("export");
+
+  // Approved schedules: the header drawer, the export checkbox, and the
+  // confirmations before an official copy is replaced or deleted.
+  const [isApprovedDrawerOpen, setIsApprovedDrawerOpen] = useState<boolean>(false);
+  const [includeEarlierApproved, setIncludeEarlierApproved] = useState<boolean>(true);
+  const [isReplaceApprovedOpen, setIsReplaceApprovedOpen] = useState<boolean>(false);
+  const [approvedToDelete, setApprovedToDelete] = useState<ApprovedSchedule | null>(null);
+  const [resetIncludesApproved, setResetIncludesApproved] = useState<boolean>(false);
 
   // Close the settings popover on outside click or Escape —
   // matches the click-outside behavior CustomSelect already had; a popover
@@ -303,8 +320,11 @@ export default function App() {
     setMonthlyTargets,
     copyPartnersFromMonth,
     availablePartnerMonths,
-    pruneTeacherFromMonth
+    pruneTeacherFromMonth,
+    scheduleId
   } = useScheduleState();
+
+  const { approvedSchedules, loadApprovedSchedules, approve, remove } = useApprovedSchedules();
 
   // Months (other than the one currently selected) that already have partner
   // groups defined, offered in the PartnerGroups card's "copy from another
@@ -394,6 +414,7 @@ export default function App() {
         await loadAvailabilities();
         await loadScheduleData(selectedYear, selectedMonth);
         setCopyMonths(await availablePartnerMonths());
+        await loadApprovedSchedules();
       } catch (err) {
         console.error("Veritabanı yüklenirken hata oluştu:", err);
       }
@@ -450,6 +471,22 @@ export default function App() {
           generatedSchedule,
           (dateStr) => daySpecificTeachers[dateStr] ?? Number(teachersPerDay)
         );
+
+  // The schedule on screen as its duty report shows it: the same shape an
+  // approved schedule freezes, so the two can be compared.
+  const workingReport = freezeScheduleReport(
+    { year: selectedYear, month: selectedMonth, generatedSchedule, holidays, weekendDutyDays, extraDays, teachersPerDay, daySpecificTeachers, monthlyTargets },
+    teachers
+  );
+  const currentApproved = approvedCopyFor(approvedSchedules, scheduleId, selectedYear, selectedMonth);
+  const approval = currentApproved
+    ? { approvedAt: currentApproved.approved_at, changed: !sameReport(currentApproved.report, workingReport) }
+    : null;
+  const earlierApproved = earlierInSchoolYear(approvedSchedules, selectedYear, selectedMonth);
+
+  // Partner groups short of their group goal, counted as Step 3 counts them.
+  const groupCredit = creditPartnerGroups(generatedSchedule, partnerGroups);
+  const shortGroupCount = partnerGroups.filter((group) => (groupCredit[group.id] ?? 0) < group.goalDays).length;
 
   // Generate Schedule Action
   const handleGenerateSchedule = async () => {
@@ -531,6 +568,7 @@ export default function App() {
     // pinning, or a month whose schedule was loaded from disk and never
     // regenerated. Exporting anyway is a valid choice, so this asks.
     if (unfilledDays.length > 0) {
+      setIncompleteAction("export");
       setIsIncompleteExportConfirmOpen(true);
       return;
     }
@@ -551,9 +589,14 @@ export default function App() {
       weekendDutyDays,
       extraDays,
       {},
-      monthlyTargets
+      monthlyTargets,
+      includeEarlierApproved ? earlierApproved.map((copy) => copy.report) : []
     );
+    showExportResult(result);
+  };
 
+  // What every export shows for its outcome.
+  const showExportResult = (result: ExportScheduleResult) => {
     if (result.status === "saved") {
       setExportToast({ path: result.path, filename: result.filename });
     } else if (result.status === "error") {
@@ -563,6 +606,65 @@ export default function App() {
     }
     // status === "canceled": intentionally a no-op.
   };
+
+  // Exports one approved schedule on its own, from the drawer.
+  const handleExportApproved = async (copy: ApprovedSchedule) => {
+    setExportErrorMessage(null);
+    showExportResult(await exportDutyReport([copy.report]));
+  };
+
+  // Approving (Onayla). A schedule with open slots or short partner groups
+  // can still be made official, but only after the same warning an incomplete
+  // export gets; a schedule that already has an approved copy asks before
+  // replacing it.
+  const handleApproveSchedule = () => {
+    if (unfilledDays.length > 0 || shortGroupCount > 0) {
+      setIncompleteAction("approve");
+      setIsIncompleteExportConfirmOpen(true);
+      return;
+    }
+    confirmReplaceOrApprove();
+  };
+
+  const confirmReplaceOrApprove = () => {
+    if (currentApproved) {
+      setIsReplaceApprovedOpen(true);
+      return;
+    }
+    void performApproveSchedule();
+  };
+
+  // Saves the month (so the copy points at a saved schedule) and keeps a
+  // frozen copy of exactly what is on screen.
+  const performApproveSchedule = async () => {
+    const report = workingReport;
+    const savedId = await saveGeneratedScheduleToDb(generatedSchedule);
+    const approved = savedId ? await approve(savedId, report) : false;
+    if (approved) {
+      setSuccessMessage(`${monthLabel} çizelgesi onaylandı.`);
+      setTimeout(() => setSuccessMessage(null), 4000);
+    } else {
+      setExportErrorMessage("Çizelge onaylanırken bir hata oluştu. Lütfen tekrar deneyin.");
+      setTimeout(() => setExportErrorMessage(null), 5000);
+    }
+  };
+
+  const handleConfirmDeleteApproved = async () => {
+    if (!approvedToDelete) return;
+    const label = `${MONTHS_TR[approvedToDelete.month - 1]} ${approvedToDelete.year}`;
+    const id = approvedToDelete.id;
+    setApprovedToDelete(null);
+    if (await remove(id)) {
+      setSuccessMessage(`${label} onaylı çizelgesi silindi.`);
+      setTimeout(() => setSuccessMessage(null), 4000);
+    } else {
+      setExportErrorMessage("Onaylı çizelge silinirken bir hata oluştu. Lütfen tekrar deneyin.");
+      setTimeout(() => setExportErrorMessage(null), 5000);
+    }
+  };
+
+  const handleCloseApprovedDrawer = useCallback(() => setIsApprovedDrawerOpen(false), []);
+
 
   // Opens the just-exported file in its OS default handler.
   //
@@ -627,13 +729,15 @@ export default function App() {
 
   const handleResetAllDatabase = () => {
     setIsSettingsOpen(false); // Close dropdown
+    setResetIncludesApproved(false);
     setIsResetConfirmOpen(true); // Open custom modal
   };
 
   // Directly executes the SQLite DB wipe & dynamic state resetting
   const handleResetAllDatabaseDirect = async () => {
     try {
-      await resetDb();
+      await resetDb({ includeApproved: resetIncludesApproved });
+      await loadApprovedSchedules();
       
       // Wipe all teachers states
       setSelectedTeacherId(null);
@@ -678,6 +782,20 @@ export default function App() {
             <WizardNav activeStep={activeStep} setActiveStep={setActiveStep} />
           </div>
         </div>
+
+        {/* Approved schedules, next to the settings button. Not a wizard
+            step: the list can be opened from any step. */}
+        <button
+          className="settings-toggle-btn"
+          onClick={() => setIsApprovedDrawerOpen((open) => !open)}
+          title="Onaylı Çizelgeler"
+          aria-label="Onaylı Çizelgeler"
+          aria-expanded={isApprovedDrawerOpen}
+          aria-controls="approved-schedules-drawer"
+          style={{ position: "absolute", top: "16px", right: "80px", zIndex: 100 }}
+        >
+          <span aria-hidden="true">📚</span>
+        </button>
 
         {/* Absolutely Positioned Settings Dropdown (Top Right) */}
         <div
@@ -888,6 +1006,11 @@ export default function App() {
             handleGenerateSchedule={handleGenerateSchedule}
             handleExportSchedule={handleExportSchedule}
             partnerGroups={partnerGroups}
+            handleApproveSchedule={handleApproveSchedule}
+            approval={approval}
+            earlierApprovedCount={earlierApproved.length}
+            includeEarlierApproved={includeEarlierApproved}
+            setIncludeEarlierApproved={setIncludeEarlierApproved}
           />
         )}
       </main>
@@ -1011,6 +1134,21 @@ export default function App() {
             <p id="reset-confirm-desc" style={{ margin: 0, fontSize: "0.9rem", color: "var(--text-secondary)", lineHeight: "1.45rem" }}>
               Tüm öğretmen kayıtları, nöbet uygunluk tercihleri ve kaydedilmiş tüm aylık çizelgeler veritabanından kalıcı olarak silinecektir.
             </p>
+            {/* Approved schedules are official records: kept unless asked. */}
+            <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.88rem", fontWeight: 600, color: "var(--text-primary)", cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={resetIncludesApproved}
+                onChange={(e) => setResetIncludesApproved(e.target.checked)}
+                style={{ accentColor: "var(--danger)" }}
+              />
+              Onaylı çizelgeleri de sil
+            </label>
+            <p style={{ margin: 0, fontSize: "0.8rem", color: "var(--text-secondary)" }}>
+              {resetIncludesApproved
+                ? "Onaylı çizelgeler de kalıcı olarak silinecek."
+                : "Onaylı çizelgeler korunacak."}
+            </p>
             <p style={{ margin: 0, fontSize: "0.9rem", color: "var(--danger)", fontWeight: "700" }}>
               Bu işlem kesinlikle geri alınamaz! Onaylıyor musunuz?
             </p>
@@ -1087,13 +1225,25 @@ export default function App() {
             </div>
 
             <p id="incomplete-export-desc" style={{ margin: 0, fontSize: "0.9rem", color: "var(--text-secondary)", lineHeight: "1.45rem" }}>
-              {MONTHS_TR[selectedMonth - 1]} {selectedYear} çizelgesinde{" "}
-              <strong style={{ color: "var(--text-primary)" }}>{unfilledDays.length} gün</strong> eksik.
-              Toplam{" "}
-              <strong style={{ color: "var(--text-primary)" }}>
-                {unfilledDays.reduce((sum, g) => sum + (g.required - g.assigned), 0)} nöbet yeri
-              </strong>{" "}
-              doldurulamadı.
+              {unfilledDays.length > 0 ? (
+                <>
+                  {MONTHS_TR[selectedMonth - 1]} {selectedYear} çizelgesinde{" "}
+                  <strong style={{ color: "var(--text-primary)" }}>{unfilledDays.length} gün</strong> eksik.
+                  Toplam{" "}
+                  <strong style={{ color: "var(--text-primary)" }}>
+                    {unfilledDays.reduce((sum, g) => sum + (g.required - g.assigned), 0)} nöbet yeri
+                  </strong>{" "}
+                  doldurulamadı.
+                </>
+              ) : (
+                <>{MONTHS_TR[selectedMonth - 1]} {selectedYear} çizelgesinde bütün nöbet günleri dolu.</>
+              )}
+              {incompleteAction === "approve" && shortGroupCount > 0 && (
+                <>
+                  {" "}
+                  <strong style={{ color: "var(--text-primary)" }}>{shortGroupCount} nöbet grubu</strong> ortak nöbet günü hedefine ulaşamadı.
+                </>
+              )}
             </p>
 
             {/* The specific dates, so the principal can act on them without
@@ -1114,7 +1264,9 @@ export default function App() {
             </ul>
 
             <p style={{ margin: 0, fontSize: "0.9rem", color: "var(--text-primary)", fontWeight: "700" }}>
-              Eksik hâliyle Excel'e aktarmak istiyor musunuz?
+              {incompleteAction === "approve"
+                ? "Eksik hâliyle onaylamak istiyor musunuz?"
+                : "Eksik hâliyle Excel'e aktarmak istiyor musunuz?"}
             </p>
 
             <div style={{ display: "flex", gap: "12px", marginTop: "4px" }}>
@@ -1130,10 +1282,14 @@ export default function App() {
                 style={{ flexGrow: 1 }}
                 onClick={async () => {
                   setIsIncompleteExportConfirmOpen(false);
-                  await performExportSchedule();
+                  if (incompleteAction === "approve") {
+                    confirmReplaceOrApprove();
+                  } else {
+                    await performExportSchedule();
+                  }
                 }}
               >
-                Yine de Aktar
+                {incompleteAction === "approve" ? "Yine de Onayla" : "Yine de Aktar"}
               </button>
             </div>
           </div>
@@ -1220,6 +1376,56 @@ export default function App() {
             </div>
           </div>
         </div>
+      )}
+      {/* Approved schedules drawer, opened from the header on any step. */}
+      {isApprovedDrawerOpen && (
+        <ApprovedSchedulesDrawer
+          approvedSchedules={approvedSchedules}
+          onClose={handleCloseApprovedDrawer}
+          onExport={handleExportApproved}
+          onDelete={setApprovedToDelete}
+        />
+      )}
+
+      {/* Approving a schedule that already has an approved copy replaces it,
+          so say which copy and ask first. */}
+      {isReplaceApprovedOpen && currentApproved && (
+        <ModalDialog
+          titleId="replace-approved-title"
+          describedById="replace-approved-desc"
+          title="Onaylı Çizelgeyi Değiştir"
+          icon="✅"
+          onCancel={() => setIsReplaceApprovedOpen(false)}
+        >
+          <p id="replace-approved-desc" style={{ margin: 0, fontSize: "0.9rem", color: "var(--text-secondary)", lineHeight: "1.45rem" }}>
+            {monthLabel} için <strong style={{ color: "var(--text-primary)" }}>{formatApprovalDate(currentApproved.approved_at)}</strong> tarihinde
+            onaylanmış çizelge, ekrandaki çizelgeyle değiştirilecek.
+          </p>
+          <div style={{ display: "flex", gap: "12px", marginTop: "4px" }}>
+            <button className="btn btn-secondary" style={{ flexGrow: 1 }} onClick={() => setIsReplaceApprovedOpen(false)}>
+              Vazgeç
+            </button>
+            <button
+              className="btn btn-primary"
+              style={{ flexGrow: 1 }}
+              onClick={async () => {
+                setIsReplaceApprovedOpen(false);
+                await performApproveSchedule();
+              }}
+            >
+              Değiştir
+            </button>
+          </div>
+        </ModalDialog>
+      )}
+
+      {approvedToDelete && (
+        <DeleteApprovedDialog
+          label={`${MONTHS_TR[approvedToDelete.month - 1]} ${approvedToDelete.year}`}
+          approvedAt={approvedToDelete.approved_at}
+          onCancel={() => setApprovedToDelete(null)}
+          onConfirm={handleConfirmDeleteApproved}
+        />
       )}
     </div>
   );

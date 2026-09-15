@@ -21,6 +21,9 @@ vi.mock("../src/db", () => ({
   saveSchedule: vi.fn().mockResolvedValue(undefined),
   getAllSchedules: vi.fn().mockResolvedValue([]),
   resetDb: vi.fn().mockResolvedValue(undefined),
+  getApprovedSchedules: vi.fn().mockResolvedValue([]),
+  approveSchedule: vi.fn().mockResolvedValue(undefined),
+  deleteApprovedSchedule: vi.fn().mockResolvedValue(undefined),
 }));
 
 // App.tsx calls exportScheduleToExcel directly (not through a hook),
@@ -36,6 +39,7 @@ vi.mock("../src/utils/excelUtils", async () => {
   return {
     ...actual,
     exportScheduleToExcel: vi.fn(),
+    exportDutyReport: vi.fn(),
   };
 });
 

@@ -141,12 +141,13 @@ describe("useScheduleState", () => {
       result.current.setTeachersPerDay(2);
     });
 
-    let ok: boolean | undefined;
+    let savedId: string | null | undefined;
     await act(async () => {
-      ok = await result.current.saveGeneratedScheduleToDb({ "2026-11-01": ["T1", "T2"] });
+      savedId = await result.current.saveGeneratedScheduleToDb({ "2026-11-01": ["T1", "T2"] });
     });
 
-    expect(ok).toBe(true);
+    // Returns the id the month is saved under, which approving needs.
+    expect(savedId).toBe("fresh-uuid");
     expect(mockedDb.saveSchedule).toHaveBeenCalledWith(
       expect.objectContaining({
         id: "fresh-uuid",
@@ -164,12 +165,12 @@ describe("useScheduleState", () => {
     mockedDb.saveSchedule.mockRejectedValue(new Error("db down"));
     const { result } = renderHook(() => useScheduleState());
 
-    let ok: boolean | undefined;
+    let savedId: string | null | undefined;
     await act(async () => {
-      ok = await result.current.saveGeneratedScheduleToDb({});
+      savedId = await result.current.saveGeneratedScheduleToDb({});
     });
 
-    expect(ok).toBe(false);
+    expect(savedId).toBeNull();
   });
 
   // Dirty-tracking and the decoupled draft-save path.
@@ -273,12 +274,12 @@ describe("useScheduleState", () => {
       });
       expect(result.current.isDirty).toBe(true);
 
-      let ok: boolean | undefined;
+      let savedId: string | null | undefined;
       await act(async () => {
-        ok = await result.current.saveDraftToDb();
+        savedId = await result.current.saveDraftToDb();
       });
 
-      expect(ok).toBe(true);
+      expect(savedId).toBe("fresh-uuid");
       // Draft save persists the CURRENT generatedSchedule, which is still {}
       // — an empty/never-generated assignments map is a valid draft state.
       expect(mockedDb.saveSchedule).toHaveBeenCalledWith(

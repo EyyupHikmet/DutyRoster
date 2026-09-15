@@ -61,6 +61,21 @@ async function initDb(db: Database) {
   await db.execute(`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_schedules_year_month ON schedules (year, month);
   `);
+
+  // Approved schedules are frozen copies kept apart from the working month
+  // (ADR-0006). `report` holds everything the duty report needs, including
+  // teacher names, so a copy never reads the teachers table again. A schedule
+  // has at most one approved copy, hence the unique schedule_id.
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS approved_schedules (
+      id TEXT PRIMARY KEY,
+      schedule_id TEXT NOT NULL UNIQUE,
+      year INTEGER NOT NULL,
+      month INTEGER NOT NULL,
+      approved_at TEXT NOT NULL,
+      report TEXT NOT NULL
+    );
+  `);
 }
 
 // Teachers CRUD Operations
@@ -204,15 +219,41 @@ export async function getAllSchedules(): Promise<DbSchedule[]> {
   return rows || [];
 }
 
-export async function saveSchedule(schedule: DbSchedule): Promise<void> {
+/**
+ * Saves a month and returns the id it is stored under. A month keeps the id it
+ * was first saved with, whatever id the caller passes, so an approved schedule
+ * can keep pointing at the schedule it came from (ADR-0006).
+ */
+export async function saveSchedule(schedule: DbSchedule): Promise<string> {
   const db = await getDb();
+  const existing = await db.select<{ id: string }[]>(
+    "SELECT id FROM schedules WHERE year = $1 AND month = $2 ORDER BY rowid DESC LIMIT 1",
+    [schedule.year, schedule.month]
+  );
+  // A month set up again after a reset has no row, but may still have an
+  // approved copy pointing at its old id. Taking that id back means approving
+  // the month again replaces the copy instead of adding a second one.
+  const orphaned =
+    existing && existing.length > 0
+      ? []
+      : await db.select<{ schedule_id: string }[]>(
+          "SELECT schedule_id FROM approved_schedules WHERE year = $1 AND month = $2 AND schedule_id NOT IN (SELECT id FROM schedules) LIMIT 1",
+          [schedule.year, schedule.month]
+        );
+  const id =
+    existing && existing.length > 0
+      ? existing[0].id
+      : orphaned && orphaned.length > 0
+        ? orphaned[0].schedule_id
+        : schedule.id;
+
   // Relies on the UNIQUE(year, month) index (see initDb): OR REPLACE resolves the conflict
   // by deleting the existing row for that year/month and inserting this one, so regenerating
   // a schedule for an already-saved month replaces it instead of appending a duplicate.
   await db.execute(
     "INSERT OR REPLACE INTO schedules (id, year, month, assignments, holidays, weekend_duty_days, config) VALUES ($1, $2, $3, $4, $5, $6, $7)",
     [
-      schedule.id,
+      id,
       schedule.year,
       schedule.month,
       schedule.assignments,
@@ -221,14 +262,53 @@ export async function saveSchedule(schedule: DbSchedule): Promise<void> {
       schedule.config,
     ]
   );
+  return id;
+}
+
+// Approved Schedules Operations
+export interface DbApprovedSchedule {
+  id: string;
+  schedule_id: string; // the working schedule this copy was approved from
+  year: number;
+  month: number;
+  approved_at: string; // ISO timestamp
+  report: string;      // JSON string: the frozen ScheduleReport
+}
+
+/** Every approved schedule, latest month first. */
+export async function getApprovedSchedules(): Promise<DbApprovedSchedule[]> {
+  const db = await getDb();
+  const rows = await db.select<DbApprovedSchedule[]>(
+    "SELECT id, schedule_id, year, month, approved_at, report FROM approved_schedules ORDER BY year DESC, month DESC, approved_at DESC"
+  );
+  return rows || [];
+}
+
+/** Stores an approved schedule, replacing the earlier copy of the same schedule. */
+export async function approveSchedule(copy: DbApprovedSchedule): Promise<void> {
+  const db = await getDb();
+  await db.execute(
+    "INSERT OR REPLACE INTO approved_schedules (id, schedule_id, year, month, approved_at, report) VALUES ($1, $2, $3, $4, $5, $6)",
+    [copy.id, copy.schedule_id, copy.year, copy.month, copy.approved_at, copy.report]
+  );
+}
+
+export async function deleteApprovedSchedule(id: string): Promise<void> {
+  const db = await getDb();
+  await db.execute("DELETE FROM approved_schedules WHERE id = $1", [id]);
 }
 
 /**
  * Deletes all rows from all tables in the SQLite database to perform a complete system reset.
+ * Approved schedules are official records, so they survive a reset unless
+ * `includeApproved` is set.
  */
-export async function resetDb(): Promise<void> {
+export async function resetDb(options: { includeApproved?: boolean } = {}): Promise<void> {
   const db = await getDb();
   await db.execute("DELETE FROM teachers;");
   await db.execute("DELETE FROM availabilities;");
   await db.execute("DELETE FROM schedules;");
+  if (options.includeApproved) {
+    await db.execute("DELETE FROM approved_schedules;");
+  }
 }
