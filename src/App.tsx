@@ -3,7 +3,8 @@ import { useTeachers } from "./hooks/useTeachers";
 import { useAvailabilities } from "./hooks/useAvailabilities";
 import { useScheduleState } from "./hooks/useScheduleState";
 import { parseExcelRoster, exportScheduleToExcel, exportDutyReport, ExportScheduleResult } from "./utils/excelUtils";
-import { freezeScheduleReport, sameReport } from "./utils/scheduleReport";
+import { freezeScheduleReport, openDays, openSlotCount, sameReport, ScheduleReport } from "./utils/scheduleReport";
+import { gatherAllPostsReports } from "./utils/allPostsReport";
 import { approvedCopyFor, earlierInSchoolYear, formatApprovalDate } from "./utils/approvedSchedules";
 import { creditPartnerGroups } from "./solver/partners";
 import { splitImportByName } from "./utils/teacherNames";
@@ -12,7 +13,7 @@ import { useDutyPosts } from "./hooks/useDutyPosts";
 import { getDutyDates, findUnfilledDays, MONTHS_TR } from "./utils/dateUtils";
 import { effectiveTarget } from "./utils/targets";
 import { solve, Teacher, SolverConfig, SolverResult } from "./solver";
-import { saveTeacher, resetDb, getLastPostId, setLastPostId } from "./db";
+import { saveTeacher, resetDb, getLastPostId, setLastPostId, getAllSchedules } from "./db";
 import { openPath, revealItemInDir, openUrl } from "@tauri-apps/plugin-opener";
 import "./App.css";
 
@@ -71,6 +72,14 @@ export default function App() {
   // confirmations before an official copy is replaced or deleted.
   const [isApprovedDrawerOpen, setIsApprovedDrawerOpen] = useState<boolean>(false);
   const [includeEarlierApproved, setIncludeEarlierApproved] = useState<boolean>(true);
+  // One report for every duty post (#28), and what the last such export
+  // gathered while its warning is open.
+  const [includeAllPosts, setIncludeAllPosts] = useState<boolean>(false);
+  const [allPostsExport, setAllPostsExport] = useState<{
+    reports: ScheduleReport[];
+    skippedPosts: string[];
+    gaps: { postName: string; days: number; slots: number }[];
+  } | null>(null);
   const [isReplaceApprovedOpen, setIsReplaceApprovedOpen] = useState<boolean>(false);
   const [approvedToDelete, setApprovedToDelete] = useState<ApprovedSchedule | null>(null);
   const [resetIncludesApproved, setResetIncludesApproved] = useState<boolean>(false);
@@ -625,6 +634,11 @@ export default function App() {
     ? { approvedAt: currentApproved.approved_at, changed: !sameReport(currentApproved.report, workingReport) }
     : null;
   const earlierApproved = earlierInSchoolYear(approvedSchedules, selectedPostId ?? "", selectedYear, selectedMonth);
+  // A report for every post adds every post's earlier approved schedules.
+  const exportsAllPosts = includeAllPosts && posts.length > 1;
+  const earlierApprovedAllPosts = posts.flatMap((post) =>
+    earlierInSchoolYear(namedApproved, post.id, selectedYear, selectedMonth)
+  );
 
   // Partner groups short of their group goal, counted as Step 3 counts them.
   const groupCredit = creditPartnerGroups(generatedSchedule, partnerGroups);
@@ -704,6 +718,11 @@ export default function App() {
   //  - error (e.g. disk write failure): surface a Turkish error message,
   //    never a false "saved" confirmation.
   const handleExportSchedule = async () => {
+    setAllPostsExport(null);
+    if (exportsAllPosts) {
+      await handleExportAllPosts();
+      return;
+    }
     // Warn before writing a sheet that still has open duty slots. Derived from
     // the schedule itself rather than from the solver's last run, so it is
     // equally right for gaps the solver never produced — days emptied by
@@ -735,6 +754,45 @@ export default function App() {
       includeEarlierApproved ? earlierApproved.map((copy) => copy.report) : []
     );
     showExportResult(result);
+  };
+
+  // One report for every duty post: the schedule on screen, every other post's
+  // saved schedule for the month, and earlier approved ones when included.
+  // Posts with gaps and posts left out are named first, like a single post's gaps.
+  const handleExportAllPosts = async () => {
+    let schedules;
+    try {
+      schedules = await getAllSchedules();
+    } catch (err) {
+      showExportResult({ status: "error", message: err instanceof Error ? err.message : String(err) });
+      return;
+    }
+    const { reports, skippedPosts } = gatherAllPostsReports({
+      posts,
+      screenPostId: selectedPostId ?? "",
+      screenReport: workingReport,
+      schedules,
+      teachers: allTeachers,
+      earlierCopies: includeEarlierApproved ? earlierApprovedAllPosts : [],
+    });
+    const gaps = reports
+      .filter((r) => r.year === selectedYear && r.month === selectedMonth)
+      .map((r) => ({ postName: r.postName ?? "", days: openDays(r).length, slots: openSlotCount(r) }))
+      .filter((gap) => gap.days > 0)
+      .sort((a, b) => a.postName.localeCompare(b.postName, "tr"));
+
+    if (gaps.length > 0 || skippedPosts.length > 0) {
+      setAllPostsExport({ reports, skippedPosts, gaps });
+      setIncompleteAction("export");
+      setIsIncompleteExportConfirmOpen(true);
+      return;
+    }
+    await performExportAllPosts(reports);
+  };
+
+  const performExportAllPosts = async (reports: ScheduleReport[]) => {
+    setExportErrorMessage(null);
+    showExportResult(await exportDutyReport(reports, {}, { allPosts: true }));
   };
 
   // What every export shows for its outcome.
@@ -1175,10 +1233,13 @@ export default function App() {
             partnerGroups={partnerGroups}
             handleApproveSchedule={handleApproveSchedule}
             approval={approval}
-            earlierApprovedCount={earlierApproved.length}
+            earlierApprovedCount={exportsAllPosts ? earlierApprovedAllPosts.length : earlierApproved.length}
             includeEarlierApproved={includeEarlierApproved}
             setIncludeEarlierApproved={setIncludeEarlierApproved}
             postName={selectedPost?.name}
+            postCount={posts.length}
+            includeAllPosts={includeAllPosts}
+            setIncludeAllPosts={setIncludeAllPosts}
           />
         )}
       </main>
@@ -1392,44 +1453,62 @@ export default function App() {
               </h3>
             </div>
 
-            <p id="incomplete-export-desc" style={{ margin: 0, fontSize: "0.9rem", color: "var(--text-secondary)", lineHeight: "1.45rem" }}>
-              {unfilledDays.length > 0 ? (
-                <>
-                  {MONTHS_TR[selectedMonth - 1]} {selectedYear} çizelgesinde{" "}
-                  <strong style={{ color: "var(--text-primary)" }}>{unfilledDays.length} gün</strong> eksik.
-                  Toplam{" "}
-                  <strong style={{ color: "var(--text-primary)" }}>
-                    {unfilledDays.reduce((sum, g) => sum + (g.required - g.assigned), 0)} nöbet yeri
-                  </strong>{" "}
-                  doldurulamadı.
-                </>
-              ) : (
-                <>{MONTHS_TR[selectedMonth - 1]} {selectedYear} çizelgesinde bütün nöbet günleri dolu.</>
-              )}
-              {incompleteAction === "approve" && shortGroupCount > 0 && (
-                <>
-                  {" "}
-                  <strong style={{ color: "var(--text-primary)" }}>{shortGroupCount} nöbet grubu</strong> ortak nöbet günü hedefine ulaşamadı.
-                </>
-              )}
-            </p>
+            {incompleteAction === "export" && allPostsExport ? (
+              <>
+                <p id="incomplete-export-desc" style={{ margin: 0, fontSize: "0.9rem", color: "var(--text-secondary)", lineHeight: "1.45rem" }}>
+                  {MONTHS_TR[selectedMonth - 1]} {selectedYear} raporunda bazı nöbet yerlerinin çizelgesi eksik.
+                </p>
+                <ul style={{ margin: 0, paddingLeft: "20px", fontSize: "0.85rem", color: "var(--text-secondary)", lineHeight: "1.4rem", maxHeight: "160px", overflowY: "auto" }}>
+                  {allPostsExport.gaps.map((gap) => (
+                    <li key={`gap-${gap.postName}`}>{`${gap.postName}: ${gap.days} gün eksik, ${gap.slots} boş slot`}</li>
+                  ))}
+                  {allPostsExport.skippedPosts.map((name) => (
+                    <li key={`skipped-${name}`}>{`${name}: bu ay için çizelge yok, rapora eklenmedi.`}</li>
+                  ))}
+                </ul>
+              </>
+            ) : (
+              <>
+                <p id="incomplete-export-desc" style={{ margin: 0, fontSize: "0.9rem", color: "var(--text-secondary)", lineHeight: "1.45rem" }}>
+                  {unfilledDays.length > 0 ? (
+                    <>
+                      {MONTHS_TR[selectedMonth - 1]} {selectedYear} çizelgesinde{" "}
+                      <strong style={{ color: "var(--text-primary)" }}>{unfilledDays.length} gün</strong> eksik.
+                      Toplam{" "}
+                      <strong style={{ color: "var(--text-primary)" }}>
+                        {unfilledDays.reduce((sum, g) => sum + (g.required - g.assigned), 0)} nöbet yeri
+                      </strong>{" "}
+                      doldurulamadı.
+                    </>
+                  ) : (
+                    <>{MONTHS_TR[selectedMonth - 1]} {selectedYear} çizelgesinde bütün nöbet günleri dolu.</>
+                  )}
+                  {incompleteAction === "approve" && shortGroupCount > 0 && (
+                    <>
+                      {" "}
+                      <strong style={{ color: "var(--text-primary)" }}>{shortGroupCount} nöbet grubu</strong> ortak nöbet günü hedefine ulaşamadı.
+                    </>
+                  )}
+                </p>
 
-            {/* The specific dates, so the principal can act on them without
-                hunting through the calendar. Capped at 8 with a "+N more"
-                tail: a fully open month would otherwise push the buttons off
-                the screen. */}
-            <ul style={{ margin: 0, paddingLeft: "20px", fontSize: "0.85rem", color: "var(--text-secondary)", lineHeight: "1.4rem", maxHeight: "160px", overflowY: "auto" }}>
-              {unfilledDays.slice(0, 8).map((gap) => (
-                <li key={gap.date}>
-                  {new Date(gap.date).toLocaleDateString("tr-TR", { day: "numeric", month: "long", weekday: "long" })}
-                  {" — "}
-                  {gap.assigned}/{gap.required} nöbetçi
-                </li>
-              ))}
-              {unfilledDays.length > 8 && (
-                <li style={{ fontStyle: "italic" }}>ve {unfilledDays.length - 8} gün daha…</li>
-              )}
-            </ul>
+                {/* The specific dates, so the principal can act on them without
+                    hunting through the calendar. Capped at 8 with a "+N more"
+                    tail: a fully open month would otherwise push the buttons off
+                    the screen. */}
+                <ul style={{ margin: 0, paddingLeft: "20px", fontSize: "0.85rem", color: "var(--text-secondary)", lineHeight: "1.4rem", maxHeight: "160px", overflowY: "auto" }}>
+                  {unfilledDays.slice(0, 8).map((gap) => (
+                    <li key={gap.date}>
+                      {new Date(gap.date).toLocaleDateString("tr-TR", { day: "numeric", month: "long", weekday: "long" })}
+                      {" — "}
+                      {gap.assigned}/{gap.required} nöbetçi
+                    </li>
+                  ))}
+                  {unfilledDays.length > 8 && (
+                    <li style={{ fontStyle: "italic" }}>ve {unfilledDays.length - 8} gün daha…</li>
+                  )}
+                </ul>
+              </>
+            )}
 
             <p style={{ margin: 0, fontSize: "0.9rem", color: "var(--text-primary)", fontWeight: "700" }}>
               {incompleteAction === "approve"
@@ -1452,6 +1531,8 @@ export default function App() {
                   setIsIncompleteExportConfirmOpen(false);
                   if (incompleteAction === "approve") {
                     confirmReplaceOrApprove();
+                  } else if (allPostsExport) {
+                    await performExportAllPosts(allPostsExport.reports);
                   } else {
                     await performExportSchedule();
                   }

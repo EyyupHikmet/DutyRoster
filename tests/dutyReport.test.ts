@@ -3,6 +3,7 @@ import * as XLSX from "xlsx";
 import {
   buildDutyReportWorkbook,
   buildDutyReportFilename,
+  exportDutyReport,
   exportScheduleToExcel,
   resetExportVersionCounters,
 } from "../src/utils/excelUtils";
@@ -168,5 +169,100 @@ describe("exportScheduleToExcel with earlier approved schedules", () => {
       "Eylül 2026 – Rapor",
       "Toplam",
     ]);
+  });
+});
+
+describe("one duty report for every duty post", () => {
+  const post = (postName: string, year: number, m: number, generatedSchedule: Record<string, string[]>, staff: DbTeacher[]) =>
+    freezeScheduleReport(month(year, m, { postName, generatedSchedule }), staff);
+
+  // Aralık 2026: 1st Tuesday, 2nd Wednesday. Kasım 2026: 2nd Monday, 3rd Tuesday.
+  const erkekAralik = post("Erkek Yurdu", 2026, 12, { "2026-12-01": ["A"], "2026-12-02": ["A"] }, [teacher("A", "Ali", 2)]);
+  const kizAralik = post("Kız Yurdu", 2026, 12, { "2026-12-01": ["B"] }, [teacher("B", "Ayşe", 3)]);
+  const kizKasim = post("Kız Yurdu", 2026, 11, { "2026-11-02": ["B"], "2026-11-03": ["B"] }, [teacher("B", "Ayşe", 3)]);
+
+  it("groups sheets by post in Turkish order, latest month first, then one running total", () => {
+    const wb = readBack(buildDutyReportWorkbook([kizKasim, erkekAralik, kizAralik], { allPosts: true }));
+
+    expect(wb.SheetNames).toEqual([
+      "Erkek Yurdu – Ara 2026 – Liste",
+      "Erkek Yurdu – Ara 2026 – Rapor",
+      "Kız Yurdu – Aralık 2026 – Liste",
+      "Kız Yurdu – Aralık 2026 – Rapor",
+      "Kız Yurdu – Kasım 2026 – Liste",
+      "Kız Yurdu – Kasım 2026 – Rapor",
+      "Toplam",
+    ]);
+  });
+
+  it("names the post and month in full on the first row of each sheet", () => {
+    const wb = readBack(buildDutyReportWorkbook([erkekAralik, kizAralik], { allPosts: true }));
+
+    expect(rows(wb, "Erkek Yurdu – Ara 2026 – Liste")[0]).toEqual(["Erkek Yurdu – Aralık 2026"]);
+    expect(rows(wb, "Kız Yurdu – Aralık 2026 – Rapor").slice(0, 3)).toEqual([
+      ["Kız Yurdu – Aralık 2026"],
+      REPORT_HEADER,
+      ["Ayşe", 3, 1, 1, 0, 0, 2],
+    ]);
+  });
+
+  it("adds a post column to the running total, sorted by post, then teacher", () => {
+    const zeynep = teacher("C", "Zeynep", 1);
+    const erkekWithTwo = post("Erkek Yurdu", 2026, 12, { "2026-12-01": ["A", "C"], "2026-12-02": ["A"] }, [zeynep, teacher("A", "Ali", 2)]);
+    const wb = readBack(buildDutyReportWorkbook([kizKasim, erkekWithTwo, kizAralik], { allPosts: true }));
+
+    expect(rows(wb, "Toplam")).toEqual([
+      ["Nöbet Yeri", ...REPORT_HEADER],
+      ["Erkek Yurdu", "Ali", 2, 2, 2, 0, 0, 0],
+      ["Erkek Yurdu", "Zeynep", 1, 1, 1, 0, 0, 0],
+      ["Kız Yurdu", "Ayşe", 6, 3, 3, 0, 0, 3],
+    ]);
+  });
+
+  it("keeps sheet names within Excel's 31 characters, unique, and free of characters Excel refuses", () => {
+    const longA = post("Erkek Öğrenci Pansiyonu A", 2026, 8, {}, [teacher("A", "Ali", 2)]);
+    const longB = post("Erkek Öğrenci Pansiyonu B", 2026, 8, {}, [teacher("B", "Ayşe", 2)]);
+    const odd = post("Bina 2/3 [Yeni]", 2026, 12, {}, [teacher("C", "Can", 2)]);
+
+    const names = readBack(buildDutyReportWorkbook([longA, longB, odd], { allPosts: true })).SheetNames;
+
+    expect(names).toContain("Bina 2-3 -Y… – Ara 2026 – Liste");
+    expect(names.filter((n) => n.startsWith("Erkek Öğr"))).toHaveLength(4);
+    for (const name of names) expect(name.length).toBeLessThanOrEqual(31);
+    expect(new Set(names.map((n) => n.toLocaleLowerCase("tr"))).size).toBe(names.length);
+  });
+
+  it("names every post in the sheets even when only one post had a schedule", () => {
+    const wb = readBack(buildDutyReportWorkbook([kizAralik], { allPosts: true }));
+
+    expect(wb.SheetNames).toEqual(["Kız Yurdu – Aralık 2026 – Liste", "Kız Yurdu – Aralık 2026 – Rapor"]);
+  });
+
+  it("names the file for every post, for one month or several", () => {
+    expect(buildDutyReportFilename([erkekAralik, kizAralik], 1, { allPosts: true })).toBe(
+      "2026_Aralık_Tüm_Nöbet_Yerleri_Nöbet_Raporu_v1.xlsx"
+    );
+    expect(buildDutyReportFilename([kizAralik], 1, { allPosts: true })).toBe("2026_Aralık_Tüm_Nöbet_Yerleri_Nöbet_Raporu_v1.xlsx");
+    expect(buildDutyReportFilename([erkekAralik, kizAralik, kizKasim], 2, { allPosts: true })).toBe(
+      "2026-2027_Kasım-Aralık_Tüm_Nöbet_Yerleri_Nöbet_Raporu_v2.xlsx"
+    );
+  });
+
+  it("suggests that file name when exporting", async () => {
+    resetExportVersionCounters();
+    let suggested: string | undefined;
+
+    await exportDutyReport(
+      [erkekAralik, kizAralik],
+      {
+        saveDialog: async (options) => {
+          suggested = options.defaultPath;
+          return null;
+        },
+      },
+      { allPosts: true }
+    );
+
+    expect(suggested).toBe("2026_Aralık_Tüm_Nöbet_Yerleri_Nöbet_Raporu_v1.xlsx");
   });
 });
