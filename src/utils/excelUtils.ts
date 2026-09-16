@@ -179,7 +179,9 @@ export const parseExcelRoster = (
 
     // Robust column parsing supporting Turkish headers or common synonyms
     const name = pick("Ad", "Adı", "Öğretmen Adı", "Name", "Teacher");
-    const target = pick("Hedef Saat", "Hedef", "Saat", "Target Hours", "Hours") || DEFAULT_TARGET_HOURS;
+    // "Hedef Saat" and "Kıdem" are what the app used to call these; they stay
+    // readable so spreadsheets written for older versions still import.
+    const target = pick("Hedef Nöbet", "Nöbet", "Hedef Saat", "Hedef", "Saat", "Target Hours", "Hours") || DEFAULT_TARGET_HOURS;
     const priorityStr = pick("Öncelik", "Kıdem", "Priority") || 1;
 
     if (name) {
@@ -223,9 +225,9 @@ const listRows = (report: ScheduleReport): unknown[][] => {
 
     let status = "Nöbet Günü";
     if (isWeekend && !report.weekendDutyDays.includes(dateStr)) {
-      status = "Hafta Sonu (Tatil)";
+      status = "Nöbet Yok (Hafta Sonu)";
     } else if (!isWeekend && report.holidays.includes(dateStr)) {
-      status = "Resmi Tatil / Okul Kapalı";
+      status = "Nöbet Yok";
     }
 
     const assignedIds = report.assignments[dateStr] || [];

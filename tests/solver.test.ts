@@ -331,7 +331,7 @@ describe("Nöbet Çözücü Motor Testleri (solver)", () => {
   // both stay legal.
 
   it("Test 12: avoidConsecutiveDays kapalıyken ardışık günler serbesttir (mevcut davranış korunur)", () => {
-    // "Kıdem Öncelikli" always reaches for the highest-priority teacher first,
+    // "Öncelik Sırası" always reaches for the highest-priority teacher first,
     // so T1 (priority 3) sweeps the whole month — including the adjacent
     // 1–2 October pair. This is the behavior the new flag has to change, and
     // the behavior it must leave alone when off.

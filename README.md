@@ -2,9 +2,10 @@
 
 **Türkçe** · [English](README.en.md)
 
-Öğretmen nöbet çizelgesini, her öğretmenin uygun olduğu günlere ve aylık nöbet
-hedefine göre adil biçimde hazırlayan, tamamen çevrimdışı çalışan bir masaüstü
-uygulaması. Hazırlanan çizelgeyi Excel'e aktarır. Tauri, React ve SQLite ile
+Yatılı okul pansiyonlarındaki gece nöbeti çizelgesini — okul günlerinde ders
+bitiminden sonra, diğer günlerde gün boyu — her öğretmenin uygun olduğu günlere
+ve aylık nöbet hedefine göre adil biçimde hazırlayan, tamamen çevrimdışı çalışan
+bir masaüstü uygulaması. Hazırlanan çizelgeyi Excel'e aktarır. Tauri, React ve SQLite ile
 geliştirilmiştir.
 
 ## Hangi sorunu çözüyor?
@@ -23,18 +24,19 @@ günü için uygun işaretlenmiş hiç öğretmen bulunmadığını.
 ## Özellikler
 
 - **Kadro yönetimi** — öğretmen ekleyin, düzenleyin, silin; her biri için aylık
-  nöbet hedefi ve kıdem/öncelik ağırlığı belirleyin. Kadro büyüklüğünde bir
+  nöbet hedefi ve öncelik ağırlığı belirleyin. Kadro büyüklüğünde bir
   sınır yoktur.
 - **Öğretmen bazında uygunluk takvimi** — her tarihi "tercih edilen", "uygun"
-  veya "izinli" olarak işaretleyin.
+  veya "uygun değil" olarak işaretleyin.
 - **Excel/CSV ile kadro içe aktarma**, böylece kadroyu her yıl yeniden
-  yazmanız gerekmez. Ad, hedef saat ve kıdem sütunlarını içeren bir tablo
+  yazmanız gerekmez. Ad, hedef nöbet ve öncelik sütunlarını içeren bir tablo
   kullanabileceğiniz gibi, yalnızca isimlerden oluşan tek sütunlu bir liste de
-  yükleyebilirsiniz; bu durumda hedef saat ve kıdem varsayılan değerlerle
+  yükleyebilirsiniz; bu durumda hedef nöbet ve öncelik varsayılan değerlerle
   doldurulur.
-- **Dört farklı planlama yöntemi**: nöbetleri eşit dağıtma, kıdeme göre
-  ağırlıklandırma, belirli öğretmenleri belirli günlere sabitleme, kalan
-  günleri rastgele doldurma.
+- **Dört dağıtım kuralı**: nöbetleri eşit dağıtma, önceliğe göre sıralama,
+  aylık hedefe odaklanma, kalan günleri rastgele doldurma. Her kuralda önce
+  aylık hedefine ulaşmamış öğretmenler görevlendirilir; belirli öğretmenleri
+  belirli günlere sabitleme de her kuralda geçerlidir.
 - **Aylık hedeflere kesin uyum** — istediğinizde hiçbir öğretmene aylık nöbet
   hedefinden fazla görev verilmemesini sağlayabilirsiniz. Kadro yetmezse günler
   boş bırakılır; boş kalan günler hem çizelge hazırlandığında bildirilir hem de

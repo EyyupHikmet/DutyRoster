@@ -118,19 +118,19 @@ export const TeacherForm: React.FC<TeacherFormProps> = ({
 
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label id="teacher-priority-label">
-              Kıdem / Öncelik
+              Öncelik
               <span className="tooltip-container" style={{ marginLeft: "4px" }}>
                 <span className="tooltip-icon" aria-hidden="true">i</span>
                 <div className="tooltip-content">
-                  Kıdem Önceliği modunda, yüksek kıdemli öğretmenlerin gün tercihleri öncelikli olarak değerlendirilir.
+                  Öncelik Sırası kuralında, hedefine ulaşmamış öğretmenler arasından önceliği yüksek olan önce görevlendirilir.
                 </div>
               </span>
             </label>
             <CustomSelect
               options={[
                 { value: "1", label: "Standart" },
-                { value: "2", label: "Orta Kıdemli" },
-                { value: "3", label: "Yüksek Kıdemli" }
+                { value: "2", label: "Orta Öncelikli" },
+                { value: "3", label: "Yüksek Öncelikli" }
               ]}
               value={String(teacherPriority)}
               onChange={(val) => setTeacherPriority(Number(val))}

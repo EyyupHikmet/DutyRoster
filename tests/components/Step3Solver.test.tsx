@@ -47,7 +47,7 @@ describe("Step3Solver", () => {
     render(<Step3Solver {...baseProps()} />);
     expect(screen.getByText(/Adım 3: Planlama Seçenekleri/)).toBeInTheDocument();
     expect(screen.getByText("Eşit Dağıt (Adalet)")).toBeInTheDocument();
-    expect(screen.getByText("Kıdem Öncelikli")).toBeInTheDocument();
+    expect(screen.getByText("Öncelik Sırası")).toBeInTheDocument();
     expect(screen.getByText("Dengeli (Hedef Odaklı)")).toBeInTheDocument();
     expect(screen.getByText("Rastgele Doldur")).toBeInTheDocument();
     expect(screen.getByText("⚡ Programı Hazırla")).toBeInTheDocument();
@@ -67,7 +67,7 @@ describe("Step3Solver", () => {
     const user = userEvent.setup();
     const props = baseProps();
     render(<Step3Solver {...props} />);
-    await user.click(screen.getByText("Kıdem Öncelikli"));
+    await user.click(screen.getByText("Öncelik Sırası"));
     expect(props.setSolverMode).toHaveBeenCalledWith("priority");
   });
 
@@ -137,7 +137,7 @@ describe("Step3Solver", () => {
       const user = userEvent.setup();
       const props = baseProps({ respectTargets: true });
       render(<Step3Solver {...props} />);
-      await user.click(screen.getByText("Kıdem Öncelikli"));
+      await user.click(screen.getByText("Öncelik Sırası"));
       expect(props.setSolverMode).toHaveBeenCalledWith("priority");
       expect(props.setRespectTargets).not.toHaveBeenCalled();
     });
@@ -307,6 +307,34 @@ describe("Step3Solver", () => {
       expect(screen.queryByText(/nöbet grubu/i)).not.toBeInTheDocument();
     });
   });
+  describe("boş kalan nöbet yerleri", () => {
+    it("hiç atama yapılmamış günde kaç slotun boş olduğunu yazar", () => {
+      renderStep3({ teachersPerDay: 2, generatedSchedule: {} });
+
+      expect(screen.getAllByText("2 boş slot").length).toBeGreaterThan(0);
+      expect(screen.queryByText("Boş Gün")).not.toBeInTheDocument();
+    });
+
+    it("kısmen dolu günü boş gün saymaz, yalnızca kalan slotu yazar", () => {
+      renderStep3({
+        teachersPerDay: 2,
+        daySpecificTeachers: { "2026-10-01": 2 },
+        generatedSchedule: { "2026-10-01": ["T1"] },
+      });
+
+      // 1 Ekim'de bir nöbetçi var, bir slot boş.
+      expect(screen.getAllByText("Ahmet Yılmaz").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("1 boş slot").length).toBeGreaterThan(0);
+    });
+
+    it("günün tamamı doluysa hiçbir şey yazmaz", () => {
+      renderStep3({ teachersPerDay: 1, generatedSchedule: { "2026-10-01": ["T1"] } });
+
+      const cell = screen.getAllByText("Ahmet Yılmaz")[0].closest(".calendar-cell") as HTMLElement;
+      expect(cell.textContent).not.toMatch(/boş slot/);
+    });
+  });
+
   describe("sabitleme uyarıları", () => {
     // A pin always wins; these warnings only make sure the principal knows.
     const elifPinnedThrice = {

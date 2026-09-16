@@ -39,7 +39,7 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({ onFileImport }) => {
         Excel / CSV Dosyası Yükle
       </div>
       <p style={{ margin: "4px 0 0 0", fontSize: "0.75rem", color: "var(--slate-600)", lineHeight: "1.1rem" }}>
-        Sürükleyin veya tıklayın. Kolonlar: <strong>Ad, Hedef Saat, Kıdem</strong>
+        Sürükleyin veya tıklayın. Kolonlar: <strong>Ad, Hedef Nöbet, Öncelik</strong>
         <br />Yalnızca isimlerden oluşan tek sütunlu bir liste de yükleyebilirsiniz.
       </p>
 

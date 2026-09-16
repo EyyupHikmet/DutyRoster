@@ -48,6 +48,27 @@ describe("Excel Yardımcı Programı Testleri (excelUtils)", () => {
     expect(result[2].priority, "Standart kıdem priority 1 olarak eşleşmeli").toBe(1);
   });
 
+  it("reads the target from a \"Hedef Nöbet\" column, and still from the older \"Hedef Saat\"", () => {
+    const mockXlsxReader = {
+      read: () => ({ SheetNames: ["Sheet1"], Sheets: { Sheet1: {} } }) as any,
+      utils: {
+        sheet_to_json: () =>
+          [
+            { "Ad": "Cahit Arf", "Hedef Nöbet": 4, "Öncelik": "Yüksek" },
+            // Written for an older version of the app, and still importable.
+            { "Ad": "Ali Kuşçu", "Hedef Saat": 2, "Kıdem": "Orta" },
+          ] as any,
+      },
+    };
+
+    const result = parseExcelRoster("dummy_binary_string", mockXlsxReader);
+
+    expect(result.map((t) => [t.name, t.target_hours, t.priority])).toEqual([
+      ["Cahit Arf", 4, 3],
+      ["Ali Kuşçu", 2, 2],
+    ]);
+  });
+
   it("parseExcelRoster recognises Turkish headers written in capitals or with stray spaces", () => {
     const mockXlsxReader = {
       read: () => ({ SheetNames: ["Sheet1"], Sheets: { Sheet1: {} } }) as any,

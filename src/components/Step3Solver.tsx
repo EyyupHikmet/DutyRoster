@@ -247,7 +247,7 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
             <div role="radiogroup" aria-label="Dağıtım Kuralı">
               {([
                 { mode: "fairness" as const, title: "Eşit Dağıt (Adalet)", desc: "Hedefine ulaşmamış öğretmenler arasından en az nöbet tutanı seçer. Hedefini dolduran bir öğretmene, o günü alabilecek başka kimse kalmadıysa görev verilir." },
-                { mode: "priority" as const, title: "Kıdem Öncelikli", desc: "Hedefine ulaşmamış öğretmenler arasından önceliği yüksek olanı seçer." },
+                { mode: "priority" as const, title: "Öncelik Sırası", desc: "Hedefine ulaşmamış öğretmenler arasından önceliği yüksek olanı seçer." },
                 { mode: "strict" as const, title: "Dengeli (Hedef Odaklı)", desc: "Hedefine ulaşmamış öğretmenler arasından hedefinden en çok nöbeti kalanı seçer." },
                 { mode: "random" as const, title: "Rastgele Doldur", desc: "Hedefine ulaşmamış öğretmenler arasından rastgele seçer." }
               ]).map((opt, idx) => {
@@ -523,11 +523,14 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
                 const customCount = daySpecificTeachers[dateStr];
                 const finalCount = customCount ?? teachersPerDay;
                 const isSelected = selectedDateStr === dateStr;
+                // A day short of teachers is not an empty day: one of two
+                // slots filled still has somebody on duty.
+                const openSlots = Math.max(finalCount - assignedIds.length, 0);
                 const assignedNames = assignedIds
                   .map((id) => teachers.find((t) => t.id === id)?.name)
                   .filter(Boolean);
                 const cellAriaLabel = isIncluded
-                  ? `${date.getDate()}: ${assignedNames.length > 0 ? assignedNames.join(", ") : "Boş Gün"}. Nöbet günü ayarlarını açmak için etkinleştirin.`
+                  ? `${date.getDate()}: ${[assignedNames.join(", "), openSlots > 0 ? `${openSlots} boş slot` : ""].filter(Boolean).join(", ")}. Nöbet günü ayarlarını açmak için etkinleştirin.`
                   : undefined;
 
                 return (
@@ -617,11 +620,11 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
                             </div>
                           );
                         })}
-                        {assignedIds.length === 0 && (
+                        {openSlots > 0 && (
                           // --text-muted measured (axe-core) at 3.62:1 against this
                           // cell's background in dark theme — --text-secondary passes.
-                          <span style={{ fontSize: "0.65rem", color: "var(--text-secondary)", fontStyle: "italic", textAlign: "center", display: "block", marginTop: "8px" }}>
-                            Boş Gün
+                          <span style={{ fontSize: "0.65rem", color: "var(--text-secondary)", fontStyle: "italic", textAlign: "center", display: "block", marginTop: assignedIds.length === 0 ? "8px" : "2px" }}>
+                            {openSlots} boş slot
                           </span>
                         )}
                       </div>

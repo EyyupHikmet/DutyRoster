@@ -38,7 +38,7 @@ describe("AvailabilityCalendar", () => {
       />
     );
     expect(screen.getAllByText("Tercih").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("İzinli").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Uygun Değil").length).toBeGreaterThan(0);
   });
 
   it("clicking a day cell calls onCycleAvailability with that date's YYYY-MM-DD string", async () => {

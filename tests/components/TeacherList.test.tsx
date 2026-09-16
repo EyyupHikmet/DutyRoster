@@ -55,8 +55,8 @@ describe("TeacherList", () => {
     );
     expect(screen.getByText("Ahmet Yılmaz")).toBeInTheDocument();
     expect(screen.getByText("Zeynep Çelik")).toBeInTheDocument();
-    expect(screen.getByText(/Hedef: 4 Nöbet \| Kıdem: Standart/)).toBeInTheDocument();
-    expect(screen.getByText(/Hedef: 6 Nöbet \| Kıdem: Yüksek/)).toBeInTheDocument();
+    expect(screen.getByText(/Hedef: 4 Nöbet \| Öncelik: Standart/)).toBeInTheDocument();
+    expect(screen.getByText(/Hedef: 6 Nöbet \| Öncelik: Yüksek/)).toBeInTheDocument();
     expect(screen.getByText("Öğretmen Kadrosu (2)")).toBeInTheDocument();
   });
 

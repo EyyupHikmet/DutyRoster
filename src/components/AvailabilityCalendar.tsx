@@ -73,7 +73,7 @@ export const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
             <span style={{ fontSize: "0.78rem", fontWeight: "bold", color: "var(--success-text)" }}>🟢 Tercih</span>
           </div>
           <div className="color-guide-item">
-            <span style={{ fontSize: "0.78rem", fontWeight: "bold", color: "var(--danger-text)" }}>🔴 İzinli</span>
+            <span style={{ fontSize: "0.78rem", fontWeight: "bold", color: "var(--danger-text)" }}>🔴 Uygun Değil</span>
           </div>
         </div>
       </div>
@@ -134,7 +134,7 @@ export const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
               statusText = "Tercih";
             } else if (status === "unavailable") {
               cellClass = "avail-unavailable";
-              statusText = "İzinli";
+              statusText = "Uygun Değil";
             }
 
             return (

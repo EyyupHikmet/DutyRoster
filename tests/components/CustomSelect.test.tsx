@@ -5,13 +5,13 @@ import { CustomSelect } from "../../src/components/CustomSelect";
 
 const options = [
   { value: "1", label: "Standart" },
-  { value: "2", label: "Orta Kıdemli" },
-  { value: "3", label: "Yüksek Kıdemli" },
+  { value: "2", label: "Orta Öncelikli" },
+  { value: "3", label: "Yüksek Öncelikli" },
 ];
 
 // This is exactly the regression this suite exists to guard against:
 // CustomSelect used to hardcode orange/warning "pinned" styling whenever `value`
-// was truthy, regardless of which picker it was used for (Kıdem/Öncelik, Year/Month
+// was truthy, regardless of which picker it was used for (Öncelik, Year/Month
 // all rendered permanently orange). The fix added `variant?: "default" | "pinned"`,
 // default "default", and gates the warning styling on `variant === "pinned"`.
 describe("CustomSelect — variant styling (regression)", () => {
@@ -19,7 +19,7 @@ describe("CustomSelect — variant styling (regression)", () => {
     render(
       <CustomSelect options={options} value="2" onChange={() => {}} />
     );
-    const header = screen.getByText("Orta Kıdemli").closest(".form-control") as HTMLElement;
+    const header = screen.getByText("Orta Öncelikli").closest(".form-control") as HTMLElement;
     expect(header).toBeTruthy();
     expect(header.style.backgroundColor).toBe("var(--bg-card)");
     expect(header.style.borderColor).toBe("var(--border)");
@@ -30,7 +30,7 @@ describe("CustomSelect — variant styling (regression)", () => {
     render(
       <CustomSelect options={options} value="3" onChange={() => {}} variant="default" />
     );
-    const header = screen.getByText("Yüksek Kıdemli").closest(".form-control") as HTMLElement;
+    const header = screen.getByText("Yüksek Öncelikli").closest(".form-control") as HTMLElement;
     expect(header.style.backgroundColor).toBe("var(--bg-card)");
     expect(header.style.fontWeight).toBe("500");
   });
@@ -78,7 +78,7 @@ describe("CustomSelect — rendering and interaction", () => {
     render(<CustomSelect options={options} value="" onChange={onChange} />);
 
     await user.click(screen.getByText("Seçiniz..."));
-    await user.click(screen.getByText("Yüksek Kıdemli"));
+    await user.click(screen.getByText("Yüksek Öncelikli"));
 
     expect(onChange).toHaveBeenCalledWith("3");
   });
@@ -88,7 +88,7 @@ describe("CustomSelect — rendering and interaction", () => {
     const onChange = vi.fn();
     render(<CustomSelect options={options} value="2" onChange={onChange} placeholder="Seçiniz..." />);
 
-    await user.click(screen.getByText("Orta Kıdemli"));
+    await user.click(screen.getByText("Orta Öncelikli"));
     // Two "Seçiniz..." nodes might exist once open (header shows selected label, not
     // placeholder, so only the dropdown's clear row shows "Seçiniz...").
     await user.click(screen.getByText("Seçiniz..."));

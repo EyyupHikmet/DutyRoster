@@ -300,7 +300,7 @@ export function solve(
       }
 
       if (mode === "priority") {
-        // "Kıdem Önceliği Kullan": higher priority weight.
+        // "Öncelik Sırası": higher priority weight.
         const priorityDiff = b.priority - a.priority;
         if (priorityDiff !== 0) return priorityDiff;
         const targetDiff = remainingTarget(b) - remainingTarget(a);
@@ -385,7 +385,7 @@ export function solve(
     return {
       success: false,
       error_date: deepestFailureDate || undefined,
-      error_message: `${friendlyDateStr} günü için görevlendirilecek uygun öğretmen bulunamadı. \n\nOlası nedenler:\n1. O gün için tüm öğretmenler "Uygun Değil" (Kırmızı) olarak işaretlenmiş olabilir.\n2. Öğretmenlerin aylık hedef saatleri dolmuş ve sistem diğer günleri planlarken sıkışmış olabilir.\n\nÖneri: Lütfen o gün için en az birkaç öğretmeni "Uygun" (Sarı) veya "Tercih Edilen" (Yeşil) olarak işaretleyip tekrar deneyin!`,
+      error_message: `${friendlyDateStr} günü için görevlendirilecek uygun öğretmen bulunamadı. \n\nOlası nedenler:\n1. O gün için tüm öğretmenler "Uygun Değil" (Kırmızı) olarak işaretlenmiş olabilir.\n2. Öğretmenlerin aylık nöbet hedefleri dolmuş ve sistem diğer günleri planlarken sıkışmış olabilir.\n\nÖneri: Lütfen o gün için en az birkaç öğretmeni "Uygun" (Sarı) veya "Tercih Edilen" (Yeşil) olarak işaretleyip tekrar deneyin!`,
     };
   }
 }
