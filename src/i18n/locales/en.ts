@@ -272,6 +272,7 @@ export const en: Locale = {
     textScale: "♿ Accessibility (Text Scale)",
     scale: "Scale:",
     scaleValue: "{{percent}} percent",
+    percent: "{{percent}}%",
     resetTextSize: "Reset Text Size",
     theme: "Theme:",
     toDark: "Click to switch to the dark theme",

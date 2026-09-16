@@ -240,6 +240,7 @@ export const tr = {
     textScale: "♿ Erişilebilirlik (Yazı Ölçeği)",
     scale: "Ölçek:",
     scaleValue: "Yüzde {{percent}}",
+    percent: "%{{percent}}",
     resetTextSize: "Yazı Boyutunu Sıfırla",
     theme: "Tema Görünümü:",
     toDark: "Karanlık temaya geçmek için tıklayın",

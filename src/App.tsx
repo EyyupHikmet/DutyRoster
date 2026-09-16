@@ -1111,7 +1111,7 @@ export default function App() {
                 <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.75rem", color: "var(--text-secondary)", fontWeight: "600" }}>
                     <label htmlFor="font-scale-slider">{t("app.scale")}</label>
-                    <span aria-hidden="true">%{Math.round(fontSizeFactor * 100)}</span>
+                    <span aria-hidden="true">{t("app.percent", { percent: Math.round(fontSizeFactor * 100) })}</span>
                   </div>
                   <input
                     type="range"
