@@ -72,6 +72,17 @@ describe("the English locale", () => {
     expect(copied).toEqual([]);
   });
 
+  // The incomplete-schedule warning is built from five fragments joined with a
+  // space each, so a fragment that starts with punctuation reads as "3 days .".
+  it("joins the incomplete-schedule warning without stranding punctuation", () => {
+    const joined = ["app.monthMissingDays", "app.missingDays", "app.missingEnd", "app.missingSlots", "app.missingTail", "app.shortGroups", "app.shortGroupsTail"];
+
+    for (const locale of [tr, en]) {
+      const stranded = joined.filter((key) => /^[.,;:!?]/.test(valueAt(locale, key)));
+      expect(stranded).toEqual([]);
+    }
+  });
+
   it("keeps each message's placeholders, so nothing interpolates into a gap", () => {
     const mismatched = turkishKeys
       .map((key) => ({ key, tr: placeholdersOf(valueAt(tr, key)), en: placeholdersOf(valueAt(en, key)) }))
