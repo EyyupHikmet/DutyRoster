@@ -12,7 +12,7 @@ import { creditPartnerGroups } from "./solver/partners";
 import { splitImportByName } from "./utils/teacherNames";
 import { useApprovedSchedules, ApprovedSchedule } from "./hooks/useApprovedSchedules";
 import { useDutyPosts } from "./hooks/useDutyPosts";
-import { getDutyDates, findUnfilledDays, monthName } from "./utils/dateUtils";
+import { getDutyDates, findUnfilledDays, monthName, formatDateLong } from "./utils/dateUtils";
 import { effectiveTarget } from "./utils/targets";
 import { solve, Teacher, SolverConfig, SolverResult } from "./solver";
 import { saveTeacher, resetDb, getLastPostId, setLastPostId, getAllSchedules, getLanguage, setLanguage } from "./db";
@@ -1568,7 +1568,7 @@ export default function App() {
                 <ul style={{ margin: 0, paddingLeft: "20px", fontSize: "0.85rem", color: "var(--text-secondary)", lineHeight: "1.4rem", maxHeight: "160px", overflowY: "auto" }}>
                   {unfilledDays.slice(0, 8).map((gap) => (
                     <li key={gap.date}>
-                      {new Date(gap.date).toLocaleDateString("tr-TR", { day: "numeric", month: "long", weekday: "long" })}
+                      {formatDateLong(gap.date, { day: "numeric", month: "long", weekday: "long" })}
                       {" — "}
                       {t("app.gapLine", { filled: `${gap.assigned}/${gap.required}` })}
                     </li>

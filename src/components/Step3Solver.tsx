@@ -1,7 +1,7 @@
 import React, { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { DbTeacher } from "../db";
-import { shortDayNames, getMonthDatesWithPadding, formatDateYYYYMMDD } from "../utils/dateUtils";
+import { shortDayNames, getMonthDatesWithPadding, formatDateYYYYMMDD, formatDateLong } from "../utils/dateUtils";
 import { CustomSelect } from "./CustomSelect";
 import { PartnerGroup, creditPartnerGroups } from "../solver/partners";
 import { AvailabilityStatus } from "../solver";
@@ -178,7 +178,7 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
   const getSelectedDateDetails = () => {
     if (!selectedDateStr) return null;
     const dateObj = new Date(selectedDateStr);
-    const dateFriendly = dateObj.toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric", weekday: "long" });
+    const dateFriendly = formatDateLong(dateObj, { day: "numeric", month: "long", year: "numeric", weekday: "long" });
     const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
     return { dateFriendly, isWeekend };
   };
@@ -215,7 +215,7 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
   // asked for (#18).
   const pins = pinWarnings({ teachers, pinnedAssignments, monthlyTargets, availabilities });
   const dayOfMonth = (dateStr: string) =>
-    new Date(dateStr).toLocaleDateString("tr-TR", { day: "numeric", month: "long" });
+    formatDateLong(dateStr, { day: "numeric", month: "long" });
 
   const isGroupDay = (dateStr: string): boolean => {
     const present = new Set(generatedSchedule[dateStr] ?? []);
