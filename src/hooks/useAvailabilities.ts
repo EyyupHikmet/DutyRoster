@@ -18,7 +18,7 @@ export function useAvailabilities() {
       setAvailabilities(availsMap);
       return availsMap;
     } catch (err) {
-      console.error("Uygunluklar yüklenemedi:", err);
+      console.error("Could not load the availabilities:", err);
       return {};
     }
   };

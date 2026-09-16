@@ -23,13 +23,13 @@ export function useApprovedSchedules() {
             return [{ ...row, report, postName: report.postName ?? "" }];
           } catch {
             // One unreadable copy must not hide the others.
-            console.error("Onaylı çizelge okunamadı:", row.id);
+            console.error("Could not read an approved schedule:", row.id);
             return [];
           }
         })
       );
     } catch (err) {
-      console.error("Onaylı çizelgeler yüklenemedi:", err);
+      console.error("Could not load the approved schedules:", err);
     }
   };
 
@@ -48,7 +48,7 @@ export function useApprovedSchedules() {
       await loadApprovedSchedules();
       return true;
     } catch (err) {
-      console.error("Çizelge onaylanamadı:", err);
+      console.error("Could not approve the schedule:", err);
       return false;
     }
   };
@@ -59,7 +59,7 @@ export function useApprovedSchedules() {
       await loadApprovedSchedules();
       return true;
     } catch (err) {
-      console.error("Onaylı çizelge silinemedi:", err);
+      console.error("Could not delete the approved schedule:", err);
       return false;
     }
   };

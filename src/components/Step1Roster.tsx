@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import React from "react";
 import { DbDutyPost, DbTeacher } from "../db";
 import { AvailabilityStatus } from "../solver";
@@ -91,14 +92,15 @@ export const Step1Roster: React.FC<Step1RosterProps> = ({
   teacherPostId = null,
   setTeacherPostId
 }) => {
+  const { t } = useTranslation();
   return (
     <div className="fill-column">
       <h2 className="step-title" style={{ margin: "0 0 12px 0", flexShrink: 0 }}>
-        <span>Adım 1: Öğretmen Kadrosu & Uygunluk Takvimi</span>
+        <span>{t("step1.title")}</span>
         <div className="tooltip-container tooltip-container--title">
           <span className="tooltip-icon">?</span>
           <div className="tooltip-content">
-            Soldan öğretmen seçin. Ortadaki takvimden uygunluk durumunu belirleyin. Sağdan yeni öğretmen ekleyin veya düzenleyin.
+            {t("step1.help")}
           </div>
         </div>
       </h2>
@@ -135,8 +137,8 @@ export const Step1Roster: React.FC<Step1RosterProps> = ({
           ) : (
             <div className="card" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", border: "2px dashed var(--slate-300)", color: "var(--slate-500)" }}>
               <div style={{ fontSize: "3rem", marginBottom: "16px" }}>👈 👥</div>
-              <h3>Öğretmen Seçilmedi</h3>
-              <p>Nöbet tercihlerini düzenlemek için lütfen soldaki listeden bir öğretmen seçin.</p>
+              <h3>{t("step1.noTeacherSelected")}</h3>
+              <p>{t("step1.noTeacherSelectedHelp")}</p>
             </div>
           )}
         </div>

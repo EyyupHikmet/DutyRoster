@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import React from "react";
 import { DbTeacher } from "../db";
 import { PartnerGroup, committedGroupDays } from "../solver/partners";
@@ -30,6 +31,7 @@ export const TeacherList: React.FC<TeacherListProps> = ({
   monthlyTargets,
   partnerGroups
 }) => {
+  const { t: text } = useTranslation();
   // Older data may hold two teachers with the same name. They are not merged
   // automatically; the principal is shown which ones to rename.
   const sharedNames = duplicateNameIds(teachers);
@@ -37,11 +39,11 @@ export const TeacherList: React.FC<TeacherListProps> = ({
   return (
     <div className="fill-column">
       <h3 style={{ margin: "0 0 12px 0", color: "var(--slate-900)", fontWeight: "800", fontSize: "1.1rem", flexShrink: 0 }}>
-        Öğretmen Kadrosu ({teachers.length})
+        {text("roster.heading", { count: teachers.length })}
       </h3>
       {teachers.length === 0 ? (
         <div className="alert alert-info" style={{ margin: 0 }}>
-          Sistemde henüz öğretmen kayıtlı değil. Lütfen öğretmen ekleyin veya Excel listesi yükleyin.
+          {text("roster.empty")}
         </div>
       ) : (
         <div 
@@ -92,14 +94,18 @@ export const TeacherList: React.FC<TeacherListProps> = ({
                   minWidth: 0
                 }}
                 aria-pressed={selectedTeacherId === t.id}
-                aria-label={`${t.name} öğretmenini seç`}
+                aria-label={text("roster.selectTeacher", { name: t.name })}
                 onClick={() => onSelectTeacher(t.id)}
               >
                 <div className="teacher-info">
                   <h4>{t.name}</h4>
                   <p>
-                    Hedef: {target} Nöbet | Öncelik:{" "}
-                    {t.priority === 3 ? "Yüksek" : t.priority === 2 ? "Orta" : "Standart"}
+                    {text("roster.line", {
+                      target,
+                      priority: text(
+                        t.priority === 3 ? "roster.priorityHigh" : t.priority === 2 ? "roster.priorityMedium" : "roster.priorityStandard"
+                      ),
+                    })}
                     {fullyCommittedToGroups && (
                       // A plain, non-interactive <span>: it must not become
                       // another focusable/clickable control nested inside the
@@ -107,16 +113,16 @@ export const TeacherList: React.FC<TeacherListProps> = ({
                       // 4.1.2), and it carries its own visible text rather
                       // than relying on the title tooltip alone.
                       <span
-                        title="Bu ayki nöbetlerinin tamamı gruplara ayrılmış"
+                        title={text("roster.allInGroupsTitle")}
                         style={{ marginLeft: "6px", fontSize: "0.8rem", color: "var(--primary)" }}
                       >
-                        {" "}| Tümü gruplara ayrılmış
+                        {" "}| {text("roster.allInGroups")}
                       </span>
                     )}
                   </p>
                   {sharedNames.has(t.id) && (
                     <p style={{ margin: "2px 0 0 0", fontSize: "0.78rem", fontWeight: 600, color: "var(--danger)" }}>
-                      Aynı isimde başka öğretmen var
+                      {text("roster.duplicateName")}
                     </p>
                   )}
                 </div>
@@ -126,16 +132,16 @@ export const TeacherList: React.FC<TeacherListProps> = ({
                   className="delete-btn"
                   style={{ color: "#3182ce" }}
                   onClick={() => onEditTeacher(t)}
-                  title="Düzenle"
-                  aria-label={`${t.name} bilgilerini düzenle`}
+                  title={text("common.edit")}
+                  aria-label={text("roster.editTeacher", { name: t.name })}
                 >
                   <span aria-hidden="true">✏️</span>
                 </button>
                 <button
                   className="delete-btn"
                   onClick={() => onDeleteTeacher(t.id)}
-                  title="Sil"
-                  aria-label={`${t.name} öğretmenini sil`}
+                  title={text("common.delete")}
+                  aria-label={text("roster.deleteTeacher", { name: t.name })}
                 >
                   <span aria-hidden="true">❌</span>
                 </button>

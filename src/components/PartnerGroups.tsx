@@ -1,9 +1,10 @@
+import { useTranslation } from "react-i18next";
 import React, { useState, useEffect } from "react";
 import { DbTeacher } from "../db";
 import { PartnerGroup, committedGroupDays } from "../solver/partners";
 import { validatePartnerGroups } from "../solver/validation";
 import { effectiveTarget } from "../utils/targets";
-import { MONTHS_TR } from "../utils/dateUtils";
+import { monthName } from "../utils/dateUtils";
 
 interface PartnerGroupsProps {
   teachers: DbTeacher[];
@@ -27,6 +28,7 @@ export const PartnerGroups: React.FC<PartnerGroupsProps> = ({
 }) => {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [goalDays, setGoalDays] = useState<number>(1);
+  const { t } = useTranslation();
   const [error, setError] = useState<string | null>(null);
   // Non-null while the form below is editing an EXISTING group in place
   // (rather than building a new one) — the id that will be kept on save.
@@ -106,7 +108,20 @@ export const PartnerGroups: React.FC<PartnerGroupsProps> = ({
     );
 
     if (blocking) {
-      setError(blocking.message);
+      // Each code carries its own placeholders, so each is worded on its own
+      // rather than through one key whose values could not be checked.
+      const values = blocking.values ?? {};
+      setError(
+        blocking.code === "duplicate_group"
+          ? t("validation.duplicate_group", { names: String(values.names ?? "") })
+          : blocking.code === "over_committed"
+            ? t("validation.over_committed", {
+                name: String(values.name ?? ""),
+                total: Number(values.total ?? 0),
+                target: Number(values.target ?? 0),
+              })
+            : t(`validation.${blocking.code}`)
+      );
       return;
     }
 
@@ -156,15 +171,15 @@ export const PartnerGroups: React.FC<PartnerGroupsProps> = ({
           fontSize: "1.1rem",
         }}
       >
-        Nöbet Grupları
+        {t("groups.heading")}
       </h3>
       <p style={{ margin: "0 0 14px 0", fontSize: "0.78rem", color: "var(--slate-500)" }}>
-        {monthLabel} için birlikte nöbet tutacak öğretmenler.
+        {t("groups.subtitle", { month: monthLabel })}
       </p>
 
       {partnerGroups.length === 0 ? (
         <div className="alert alert-info" style={{ margin: "0 0 14px 0", fontSize: "0.8rem" }}>
-          Henüz nöbet grubu tanımlanmadı.
+          {t("groups.empty")}
         </div>
       ) : (
         <ul style={{ listStyle: "none", margin: "0 0 14px 0", padding: 0 }}>
@@ -187,7 +202,7 @@ export const PartnerGroups: React.FC<PartnerGroupsProps> = ({
                 {group.memberIds.map(nameOf).join(" + ")}
               </span>
               <span style={{ fontSize: "0.78rem", color: "var(--slate-500)" }}>
-                {group.goalDays} gün
+                {t("groups.days", { count: group.goalDays })}
               </span>
               <div style={{ display: "flex", gap: "6px" }}>
                 <button
@@ -196,7 +211,7 @@ export const PartnerGroups: React.FC<PartnerGroupsProps> = ({
                   style={{ padding: "4px 10px", fontSize: "0.75rem" }}
                   onClick={() => handleEditClick(group)}
                 >
-                  Grubu Düzenle
+                  {t("groups.edit")}
                 </button>
                 <button
                   type="button"
@@ -204,7 +219,7 @@ export const PartnerGroups: React.FC<PartnerGroupsProps> = ({
                   style={{ padding: "4px 10px", fontSize: "0.75rem" }}
                   onClick={() => handleDelete(group.id)}
                 >
-                  Grubu Sil
+                  {t("groups.remove")}
                 </button>
               </div>
             </li>
@@ -222,12 +237,12 @@ export const PartnerGroups: React.FC<PartnerGroupsProps> = ({
               color: "var(--primary)",
             }}
           >
-            Grup düzenleniyor
+            {t("groups.editing")}
           </p>
         )}
         <fieldset style={{ border: "none", padding: 0, margin: "0 0 12px 0" }}>
           <legend style={{ fontSize: "0.82rem", fontWeight: 700, padding: 0 }}>
-            Gruba girecek öğretmenler
+            {t("groups.members")}
           </legend>
           <div style={{ maxHeight: "160px", overflowY: "auto", marginTop: "6px" }}>
             {teachers.map((teacher) => {
@@ -260,7 +275,7 @@ export const PartnerGroups: React.FC<PartnerGroupsProps> = ({
         </fieldset>
 
         <div className="form-group">
-          <label htmlFor="partner-goal-days-input">Ortak nöbet günü sayısı</label>
+          <label htmlFor="partner-goal-days-input">{t("groups.goalDays")}</label>
           <input
             type="number"
             id="partner-goal-days-input"
@@ -285,11 +300,11 @@ export const PartnerGroups: React.FC<PartnerGroupsProps> = ({
 
         <div style={{ display: "flex", gap: "8px" }}>
           <button type="submit" className="btn btn-primary" style={{ flexGrow: 1 }}>
-            {editingGroupId ? "Grubu Güncelle" : "Grubu Kaydet"}
+            {editingGroupId ? t("groups.update") : t("groups.save")}
           </button>
           {editingGroupId && (
             <button type="button" className="btn btn-secondary" onClick={handleCancelEdit}>
-              İptal
+              {t("common.cancel")}
             </button>
           )}
         </div>
@@ -298,7 +313,7 @@ export const PartnerGroups: React.FC<PartnerGroupsProps> = ({
       {copyMonths.length > 0 && (
         <div style={{ marginTop: "14px", paddingTop: "12px", borderTop: "1px solid var(--slate-200)" }}>
           <div className="form-group" style={{ marginBottom: "8px" }}>
-            <label htmlFor="partner-copy-month-select">Başka aydan kopyala</label>
+            <label htmlFor="partner-copy-month-select">{t("groups.copyFrom")}</label>
             <select
               id="partner-copy-month-select"
               className="form-control"
@@ -307,7 +322,7 @@ export const PartnerGroups: React.FC<PartnerGroupsProps> = ({
             >
               {copyMonths.map(({ year, month }) => (
                 <option key={`${year}-${month}`} value={`${year}-${month}`}>
-                  {MONTHS_TR[month - 1]} {year}
+                  {monthName(month)} {year}
                 </option>
               ))}
             </select>
@@ -318,7 +333,7 @@ export const PartnerGroups: React.FC<PartnerGroupsProps> = ({
             style={{ width: "100%" }}
             onClick={handleCopy}
           >
-            Seçilen aydan kopyala
+            {t("groups.copyAction")}
           </button>
         </div>
       )}

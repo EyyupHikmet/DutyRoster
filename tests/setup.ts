@@ -1,6 +1,9 @@
 import "@testing-library/jest-dom/vitest";
 import { afterEach } from "vitest";
 import { cleanup } from "@testing-library/react";
+// The interface language is registered once at boot, as main.tsx does it, so
+// every rendered component finds the same instance it will find in the app.
+import "../src/i18n";
 
 // @testing-library/react's automatic per-test cleanup only self-registers when it
 // detects Jest-style globals; this project's vitest config does not set
