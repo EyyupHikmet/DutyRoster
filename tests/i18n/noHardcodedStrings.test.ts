@@ -14,6 +14,7 @@ import { join, resolve } from "node:path";
 const EXEMPT = new Set([
   // The locales themselves.
   "src/i18n/locales/tr.ts",
+  "src/i18n/locales/en.ts",
   // Folding and suffix tables: Turkish letters as data, never shown as text.
   "src/utils/turkishText.ts",
   "src/utils/turkishNumberSuffix.ts",

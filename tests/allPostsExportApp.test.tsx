@@ -32,6 +32,8 @@ vi.mock("../src/db", () => ({
   getLastPostId: vi.fn(),
   setLastPostId: vi.fn(),
   moveTeacherToPost: vi.fn(),
+  getLanguage: vi.fn(),
+  setLanguage: vi.fn(),
 }));
 
 vi.mock("../src/utils/excelUtils", async () => {
@@ -118,6 +120,8 @@ beforeEach(() => {
   vi.setSystemTime(new Date(2026, 11, 8));
 
   mockedDb.getLastPostId.mockResolvedValue("kiz");
+  mockedDb.getLanguage.mockResolvedValue(null);
+  mockedDb.setLanguage.mockResolvedValue(undefined);
   mockedDb.setLastPostId.mockResolvedValue(undefined);
   mockedDb.getTeachers.mockImplementation(async (postId) => teachers.filter((t) => !postId || t.post_id === postId));
   mockedDb.getAvailabilities.mockResolvedValue([]);

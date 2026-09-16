@@ -31,6 +31,8 @@ vi.mock("../src/db", () => ({
   renameDutyPost: vi.fn(),
   deleteDutyPost: vi.fn(),
   moveTeacherToPost: vi.fn().mockResolvedValue(undefined),
+  getLanguage: vi.fn().mockResolvedValue(null),
+  setLanguage: vi.fn().mockResolvedValue(undefined),
 }));
 
 // App.tsx calls exportScheduleToExcel directly (not through a hook),

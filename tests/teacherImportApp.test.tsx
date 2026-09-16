@@ -28,6 +28,8 @@ vi.mock("../src/db", () => ({
   getLastPostId: vi.fn(),
   setLastPostId: vi.fn(),
   moveTeacherToPost: vi.fn(),
+  getLanguage: vi.fn(),
+  setLanguage: vi.fn(),
 }));
 
 vi.mock("@tauri-apps/plugin-opener", () => ({
@@ -53,6 +55,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockedDb.getDutyPosts.mockResolvedValue([{ id: "yurt", name: "Yurt" }]);
   mockedDb.getLastPostId.mockResolvedValue("yurt");
+  mockedDb.getLanguage.mockResolvedValue(null);
+  mockedDb.setLanguage.mockResolvedValue(undefined);
   mockedDb.setLastPostId.mockResolvedValue(undefined);
   mockedDb.getTeachers.mockResolvedValue([ayse]);
   mockedDb.saveTeacher.mockResolvedValue(undefined);

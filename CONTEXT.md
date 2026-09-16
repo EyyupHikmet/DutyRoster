@@ -1,6 +1,6 @@
 # DutyRoster
 
-A school principal's tool for planning a month of teachers' overnight dormitory supervision duty: who stays with the boarding students on each day, fairly and within each teacher's limits. The interface speaks Turkish; each term lists the Turkish word the interface uses for it.
+A school principal's tool for planning a month of teachers' overnight dormitory supervision duty: who stays with the boarding students on each day, fairly and within each teacher's limits. The interface speaks Turkish by default and English on request (ADR-0008); each term lists the Turkish word the interface uses for it.
 
 ## Language
 
@@ -182,6 +182,11 @@ Everything the principal has configured for one duty post in one month. A teache
 **Draft**:
 A month setup for which no schedule has been generated yet.
 _Avoid_: Unsaved changes (a separate thing: edits not yet written)
+
+**Interface language**:
+The language the app speaks: Turkish by default, English on request, chosen in the settings menu and remembered. It changes interface text and month names only — teacher and duty post names are data, and stay Turkish (ADR-0008).
+_Turkish_: Arayüz dili
+_Avoid_: Locale (that is the file the strings live in)
 
 **School year**:
 The twelve months from Eylül to the following Ağustos.

@@ -7,11 +7,12 @@ duty in a school's boarding house — after school on a school day, the whole da
 otherwise — from each teacher's availability and monthly target, then exports
 them to Excel. Built with Tauri, React and SQLite.
 
-> **The user interface is currently Turkish only.** The app was built for
-> Turkish school principals, who assign teachers to *nöbet* (supervision duty)
-> days each month. Adding an i18n layer and an English locale is the project's
-> top open issue — see [Contributing](#contributing). The code, the comments
-> and the technical documentation are all in English.
+> **The interface is available in Turkish and English, and opens in Turkish.**
+> The app was built for Turkish school principals, who assign teachers to
+> *nöbet* (supervision duty) days each month, so Turkish remains the default.
+> Switch language under the settings button in the header; the choice is
+> remembered. The code, the comments and the technical documentation are all in
+> English.
 
 ## What problem it solves
 
@@ -51,6 +52,10 @@ example, that a given Tuesday has nobody marked available.
   and a confirmation that offers to open the file or its folder.
 - **Actionable diagnostics** — when no roster is possible, the error names the
   specific date and constraint that made it impossible.
+- **Turkish or English interface**, switched under the settings button in the
+  header and remembered for next time. Turkish is the default. Teacher and duty
+  post names are Turkish data in either language, so they keep sorting and
+  matching by Turkish rules.
 - **Fully offline.** No account, no server, no telemetry. All data lives in a
   local SQLite file.
 

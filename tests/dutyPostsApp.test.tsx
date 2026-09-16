@@ -16,6 +16,8 @@ vi.mock("../src/db", () => ({
   saveTeacher: vi.fn(),
   deleteTeacher: vi.fn(),
   moveTeacherToPost: vi.fn(),
+  getLanguage: vi.fn(),
+  setLanguage: vi.fn(),
   getAvailabilities: vi.fn(),
   saveAvailability: vi.fn(),
   getSchedule: vi.fn(),
@@ -96,6 +98,8 @@ beforeEach(() => {
   posts = [erkek, kiz];
   mockedDb.getDutyPosts.mockImplementation(async () => [...posts]);
   mockedDb.getLastPostId.mockResolvedValue("erkek");
+  mockedDb.getLanguage.mockResolvedValue(null);
+  mockedDb.setLanguage.mockResolvedValue(undefined);
   mockedDb.setLastPostId.mockResolvedValue(undefined);
   mockedDb.addDutyPost.mockResolvedValue({ status: "empty" });
   mockedDb.renameDutyPost.mockResolvedValue({ status: "renamed" });

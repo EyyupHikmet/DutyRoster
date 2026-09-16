@@ -234,6 +234,9 @@ export const tr = {
     title: "Öğretmen Nöbet Çizelgesi Hazırlayıcı",
     approvedDrawer: "Onaylı Çizelgeler",
     settings: "Sistem ve Erişilebilirlik Ayarları",
+    language: "Arayüz Dili:",
+    languageTr: "Türkçe",
+    languageEn: "English",
     textScale: "♿ Erişilebilirlik (Yazı Ölçeği)",
     scale: "Ölçek:",
     scaleValue: "Yüzde {{percent}}",
@@ -345,3 +348,10 @@ export const tr = {
     columnPost: "Nöbet Yeri",
   },
 } as const;
+
+/**
+ * The shape of a locale: Turkish's areas and keys, with any string as the
+ * value. `typeof tr` alone would demand the Turkish text itself, since tr is
+ * declared `as const` so that t() can check keys.
+ */
+export type Locale = { [Area in keyof typeof tr]: Record<keyof (typeof tr)[Area], string> };

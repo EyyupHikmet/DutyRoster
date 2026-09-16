@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { i18n } from "./i18n";
+import { i18n, LANGUAGES, Language } from "./i18n";
 import { useTeachers } from "./hooks/useTeachers";
 import { useAvailabilities } from "./hooks/useAvailabilities";
 import { useScheduleState } from "./hooks/useScheduleState";
@@ -15,7 +15,7 @@ import { useDutyPosts } from "./hooks/useDutyPosts";
 import { getDutyDates, findUnfilledDays, monthName } from "./utils/dateUtils";
 import { effectiveTarget } from "./utils/targets";
 import { solve, Teacher, SolverConfig, SolverResult } from "./solver";
-import { saveTeacher, resetDb, getLastPostId, setLastPostId, getAllSchedules } from "./db";
+import { saveTeacher, resetDb, getLastPostId, setLastPostId, getAllSchedules, getLanguage, setLanguage } from "./db";
 import { openPath, revealItemInDir, openUrl } from "@tauri-apps/plugin-opener";
 import "./App.css";
 
@@ -531,6 +531,20 @@ export default function App() {
   };
 
   // Open on the duty post the principal last worked on (ADR-0007).
+  // The language the principal chose last time. main.tsx applies it before the
+  // first paint; this covers a render that did not go through main.tsx.
+  useEffect(() => {
+    async function applySavedLanguage() {
+      try {
+        const saved = await getLanguage();
+        if (saved && saved !== i18n.language) await i18n.changeLanguage(saved);
+      } catch (err) {
+        console.error("Could not read the saved language:", err);
+      }
+    }
+    applySavedLanguage();
+  }, []);
+
   useEffect(() => {
     async function openLastPost() {
       try {
@@ -807,6 +821,17 @@ export default function App() {
     showExportResult(await exportDutyReport(reports, {}, { allPosts: true }));
   };
 
+  // Switching the interface language: live, and remembered for next time.
+  const chooseLanguage = async (language: Language) => {
+    if (language === i18n.language) return;
+    await i18n.changeLanguage(language);
+    try {
+      await setLanguage(language);
+    } catch (err) {
+      console.error("Could not save the language:", err);
+    }
+  };
+
   // What every export shows for its outcome.
   const showExportResult = (result: ExportScheduleResult) => {
     if (result.status === "saved") {
@@ -1054,6 +1079,8 @@ export default function App() {
             <div
               id="settings-dropdown-panel"
               className="card surface-solid"
+              role="group"
+              aria-label={t("app.settings")}
               style={{
                 position: "absolute",
                 top: "48px",
@@ -1126,6 +1153,35 @@ export default function App() {
                 >
                   {t(theme === "light" ? "app.light" : "app.dark")}
                 </button>
+              </div>
+
+              {/* Section 2b: Interface language. Each language is named in
+                  its own language, so the control reads the same whichever
+                  one is active. */}
+              <div
+                style={{
+                  borderTop: "1.5px solid var(--border)",
+                  paddingTop: "12px",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: "8px",
+                }}
+              >
+                <span style={{ fontSize: "0.82rem", fontWeight: "700", color: "var(--text-secondary)" }}>{t("app.language")}</span>
+                <div style={{ display: "flex", gap: "6px" }}>
+                  {LANGUAGES.map((code) => (
+                    <button
+                      key={code}
+                      className={`btn ${i18n.language === code ? "btn-primary" : "btn-secondary"}`}
+                      style={{ padding: "6px 10px", fontSize: "0.75rem", height: "28px", fontWeight: "bold" }}
+                      aria-pressed={i18n.language === code}
+                      onClick={() => chooseLanguage(code)}
+                    >
+                      {t(code === "tr" ? "app.languageTr" : "app.languageEn")}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* Section 3: Danger Zone Reset All DB */}
