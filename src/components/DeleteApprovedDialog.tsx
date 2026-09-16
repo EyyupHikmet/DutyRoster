@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { TypedDeleteDialog } from "./TypedDeleteDialog";
 import { formatApprovalDate } from "../utils/approvedSchedules";
 
@@ -13,18 +14,21 @@ interface DeleteApprovedDialogProps {
 }
 
 /** Deleting an approved schedule cannot be undone, so its month and year are typed first. */
-export const DeleteApprovedDialog: React.FC<DeleteApprovedDialogProps> = ({ label, postName, approvedAt, onCancel, onConfirm }) => (
-  <TypedDeleteDialog
-    title="Onaylı Çizelgeyi Sil"
-    confirmText={label}
-    description={
-      <>
-        {postName ? `${postName} – ` : ""}
-        {label} için {formatApprovalDate(approvedAt)} tarihinde onaylanmış çizelge kalıcı olarak silinecek.{" "}
-        <strong style={{ color: "var(--danger)" }}>Bu işlem geri alınamaz.</strong>
-      </>
-    }
-    onCancel={onCancel}
-    onConfirm={onConfirm}
-  />
-);
+export const DeleteApprovedDialog: React.FC<DeleteApprovedDialogProps> = ({ label, postName, approvedAt, onCancel, onConfirm }) => {
+  const { t } = useTranslation();
+  return (
+    <TypedDeleteDialog
+      title={t("approved.deleteTitle")}
+      confirmText={label}
+      description={
+        <>
+          {postName ? `${postName} – ` : ""}
+          {t("approved.deleteWarning", { what: label, approvedAt: formatApprovalDate(approvedAt) })}{" "}
+          <strong style={{ color: "var(--danger)" }}>{t("approved.irreversible")}</strong>
+        </>
+      }
+      onCancel={onCancel}
+      onConfirm={onConfirm}
+    />
+  );
+};

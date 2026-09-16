@@ -216,7 +216,7 @@ export function useScheduleState() {
         return null;
       }
     } catch (err) {
-      console.error("Çizelge verileri yüklenemedi:", err);
+      console.error("Could not load the month:", err);
       return null;
     }
   };
@@ -305,7 +305,7 @@ export function useScheduleState() {
       });
       return savedId;
     } catch (err) {
-      console.error("Çizelge veritabanına kaydedilemedi:", err);
+      console.error("Could not save the month:", err);
       return null;
     }
   };
@@ -343,7 +343,7 @@ export function useScheduleState() {
         .map((row) => ({ year: row.year, month: row.month }))
         .sort((a, b) => b.year - a.year || b.month - a.month);
     } catch (err) {
-      console.error("Gruplu aylar okunamadı:", err);
+      console.error("Could not read the months with partner groups:", err);
       return [];
     }
   };
@@ -412,7 +412,7 @@ export function useScheduleState() {
       setMonthlyTargets(targets);
       return true;
     } catch (err) {
-      console.error("Gruplar kopyalanamadı:", err);
+      console.error("Could not copy the partner groups:", err);
       return false;
     }
   };
@@ -434,7 +434,7 @@ export function useScheduleState() {
       setDaySpecificTeachers(settings.daySpecificTeachers);
       return true;
     } catch (err) {
-      console.error("Gün ayarları kopyalanamadı:", err);
+      console.error("Could not copy the day settings:", err);
       return false;
     }
   };
@@ -447,7 +447,7 @@ export function useScheduleState() {
         .filter((row) => row.post_id !== selectedPostId && row.year === selectedYear && row.month === selectedMonth)
         .map((row) => row.post_id);
     } catch (err) {
-      console.error("Nöbet yerlerinin ayları okunamadı:", err);
+      console.error("Could not read each duty post's months:", err);
       return [];
     }
   };

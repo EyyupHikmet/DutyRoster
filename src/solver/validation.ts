@@ -10,8 +10,12 @@ export type ValidationCode =
 
 export interface ValidationIssue {
   code: ValidationCode;
-  /** Turkish, shown to the principal verbatim. */
-  message: string;
+  /**
+   * What the interface needs to word the issue — names and numbers only. The
+   * sentence itself belongs to the locale, not to this module, which stays
+   * pure and language-free.
+   */
+  values?: Record<string, string | number>;
   groupId?: string;
   teacherId?: string;
 }
@@ -39,7 +43,6 @@ export function validatePartnerGroups(
       issues.push({
         code: "too_few_members",
         groupId: group.id,
-        message: "Bir nöbet grubunda en az 2 öğretmen bulunmalıdır.",
       });
     }
 
@@ -47,7 +50,6 @@ export function validatePartnerGroups(
       issues.push({
         code: "invalid_goal",
         groupId: group.id,
-        message: "Ortak nöbet gün sayısı en az 1 olmalıdır.",
       });
     }
 
@@ -57,7 +59,6 @@ export function validatePartnerGroups(
           code: "unknown_member",
           groupId: group.id,
           teacherId: memberId,
-          message: "Grupta kadroda bulunmayan bir öğretmen var. Lütfen grubu güncelleyin.",
         });
       }
     }
@@ -71,7 +72,7 @@ export function validatePartnerGroups(
       issues.push({
         code: "duplicate_group",
         groupId: group.id,
-        message: `${names} için zaten bir grup tanımlı. Aynı öğretmenlerden ikinci bir grup oluşturmak yerine mevcut grubun gün sayısını artırın.`,
+        values: { names },
       });
     } else {
       seenMemberSets.set(key, group.id);
@@ -93,7 +94,7 @@ export function validatePartnerGroups(
       issues.push({
         code: "over_committed",
         teacherId,
-        message: `${teacher.name}: gruplarda toplam ${total} ortak nöbet günü tanımlı, bu ayki nöbet hedefi ise ${target}. Grubun gün sayısını azaltın veya hedefi yükseltin.`,
+        values: { name: teacher.name, total, target },
       });
     }
   }

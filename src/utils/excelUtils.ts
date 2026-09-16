@@ -2,7 +2,8 @@ import * as XLSX from "xlsx";
 import { save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { writeFile as writeFsFile } from "@tauri-apps/plugin-fs";
 import { DbTeacher } from "../db";
-import { MONTHS_TR, getDaysInMonth, formatDateYYYYMMDD } from "./dateUtils";
+import { monthName, getDaysInMonth, formatDateYYYYMMDD } from "./dateUtils";
+import { t } from "../i18n";
 import { foldForSearch, foldName } from "./turkishText";
 import { freezeScheduleReport, ReportTeacher, ScheduleReport } from "./scheduleReport";
 import { schoolYearStart } from "./approvedSchedules";
@@ -60,8 +61,7 @@ export const resetExportVersionCounters = (): void => {
  * Save-As dialog.
  */
 export const buildExportFilename = (year: number, month: number, version: number): string => {
-  const monthName = MONTHS_TR[month - 1];
-  return `${year}_${monthName}_Nöbet_Raporu_v${version}.xlsx`;
+  return t("export.fileName", { year, month: monthName(month), version });
 };
 
 /** A teacher read from an import sheet, before joining a duty post's staff. */
@@ -214,8 +214,10 @@ export const parseExcelRoster = (
 
 /** Rows of one schedule's day-by-day list sheet. */
 const listRows = (report: ScheduleReport): unknown[][] => {
-  const rows: unknown[][] = [["Tarih", "Gün", "Nöbetçi Öğretmen(ler)", "Nöbet Tipi", "Durum"]];
-  const nameOf = (id: string) => report.teachers.find((t) => t.id === id)?.name || "Bilinmeyen Öğretmen";
+  const rows: unknown[][] = [
+    [t("export.columnDate"), t("export.columnDay"), t("export.columnTeachers"), t("export.columnDutyType"), t("export.columnStatus")],
+  ];
+  const nameOf = (id: string) => report.teachers.find((teacher) => teacher.id === id)?.name || t("export.unknownTeacher");
 
   for (const d of getDaysInMonth(report.year, report.month)) {
     const dateStr = formatDateYYYYMMDD(d);
@@ -223,22 +225,22 @@ const listRows = (report: ScheduleReport): unknown[][] => {
     const dateFriendly = d.toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
     const isWeekend = d.getDay() === 0 || d.getDay() === 6;
 
-    let status = "Nöbet Günü";
+    let status: string = t("export.statusDuty");
     if (isWeekend && !report.weekendDutyDays.includes(dateStr)) {
-      status = "Nöbet Yok (Hafta Sonu)";
+      status = t("export.statusOffWeekend");
     } else if (!isWeekend && report.holidays.includes(dateStr)) {
-      status = "Nöbet Yok";
+      status = t("export.statusOff");
     }
 
     const assignedIds = report.assignments[dateStr] || [];
     const assignedNames = assignedIds.map(nameOf).join(", ");
     const isExtra = report.extraDays.includes(dateStr);
-    const dutyType = assignedIds.length > 0 ? (isExtra ? "Ekstra Nöbet" : "Standart Nöbet") : "-";
+    const dutyType = assignedIds.length > 0 ? t(isExtra ? "export.dutyExtra" : "export.dutyStandard") : "-";
 
     rows.push([
       dateFriendly,
       dayName,
-      assignedNames || (status !== "Nöbet Günü" ? "-" : "Atanamadı"),
+      assignedNames || (status !== t("export.statusDuty") ? "-" : t("export.unassigned")),
       dutyType,
       status
     ]);
@@ -246,14 +248,14 @@ const listRows = (report: ScheduleReport): unknown[][] => {
   return rows;
 };
 
-const REPORT_HEADER = [
-  "Öğretmen Adı Soyadı",
-  "Hedef Görev Sayısı",
-  "Toplam Atanan Nöbet",
-  "Hafta İçi (Standart)",
-  "Hafta Sonu",
-  "Toplam Ekstra Nöbet",
-  "Fark (Hedef - Atanan)"
+const reportHeader = (): unknown[] => [
+  t("export.reportName"),
+  t("export.reportTarget"),
+  t("export.reportTotal"),
+  t("export.reportWeekday"),
+  t("export.reportWeekend"),
+  t("export.reportExtra"),
+  t("export.reportDifference"),
 ];
 
 interface DutyTotals {
@@ -291,7 +293,7 @@ const totalsRow = (t: DutyTotals): unknown[] => [t.name, t.target, t.total, t.we
 
 /** Rows of one schedule's teacher report sheet. */
 const reportRows = (report: ScheduleReport): unknown[][] => [
-  REPORT_HEADER,
+  reportHeader(),
   ...report.teachers.map((t) => totalsRow(totalsFor(report, t)))
 ];
 
@@ -324,13 +326,13 @@ const runningTotalRows = (latestFirst: ScheduleReport[], withPost = false): unkn
     (a, b) => (withPost ? a.post.localeCompare(b.post, "tr") : 0) || a.name.localeCompare(b.name, "tr")
   );
   return withPost
-    ? [["Nöbet Yeri", ...REPORT_HEADER], ...sums.map((t) => [t.post, ...totalsRow(t)])]
-    : [REPORT_HEADER, ...sums.map(totalsRow)];
+    ? [[t("export.columnPost"), ...reportHeader()], ...sums.map((sum) => [sum.post, ...totalsRow(sum)])]
+    : [reportHeader(), ...sums.map(totalsRow)];
 };
 
 const monthIndex = (report: ScheduleReport) => report.year * 12 + report.month;
 const latestFirst = (reports: ScheduleReport[]) => [...reports].sort((a, b) => monthIndex(b) - monthIndex(a));
-const monthLabel = (report: ScheduleReport) => `${MONTHS_TR[report.month - 1]} ${report.year}`;
+const monthLabel = (report: ScheduleReport) => `${monthName(report.month)} ${report.year}`;
 
 const appendSheet = (workbook: XLSX.WorkBook, name: string, rows: unknown[][]) => {
   const sheet = XLSX.utils.aoa_to_sheet(rows);
@@ -362,10 +364,10 @@ const EXCEL_SHEET_NAME_MAX = 31;
  * unique (ignoring case): the month is shortened first ("Ara 2026"), then the
  * post's name with "…", and a repeated name gets a number.
  */
-const postSheetName = (report: ScheduleReport, kind: "Liste" | "Rapor", used: Set<string>): string => {
+const postSheetName = (report: ScheduleReport, kind: string, used: Set<string>): string => {
   const post = (report.postName ?? "").replace(/[:\\/?*[\]]/g, "-").trim();
-  const fullMonth = `${MONTHS_TR[report.month - 1]} ${report.year}`;
-  const shortMonth = `${MONTHS_TR[report.month - 1].slice(0, 3)} ${report.year}`;
+  const fullMonth = `${monthName(report.month)} ${report.year}`;
+  const shortMonth = `${monthName(report.month).slice(0, 3)} ${report.year}`;
   for (let copy = 1; ; copy++) {
     const tag = copy === 1 ? "" : ` ${copy}`;
     const compose = (name: string, month: string) => `${name}${tag} – ${month} – ${kind}`;
@@ -396,26 +398,26 @@ export const buildDutyReportWorkbook = (reports: ScheduleReport[], options: Duty
     const used = new Set<string>();
     for (const report of byPost) {
       const title = [`${report.postName ?? ""} – ${monthLabel(report)}`];
-      appendSheet(workbook, postSheetName(report, "Liste", used), [title, ...listRows(report)]);
-      appendSheet(workbook, postSheetName(report, "Rapor", used), [title, ...reportRows(report)]);
+      appendSheet(workbook, postSheetName(report, t("export.sheetSuffixList"), used), [title, ...listRows(report)]);
+      appendSheet(workbook, postSheetName(report, t("export.sheetSuffixReport"), used), [title, ...reportRows(report)]);
     }
-    if (byPost.length > 1) appendSheet(workbook, "Toplam", runningTotalRows(latestFirst(reports), true));
+    if (byPost.length > 1) appendSheet(workbook, t("export.sheetTotal"), runningTotalRows(latestFirst(reports), true));
     return workbook;
   }
 
   const ordered = latestFirst(reports);
 
   if (ordered.length === 1) {
-    appendSheet(workbook, "Nöbet Listesi", listRows(ordered[0]));
-    appendSheet(workbook, "Öğretmen Analiz Raporu", reportRows(ordered[0]));
+    appendSheet(workbook, t("export.sheetList"), listRows(ordered[0]));
+    appendSheet(workbook, t("export.sheetReport"), reportRows(ordered[0]));
     return workbook;
   }
 
   for (const report of ordered) {
-    appendSheet(workbook, `${monthLabel(report)} – Liste`, listRows(report));
-    appendSheet(workbook, `${monthLabel(report)} – Rapor`, reportRows(report));
+    appendSheet(workbook, `${monthLabel(report)} – ${t("export.sheetSuffixList")}`, listRows(report));
+    appendSheet(workbook, `${monthLabel(report)} – ${t("export.sheetSuffixReport")}`, reportRows(report));
   }
-  appendSheet(workbook, "Toplam", runningTotalRows(ordered));
+  appendSheet(workbook, t("export.sheetTotal"), runningTotalRows(ordered));
   return workbook;
 };
 
@@ -430,16 +432,28 @@ export const buildDutyReportFilename = (reports: ScheduleReport[], version: numb
   if (options.allPosts) {
     const earliestOfAll = ordered[ordered.length - 1];
     if (monthIndex(earliestOfAll) === monthIndex(latest)) {
-      return `${latest.year}_${MONTHS_TR[latest.month - 1]}_Tüm_Nöbet_Yerleri_Nöbet_Raporu_v${version}.xlsx`;
+      return t("export.fileNameAllPosts", { year: latest.year, month: monthName(latest.month), version });
     }
     const startYear = schoolYearStart(latest.year, latest.month);
-    return `${startYear}-${startYear + 1}_${MONTHS_TR[earliestOfAll.month - 1]}-${MONTHS_TR[latest.month - 1]}_Tüm_Nöbet_Yerleri_Nöbet_Raporu_v${version}.xlsx`;
+    return t("export.fileNameAllPostsSpan", {
+      start: startYear,
+      end: startYear + 1,
+      from: monthName(earliestOfAll.month),
+      to: monthName(latest.month),
+      version,
+    });
   }
   if (ordered.length === 1) return buildExportFilename(latest.year, latest.month, version);
 
   const earliest = ordered[ordered.length - 1];
   const start = schoolYearStart(latest.year, latest.month);
-  return `${start}-${start + 1}_${MONTHS_TR[earliest.month - 1]}-${MONTHS_TR[latest.month - 1]}_Nöbet_Raporu_v${version}.xlsx`;
+  return t("export.fileNameSpan", {
+    start,
+    end: start + 1,
+    from: monthName(earliest.month),
+    to: monthName(latest.month),
+    version,
+  });
 };
 
 /** Export counters are kept per distinct report: one month, or one span of months. */
@@ -508,9 +522,9 @@ export const exportDutyReport = async (
   let targetPath: string | null;
   try {
     targetPath = await doSaveDialog({
-      title: "Nöbet Raporunu Kaydet",
+      title: t("export.saveTitle"),
       defaultPath: suggestedFilename,
-      filters: [{ name: "Excel Dosyası", extensions: ["xlsx"] }]
+      filters: [{ name: t("export.fileType"), extensions: ["xlsx"] }]
     });
   } catch (err) {
     return {

@@ -11,7 +11,7 @@ export function useDutyPosts() {
       setPosts(list);
       return list;
     } catch (err) {
-      console.error("Nöbet yerleri yüklenemedi:", err);
+      console.error("Could not load the duty posts:", err);
       return [];
     }
   };
@@ -22,7 +22,7 @@ export function useDutyPosts() {
       if (result.status === "added") await loadPosts();
       return result;
     } catch (err) {
-      console.error("Nöbet yeri eklenemedi:", err);
+      console.error("Could not add the duty post:", err);
       return { status: "error" as const };
     }
   };
@@ -33,7 +33,7 @@ export function useDutyPosts() {
       if (result.status === "renamed") await loadPosts();
       return result;
     } catch (err) {
-      console.error("Nöbet yerinin adı değiştirilemedi:", err);
+      console.error("Could not rename the duty post:", err);
       return { status: "error" as const };
     }
   };
@@ -44,7 +44,7 @@ export function useDutyPosts() {
       if (result.status === "deleted") await loadPosts();
       return result;
     } catch (err) {
-      console.error("Nöbet yeri silinemedi:", err);
+      console.error("Could not delete the duty post:", err);
       return { status: "error" as const };
     }
   };

@@ -1,3 +1,4 @@
+import { Trans, useTranslation } from "react-i18next";
 import React from "react";
 
 interface ExcelImportProps {
@@ -5,6 +6,7 @@ interface ExcelImportProps {
 }
 
 export const ExcelImport: React.FC<ExcelImportProps> = ({ onFileImport }) => {
+  const { t } = useTranslation();
   return (
     // This was a plain onClick <div> forwarding to a `display:none` <input
     // type="file"> — `display:none` removes an element from the tab order
@@ -36,11 +38,11 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({ onFileImport }) => {
     >
       <div style={{ fontSize: "1.6rem", marginBottom: "6px" }} aria-hidden="true">📥</div>
       <div className="import-label" style={{ fontWeight: "700", color: "var(--primary)", fontSize: "0.9rem" }}>
-        Excel / CSV Dosyası Yükle
+        {t("import.title")}
       </div>
       <p style={{ margin: "4px 0 0 0", fontSize: "0.75rem", color: "var(--slate-600)", lineHeight: "1.1rem" }}>
-        Sürükleyin veya tıklayın. Kolonlar: <strong>Ad, Hedef Nöbet, Öncelik</strong>
-        <br />Yalnızca isimlerden oluşan tek sütunlu bir liste de yükleyebilirsiniz.
+        <Trans i18nKey="import.columns" components={{ 1: <strong /> }} />
+        <br />{t("import.singleColumn")}
       </p>
 
       <input

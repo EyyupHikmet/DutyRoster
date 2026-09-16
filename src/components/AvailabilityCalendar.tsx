@@ -1,7 +1,8 @@
+import { Trans, useTranslation } from "react-i18next";
 import React, { useState } from "react";
 import { DbTeacher } from "../db";
 import { AvailabilityStatus } from "../solver";
-import { MONTHS_TR, DAYS_TR, getMonthDatesWithPadding, formatDateYYYYMMDD } from "../utils/dateUtils";
+import { monthName, monthNames, shortDayNames, getMonthDatesWithPadding, formatDateYYYYMMDD } from "../utils/dateUtils";
 import { CustomSelect } from "./CustomSelect";
 
 interface AvailabilityCalendarProps {
@@ -38,16 +39,17 @@ export const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
   // function of the CURRENT status already in `availabilities`, so the
   // announcement is computed synchronously at click/keydown time rather than
   // trying to diff before/after state.
+  const { t } = useTranslation();
   const [announcement, setAnnouncement] = useState("");
   const statusLabel = (s: AvailabilityStatus) =>
-    s === "preferred" ? "Tercih Edilen" : s === "unavailable" ? "Uygun Değil" : "Uygun";
+    t(s === "preferred" ? "availability.preferred" : s === "unavailable" ? "availability.unavailable" : "availability.available");
   const nextStatus = (s: AvailabilityStatus): AvailabilityStatus =>
     s === "available" ? "preferred" : s === "preferred" ? "unavailable" : "available";
 
   const activateCell = (dateStr: string, date: Date, currentStatus: AvailabilityStatus) => {
     const upcoming = nextStatus(currentStatus);
     setAnnouncement(
-      `${date.getDate()} ${MONTHS_TR[date.getMonth()]}: ${statusLabel(upcoming)} olarak işaretlendi.`
+      t("availability.marked", { day: date.getDate(), month: monthName(date.getMonth() + 1), status: statusLabel(upcoming) })
     );
     onCycleAvailability(dateStr);
   };
@@ -56,7 +58,7 @@ export const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
     <div className="fill-column" style={{ marginTop: "24px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "10px", flexShrink: 0 }}>
         <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: "800" }}>
-          <span style={{ color: "var(--primary)" }}>{teacherName}</span> İçin Günlük Nöbet Uygunluğu
+          <Trans i18nKey="availability.heading" values={{ name: teacherName }} components={{ 1: <span style={{ color: "var(--primary)" }} /> }} />
         </h3>
         
         {/* Inline Color Guides */}
@@ -70,10 +72,10 @@ export const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
                 only 3.2:1 here) — --success-text/--danger-text are the
                 theme-tuned "safe for small text on this surface" variants
                 already used by .alert-success/.alert-danger. */}
-            <span style={{ fontSize: "0.78rem", fontWeight: "bold", color: "var(--success-text)" }}>🟢 Tercih</span>
+            <span style={{ fontSize: "0.78rem", fontWeight: "bold", color: "var(--success-text)" }}>🟢 {t("availability.legendPreferred")}</span>
           </div>
           <div className="color-guide-item">
-            <span style={{ fontSize: "0.78rem", fontWeight: "bold", color: "var(--danger-text)" }}>🔴 Uygun Değil</span>
+            <span style={{ fontSize: "0.78rem", fontWeight: "bold", color: "var(--danger-text)" }}>🔴 {t("availability.legendUnavailable")}</span>
           </div>
         </div>
       </div>
@@ -92,14 +94,14 @@ export const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
             value={String(selectedYear)}
             onChange={(val) => setSelectedYear(Number(val))}
             style={{ width: "110px" }}
-            ariaLabel="Yıl seçimi"
+            ariaLabel={t("availability.yearSelect")}
           />
           <CustomSelect
-            options={MONTHS_TR.map((m, idx) => ({ value: String(idx + 1), label: m }))}
+            options={monthNames().map((m, idx) => ({ value: String(idx + 1), label: m }))}
             value={String(selectedMonth)}
             onChange={(val) => setSelectedMonth(Number(val))}
             style={{ width: "140px" }}
-            ariaLabel="Ay seçimi"
+            ariaLabel={t("availability.monthSelect")}
           />
         </div>
 
@@ -113,7 +115,7 @@ export const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
         </div>
 
         <div className="calendar-header-grid" style={{ flexShrink: 0, fontSize: "0.85rem", marginBottom: "8px" }}>
-          {DAYS_TR.map(d => <div key={d}>{d}</div>)}
+          {shortDayNames().map((d) => <div key={d}>{d}</div>)}
         </div>
 
         <div
@@ -127,14 +129,14 @@ export const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
             const status = availabilities[selectedTeacherId!]?.[dateStr] || "available";
             
             let cellClass = "avail-available";
-            let statusText = "Uygun";
-            
+            let statusText: string = t("availability.legendAvailable");
+
             if (status === "preferred") {
               cellClass = "avail-preferred";
-              statusText = "Tercih";
+              statusText = t("availability.legendPreferred");
             } else if (status === "unavailable") {
               cellClass = "avail-unavailable";
-              statusText = "Uygun Değil";
+              statusText = t("availability.legendUnavailable");
             }
 
             return (
@@ -144,7 +146,7 @@ export const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
                 style={{ position: "relative", justifyContent: "flex-start", padding: "8px", cursor: "pointer" }}
                 role="button"
                 tabIndex={0}
-                aria-label={`${date.getDate()} ${MONTHS_TR[date.getMonth()]}: ${statusText}. Durumu değiştirmek için etkinleştirin.`}
+                aria-label={t("availability.cell", { day: date.getDate(), month: monthName(date.getMonth() + 1), status: statusText })}
                 onClick={() => activateCell(dateStr, date, status)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {

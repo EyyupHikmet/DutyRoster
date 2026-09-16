@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import React from "react";
 import { CustomSelect } from "./CustomSelect";
 import { DbDutyPost } from "../db";
@@ -52,20 +53,21 @@ export const TeacherForm: React.FC<TeacherFormProps> = ({
   postId,
   setPostId
 }) => {
+  const { t } = useTranslation();
   return (
     <div className="card" style={{ marginBottom: "20px" }}>
       <h3 style={{ margin: "0 0 16px 0", color: "var(--primary)", fontWeight: "800", fontSize: "1.1rem" }}>
-        {editingTeacherId ? "Öğretmen Bilgilerini Güncelle" : "Yeni Öğretmen Ekle"}
+        {t(editingTeacherId ? "teacherForm.updateTitle" : "teacherForm.addTitle")}
       </h3>
       
       <form onSubmit={onSubmit}>
         <div className="form-group">
-          <label htmlFor="teacher-name-input">Öğretmen Adı Soyadı</label>
+          <label htmlFor="teacher-name-input">{t("teacherForm.nameLabel")}</label>
           <input
             type="text"
             id="teacher-name-input"
             className="form-control"
-            placeholder="Örn: Ahmet Yılmaz"
+            placeholder={t("teacherForm.namePlaceholder")}
             value={teacherName}
             onChange={(e) => setTeacherName(e.target.value)}
             required
@@ -74,7 +76,7 @@ export const TeacherForm: React.FC<TeacherFormProps> = ({
 
         {posts.length >= 2 && (
           <div className="form-group">
-            <label htmlFor="teacher-post-select">Nöbet Yeri</label>
+            <label htmlFor="teacher-post-select">{t("teacherForm.postLabel")}</label>
             <select
               id="teacher-post-select"
               className="form-control"
@@ -91,11 +93,11 @@ export const TeacherForm: React.FC<TeacherFormProps> = ({
         <div className="grid-2col" style={{ gap: "16px", marginBottom: "16px" }}>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label htmlFor="teacher-target-input">
-              {`Aylık Nöbet Hedefi (${monthLabel})`}
+              {t("teacherForm.targetLabel", { month: monthLabel })}
               <span className="tooltip-container" style={{ marginLeft: "4px" }}>
                 <span className="tooltip-icon" aria-hidden="true">i</span>
                 <div className="tooltip-content">
-                  Bu öğretmenin o ay boyunca alması planlanan toplam nöbet sayısı.
+                  {t("teacherForm.targetHelp")}
                 </div>
               </span>
             </label>
@@ -111,26 +113,26 @@ export const TeacherForm: React.FC<TeacherFormProps> = ({
             />
             {usualTarget !== null && usualTarget !== teacherTarget && (
               <p style={{ margin: "6px 0 0 0", fontSize: "0.8rem", color: "var(--slate-500)" }}>
-                {`Bu öğretmenin genel hedefi ${usualTarget}. Girdiğiniz değer yalnızca ${monthLabel} için geçerlidir.`}
+                {t("teacherForm.usualTarget", { target: usualTarget, month: monthLabel })}
               </p>
             )}
           </div>
 
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label id="teacher-priority-label">
-              Öncelik
+              {t("teacherForm.priorityLabel")}
               <span className="tooltip-container" style={{ marginLeft: "4px" }}>
                 <span className="tooltip-icon" aria-hidden="true">i</span>
                 <div className="tooltip-content">
-                  Öncelik Sırası kuralında, hedefine ulaşmamış öğretmenler arasından önceliği yüksek olan önce görevlendirilir.
+                  {t("teacherForm.priorityHelp")}
                 </div>
               </span>
             </label>
             <CustomSelect
               options={[
-                { value: "1", label: "Standart" },
-                { value: "2", label: "Orta Öncelikli" },
-                { value: "3", label: "Yüksek Öncelikli" }
+                { value: "1", label: t("teacherForm.priorityStandard") },
+                { value: "2", label: t("teacherForm.priorityMedium") },
+                { value: "3", label: t("teacherForm.priorityHigh") }
               ]}
               value={String(teacherPriority)}
               onChange={(val) => setTeacherPriority(Number(val))}
@@ -156,7 +158,7 @@ export const TeacherForm: React.FC<TeacherFormProps> = ({
 
         <div style={{ display: "flex", gap: "10px" }}>
           <button type="submit" className="btn btn-primary">
-            {editingTeacherId ? "Güncelle" : "Kaydet"}
+            {t(editingTeacherId ? "teacherForm.update" : "teacherForm.save")}
           </button>
           {editingTeacherId && (
             <button 
@@ -164,7 +166,7 @@ export const TeacherForm: React.FC<TeacherFormProps> = ({
               className="btn btn-secondary"
               onClick={onCancel}
             >
-              İptal
+              {t("common.cancel")}
             </button>
           )}
         </div>

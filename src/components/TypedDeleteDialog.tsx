@@ -1,4 +1,5 @@
 import React, { useId, useRef, useState } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import { ModalDialog } from "./ModalDialog";
 import { foldForSearch } from "../utils/turkishText";
 
@@ -17,6 +18,7 @@ interface TypedDeleteDialogProps {
  * deletion deliberate, not to test spelling.
  */
 export const TypedDeleteDialog: React.FC<TypedDeleteDialogProps> = ({ title, description, confirmText, onCancel, onConfirm }) => {
+  const { t } = useTranslation();
   const baseId = useId();
   const [typed, setTyped] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -38,7 +40,7 @@ export const TypedDeleteDialog: React.FC<TypedDeleteDialogProps> = ({ title, des
 
       <div className="form-group" style={{ margin: 0 }}>
         <label htmlFor={`${baseId}-input`}>
-          Silmek için <strong>{confirmText}</strong> yazın.
+          <Trans i18nKey="dialog.typeToDelete" values={{ what: confirmText }} components={{ 1: <strong /> }} />
         </label>
         <input
           id={`${baseId}-input`}
@@ -55,10 +57,10 @@ export const TypedDeleteDialog: React.FC<TypedDeleteDialogProps> = ({ title, des
 
       <div style={{ display: "flex", gap: "12px", marginTop: "4px" }}>
         <button className="btn btn-secondary" style={{ flexGrow: 1 }} onClick={onCancel}>
-          Vazgeç
+          {t("dialog.cancel")}
         </button>
         <button className="btn btn-danger" style={{ flexGrow: 1 }} onClick={onConfirm} disabled={!matches}>
-          Sil
+          {t("dialog.delete")}
         </button>
       </div>
     </ModalDialog>

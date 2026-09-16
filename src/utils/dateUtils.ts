@@ -1,11 +1,24 @@
-// Formatted month names in Turkish
-export const MONTHS_TR = [
-  "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", 
-  "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"
-];
+import { i18n } from "../i18n";
 
-// Week days in Turkish
-export const DAYS_TR = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
+// Month and day names come from the active interface language rather than a
+// hardcoded Turkish list: in Turkish they read exactly as they always did
+// ("Ocak", "Pzt"), and another locale needs no new table.
+
+/** The twelve month names of the active language, Ocak first. */
+export const monthNames = (): string[] => {
+  const format = new Intl.DateTimeFormat(i18n.language, { month: "long" });
+  return Array.from({ length: 12 }, (_, index) => format.format(new Date(2026, index, 1)));
+};
+
+/** One month's name in the active language, for a 1-based month. */
+export const monthName = (month: number): string => monthNames()[month - 1];
+
+/** The seven short weekday names of the active language, Monday first. */
+export const shortDayNames = (): string[] => {
+  // 1 June 2026 is a Monday, which is where a duty calendar's week starts.
+  const format = new Intl.DateTimeFormat(i18n.language, { weekday: "short" });
+  return Array.from({ length: 7 }, (_, index) => format.format(new Date(2026, 5, 1 + index)));
+};
 
 /**
  * Generates an array of Date objects for every day in a given month.

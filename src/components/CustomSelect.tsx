@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useId } from "react";
+import { i18n } from "../i18n";
 
 interface Option {
   value: string;
@@ -44,7 +45,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
   options,
   value,
   onChange,
-  placeholder = "Seçiniz...",
+  placeholder = i18n.t("common.select"),
   className = "",
   style,
   variant = "default",

@@ -1,6 +1,7 @@
 import React, { useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { DbTeacher } from "../db";
-import { DAYS_TR, getMonthDatesWithPadding, formatDateYYYYMMDD } from "../utils/dateUtils";
+import { shortDayNames, getMonthDatesWithPadding, formatDateYYYYMMDD } from "../utils/dateUtils";
 import { CustomSelect } from "./CustomSelect";
 import { PartnerGroup, creditPartnerGroups } from "../solver/partners";
 import { AvailabilityStatus } from "../solver";
@@ -136,6 +137,7 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
   availabilities = {},
   monthlyTargets = {}
 }) => {
+  const { t } = useTranslation();
   const paddedDates = getMonthDatesWithPadding(selectedYear, selectedMonth);
 
   // State to track which day is currently being configured in the Sidebar
@@ -186,8 +188,8 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
   // blamed the target cap, which is wrong when the cap is off (a day can also
   // be left open by pinning alone).
   const activeHardRules: string[] = [];
-  if (respectTargets) activeHardRules.push("“Aylık hedefleri kesinlikle aşma”");
-  if (avoidConsecutiveDays) activeHardRules.push("“Aynı öğretmene üst üste iki gün verme”");
+  if (respectTargets) activeHardRules.push(t("step3.capQuoted"));
+  if (avoidConsecutiveDays) activeHardRules.push(t("step3.consecutiveQuoted"));
 
   const selectedDateDetails = getSelectedDateDetails();
   const requiredCount = selectedDateStr ? (daySpecificTeachers[selectedDateStr] ?? teachersPerDay) : teachersPerDay;
@@ -225,11 +227,11 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
   return (
     <div className="fill-column">
       <h2 className="step-title" style={{ margin: "0 0 12px 0", flexShrink: 0 }}>
-        <span>Adım 3: Planlama Seçenekleri & Çizelge Hazırlama{postName ? ` — ${postName}` : ""}</span>
+        <span>{postName ? t("step3.titleWithPost", { post: postName }) : t("step3.title")}</span>
         <div className="tooltip-container tooltip-container--title">
           <span className="tooltip-icon">?</span>
           <div className="tooltip-content">
-            Soldan planlama kuralını seçip Programı Hazırla butonuna basın. Ortadaki takvimden günlere tıklayarak özel sabitlemeler yapabilirsiniz.
+            {t("step3.help")}
           </div>
         </div>
       </h2>
@@ -242,14 +244,14 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
           
           {/* Rule Selection Card */}
           <div className="card" style={{ padding: "16px" }}>
-            <h3 style={{ margin: "0 0 12px 0", color: "var(--text-primary)", fontWeight: "800", fontSize: "1.05rem" }}>Dağıtım Kuralı</h3>
+            <h3 style={{ margin: "0 0 12px 0", color: "var(--text-primary)", fontWeight: "800", fontSize: "1.05rem" }}>{t("step3.rulesHeading")}</h3>
 
-            <div role="radiogroup" aria-label="Dağıtım Kuralı">
+            <div role="radiogroup" aria-label={t("step3.rulesHeading")}>
               {([
-                { mode: "fairness" as const, title: "Eşit Dağıt (Adalet)", desc: "Hedefine ulaşmamış öğretmenler arasından en az nöbet tutanı seçer. Hedefini dolduran bir öğretmene, o günü alabilecek başka kimse kalmadıysa görev verilir." },
-                { mode: "priority" as const, title: "Öncelik Sırası", desc: "Hedefine ulaşmamış öğretmenler arasından önceliği yüksek olanı seçer." },
-                { mode: "strict" as const, title: "Dengeli (Hedef Odaklı)", desc: "Hedefine ulaşmamış öğretmenler arasından hedefinden en çok nöbeti kalanı seçer." },
-                { mode: "random" as const, title: "Rastgele Doldur", desc: "Hedefine ulaşmamış öğretmenler arasından rastgele seçer." }
+                { mode: "fairness" as const, title: t("step3.ruleFairnessTitle"), desc: t("step3.ruleFairnessDesc") },
+                { mode: "priority" as const, title: t("step3.rulePriorityTitle"), desc: t("step3.rulePriorityDesc") },
+                { mode: "strict" as const, title: t("step3.ruleStrictTitle"), desc: t("step3.ruleStrictDesc") },
+                { mode: "random" as const, title: t("step3.ruleRandomTitle"), desc: t("step3.ruleRandomDesc") }
               ]).map((opt, idx) => {
                 const isSelected = solverMode === opt.mode;
                 return (
@@ -272,15 +274,15 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
             </div>
 
             <p style={{ margin: "8px 0 0 0", fontSize: "0.72rem", lineHeight: "1.05rem", color: "var(--text-secondary)" }}>
-              Her kuralda sıra aynı: önce aylık hedefine ulaşmamış öğretmenler, sonra o günü tercih edenler, en sonda kuralın kendi ölçütü.
+              {t("step3.sharedOrder")}
             </p>
 
             <HardRuleCheckbox
               id="respect-targets-checkbox"
               checked={respectTargets}
               onChange={setRespectTargets}
-              title="Aylık hedefleri kesinlikle aşma"
-              description="Hiçbir öğretmene aylık nöbet hedefinden fazla görev verilmez. Kadro yetmezse günler boş bırakılır."
+              title={t("step3.capTitle")}
+              description={t("step3.capDesc")}
               isFirst
             />
 
@@ -288,8 +290,8 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
               id="avoid-consecutive-days-checkbox"
               checked={avoidConsecutiveDays}
               onChange={setAvoidConsecutiveDays}
-              title="Aynı öğretmene üst üste iki gün verme"
-              description="Bir öğretmen arka arkaya gelen iki takvim gününde nöbet tutmaz. Araya hafta sonu veya tatil girdiğinde Cuma–Pazartesi gibi günler serbest kalır."
+              title={t("step3.consecutiveTitle")}
+              description={t("step3.consecutiveDesc")}
               isFirst={false}
             />
           </div>
@@ -297,7 +299,7 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
           {/* Configuration Card */}
           <div className="card" style={{ padding: "16px" }}>
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label htmlFor="teachers-per-day-input" style={{ fontSize: "0.82rem" }}>Varsayılan Nöbetçi Sayısı</label>
+              <label htmlFor="teachers-per-day-input" style={{ fontSize: "0.82rem" }}>{t("step3.defaultPerDay")}</label>
               <input
                 type="number"
                 id="teachers-per-day-input"
@@ -318,14 +320,14 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
                 is the principal's decision, this only makes sure they know. */}
             {(pins.overTarget.length > 0 || pins.unavailable.length > 0) && (
               <div className="alert alert-warning" style={{ margin: 0, padding: "8px 12px", fontSize: "0.76rem" }}>
-                <strong>Sabitleme uyarısı:</strong>
+                <strong>{t("step3.pinWarningTitle")}</strong>
                 <ul style={{ margin: "4px 0 0 0", paddingLeft: "18px", lineHeight: "1.15rem" }}>
                   {pins.overTarget.map((pin) => (
-                    <li key={`over-${pin.id}`}>{`${pin.name}: ${pin.pinned} güne sabitlendi, hedefi ${pin.target}`}</li>
+                    <li key={`over-${pin.id}`}>{t("step3.pinOverTarget", { name: pin.name, pinned: pin.pinned, target: pin.target })}</li>
                   ))}
                   {pins.unavailable.map((pin) => (
                     <li key={`unavailable-${pin.id}-${pin.date}`}>
-                      {`${pin.name}: ${dayOfMonth(pin.date)} gününde Uygun Değil olarak işaretli`}
+                      {t("step3.pinUnavailable", { name: pin.name, date: dayOfMonth(pin.date) })}
                     </li>
                   ))}
                 </ul>
@@ -337,7 +339,7 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
               className="btn btn-success"
               style={{ width: "100%", padding: "10px 16px", fontSize: "0.92rem", borderRadius: "8px" }}
             >
-              ⚡ Programı Hazırla
+              {t("step3.generate")}
             </button>
             
             {Object.keys(generatedSchedule).length > 0 && (
@@ -350,7 +352,7 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
                     className="btn btn-secondary"
                     style={{ width: "100%", padding: "10px 16px", fontSize: "0.92rem", borderRadius: "8px" }}
                   >
-                    <span aria-hidden="true">✅</span> Onayla
+                    <span aria-hidden="true">✅</span> {t("step3.approve")}
                   </button>
                 )}
 
@@ -360,8 +362,8 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
                     style={{ margin: 0, padding: "8px 12px", fontSize: "0.76rem" }}
                   >
                     {approval.changed
-                      ? `Onaylandıktan sonra değişti (onay: ${formatApprovalDate(approval.approvedAt)}). Onaylı çizelgeyi güncellemek için yeniden onaylayın.`
-                      : `Onaylandı: ${formatApprovalDate(approval.approvedAt)}`}
+                      ? t("step3.approvedChanged", { date: formatApprovalDate(approval.approvedAt) })
+                      : t("step3.approvedOn", { date: formatApprovalDate(approval.approvedAt) })}
                   </div>
                 )}
 
@@ -370,7 +372,7 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
                   className="btn btn-primary"
                   style={{ width: "100%", padding: "10px 16px", fontSize: "0.92rem", borderRadius: "8px" }}
                 >
-                  📥 Excel'e Aktar
+                  {t("step3.export")}
                 </button>
 
                 {/* Earlier approved schedules of the school year can go into
@@ -395,14 +397,14 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
                       aria-describedby="include-earlier-approved-hint"
                       style={{ accentColor: "var(--primary)" }}
                     />
-                    Önceki onaylı çizelgeleri ekle
+                    {t("step3.includeEarlier")}
                   </label>
                   <span id="include-earlier-approved-hint" style={{ fontSize: "0.72rem", color: "var(--text-secondary)", paddingLeft: "24px" }}>
                     {earlierApprovedCount === 0
-                      ? "Bu eğitim-öğretim yılında önceki onaylı çizelge yok"
+                      ? t("step3.earlierNone")
                       : includeEarlierApproved
-                        ? `${earlierApprovedCount} onaylı çizelge eklenecek`
-                        : `${earlierApprovedCount} onaylı çizelge eklenmeyecek`}
+                        ? t("step3.earlierWillAdd", { count: earlierApprovedCount })
+                        : t("step3.earlierWontAdd", { count: earlierApprovedCount })}
                   </span>
                 </div>
 
@@ -427,14 +429,14 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
                       aria-describedby="include-all-posts-hint"
                       style={{ accentColor: "var(--primary)" }}
                     />
-                    Tüm nöbet yerlerini ekle
+                    {t("step3.includeAllPosts")}
                   </label>
                   <span id="include-all-posts-hint" style={{ fontSize: "0.72rem", color: "var(--text-secondary)", paddingLeft: "24px" }}>
                     {postCount <= 1
-                      ? "Başka nöbet yeri yok"
+                      ? t("step3.allPostsNone")
                       : includeAllPosts
-                        ? `${postCount} nöbet yeri tek raporda`
-                        : "Yalnızca bu nöbet yeri aktarılacak"}
+                        ? t("step3.allPostsWill", { count: postCount })
+                        : t("step3.allPostsOnlyThis")}
                   </span>
                 </div>
               </>
@@ -448,7 +450,7 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
               here; before the accessibility pass this text only ever appeared visually. */}
           {solverError && (
             <div className="alert alert-danger" role="alert" style={{ padding: "10px 14px", fontSize: "0.78rem", margin: 0 }}>
-              <strong>Sıkışma Hatası:</strong>
+              <strong>{t("step3.stuckError")}</strong>
               {solverError}
             </div>
           )}
@@ -460,14 +462,15 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
               without stealing focus, per WCAG 2.2 AA 4.1.3. */}
           {unfilledDays.length > 0 && (
             <div className="alert alert-warning" role="status" style={{ padding: "10px 14px", fontSize: "0.78rem", margin: 0 }}>
-              <strong>{unfilledDays.length} gün boş kaldı.</strong>{" "}
-              Toplam {unfilledDays.reduce((sum, g) => sum + (g.required - g.assigned), 0)} nöbet
-              yeri doldurulamadı. Kadroya öğretmen ekleyebilir, öğretmenlerin uygunluk
-              işaretlerini gözden geçirebilir
-              {respectTargets ? ", aylık nöbet hedeflerini yükseltebilir" : ""}
+              <strong>{t("step3.openDaysTitle", { days: unfilledDays.length })}</strong>{" "}
+              {t("step3.openDaysBody", { slots: unfilledDays.reduce((sum, g) => sum + (g.required - g.assigned), 0) })}
+              {respectTargets ? t("step3.openDaysTargets") : ""}
               {activeHardRules.length > 0
-                ? ` veya ${activeHardRules.join(" ve ")} ${activeHardRules.length > 1 ? "kurallarını" : "kuralını"} kapatabilirsiniz.`
-                : " veya günlere sabitlediğiniz öğretmenleri değiştirebilirsiniz."}
+                ? t("step3.openDaysRules", {
+                    rules: activeHardRules.join(` ${t("common.and")} `),
+                    word: activeHardRules.length > 1 ? t("step3.openDaysRulesWord") : t("step3.openDaysRuleWord"),
+                  })
+                : t("step3.openDaysPins")}
             </div>
           )}
 
@@ -479,12 +482,16 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
               2.2 AA 4.1.3. */}
           {unfilledGroups.length > 0 && (
             <div className="alert alert-warning" role="status" style={{ padding: "10px 14px", fontSize: "0.78rem", margin: 0 }}>
-              <strong>Bazı nöbet grupları eksik kaldı.</strong>
+              <strong>{t("step3.groupsShortTitle")}</strong>
               <ul style={{ margin: "6px 0 0 0", paddingLeft: "18px" }}>
                 {unfilledGroups.map(({ group, placed, names }) => (
                   <li key={group.id}>
-                    {names}: {group.goalDays} günün {placed}{turkishPossessiveSuffix(placed)} yerleştirildi. Kalan
-                    günlerde üyelerin tamamı birden uygun değil.
+                    {t("step3.groupShortfall", {
+                      names,
+                      goal: group.goalDays,
+                      placed,
+                      placedOrdinal: `${placed}${turkishPossessiveSuffix(placed)}`,
+                    })}
                   </li>
                 ))}
               </ul>
@@ -497,7 +504,7 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
           <div className="calendar-wrapper card" style={{ margin: 0, padding: "16px" }}>
             
             <div className="calendar-header-grid" style={{ flexShrink: 0 }}>
-              {DAYS_TR.map(d => <div key={d}>{d}</div>)}
+              {shortDayNames().map((d) => <div key={d}>{d}</div>)}
             </div>
 
             <div
@@ -530,7 +537,12 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
                   .map((id) => teachers.find((t) => t.id === id)?.name)
                   .filter(Boolean);
                 const cellAriaLabel = isIncluded
-                  ? `${date.getDate()}: ${[assignedNames.join(", "), openSlots > 0 ? `${openSlots} boş slot` : ""].filter(Boolean).join(", ")}. Nöbet günü ayarlarını açmak için etkinleştirin.`
+                  ? t("step3.cellLabel", {
+                      day: date.getDate(),
+                      summary: [assignedNames.join(", "), openSlots > 0 ? t("step3.openSlots", { count: openSlots }) : ""]
+                        .filter(Boolean)
+                        .join(", "),
+                    })
                   : undefined;
 
                 return (
@@ -589,8 +601,8 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
                         {isGroupDay(dateStr) && (
                           <span
                             className="partner-day-badge"
-                            title="Bu gün bir nöbet grubu birlikte görevli"
-                            aria-label="Bu gün bir nöbet grubu birlikte görevli"
+                            title={t("step3.groupDay")}
+                            aria-label={t("step3.groupDay")}
                             style={{ fontSize: "0.7rem" }}
                           >
                             👥
@@ -614,9 +626,9 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
                                 whiteSpace: "nowrap",
                                 overflow: "hidden"
                               }}
-                              title={isPinned ? `Manuel sabitlenen: ${teacher?.name}` : `Sistem tarafından atanan: ${teacher?.name}`}
+                              title={t(isPinned ? "step3.pinnedTitle" : "step3.assignedTitle", { name: teacher?.name ?? "" })}
                             >
-                              {isPinned ? "📌 " : ""} {teacher ? teacher.name : "Boş Slot"}
+                              {isPinned ? "📌 " : ""} {teacher ? teacher.name : t("step3.emptySlot")}
                             </div>
                           );
                         })}
@@ -624,7 +636,7 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
                           // --text-muted measured (axe-core) at 3.62:1 against this
                           // cell's background in dark theme — --text-secondary passes.
                           <span style={{ fontSize: "0.65rem", color: "var(--text-secondary)", fontStyle: "italic", textAlign: "center", display: "block", marginTop: assignedIds.length === 0 ? "8px" : "2px" }}>
-                            {openSlots} boş slot
+                            {t("step3.openSlots", { count: openSlots })}
                           </span>
                         )}
                       </div>
@@ -633,7 +645,7 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
                       // (dark) on this excluded cell's background — both fail
                       // 4.5:1; --text-secondary passes in both themes.
                       <span style={{ fontSize: "0.65rem", color: "var(--text-secondary)", fontStyle: "italic", textAlign: "center", width: "100%", margin: "auto 0" }}>
-                        Nöbet Yok
+                        {t("step3.noDuty")}
                       </span>
                     )}
                   </div>
@@ -649,7 +661,7 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
           {selectedDateStr && selectedDateDetails ? (
             <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
               <div style={{ borderBottom: "1.5px solid var(--border)", paddingBottom: "10px" }}>
-                <span style={{ fontSize: "0.7rem", textTransform: "uppercase", fontWeight: "700", color: "var(--primary)" }}>Günlük Nöbet Ayarları</span>
+                <span style={{ fontSize: "0.7rem", textTransform: "uppercase", fontWeight: "700", color: "var(--primary)" }}>{t("step3.daySettings")}</span>
                 <h3 style={{ margin: "4px 0 0 0", color: "var(--text-primary)", fontWeight: "800", fontSize: "1.05rem" }}>
                   📅 {selectedDateDetails.dateFriendly}
                 </h3>
@@ -657,9 +669,9 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
 
               {/* Day-specific teacher count override counter */}
               <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                <label style={{ fontSize: "0.8rem", fontWeight: "700", color: "var(--text-secondary)" }}>Gereken Öğretmen Sayısı:</label>
+                <label style={{ fontSize: "0.8rem", fontWeight: "700", color: "var(--text-secondary)" }}>{t("step3.requiredTeachers")}</label>
                 <div style={{ display: "flex", alignItems: "center", gap: "10px", backgroundColor: "var(--slate-50)", padding: "6px 12px", borderRadius: "8px", border: "1.5px solid var(--border)", justifyContent: "space-between" }}>
-                  <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>Nöbetçi Sayısı:</span>
+                  <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>{t("step3.guardCount")}</span>
                   <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                     <button
                       className="btn"
@@ -692,22 +704,25 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
 
               {/* Multi-slot Pinning Select Dropdowns */}
               <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                <label style={{ fontSize: "0.8rem", fontWeight: "700", color: "var(--text-secondary)" }}>Öğretmenleri Bu Güne Sabitle:</label>
+                <label style={{ fontSize: "0.8rem", fontWeight: "700", color: "var(--text-secondary)" }}>{t("step3.pinTeachers")}</label>
                 
                 {Array.from({ length: requiredCount }).map((_, slotIdx) => (
                   <div key={slotIdx} style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                    <span style={{ fontSize: "0.72rem", color: "var(--text-secondary)", fontWeight: "600" }}>Nöbetçi {slotIdx + 1}:</span>
+                    <span style={{ fontSize: "0.72rem", color: "var(--text-secondary)", fontWeight: "600" }}>{t("step3.guardSlot", { n: slotIdx + 1 })}</span>
                     <CustomSelect
                       // Teachers who marked this day Uygun Değil stay in the
                       // list — a pin may still be the right call — but say so.
-                      options={teachers.map(t => ({
-                        value: t.id,
-                        label: availabilities[t.id]?.[selectedDateStr] === "unavailable" ? `${t.name} (Uygun Değil)` : t.name,
+                      options={teachers.map((teacher) => ({
+                        value: teacher.id,
+                        label:
+                          availabilities[teacher.id]?.[selectedDateStr] === "unavailable"
+                            ? t("step3.unavailableOption", { name: teacher.name })
+                            : teacher.name,
                       }))}
                       value={pinnedIds[slotIdx] || ""}
-                      placeholder="Öğretmen Seç (Boş Slot)..."
+                      placeholder={t("step3.pinPlaceholder")}
                       variant="pinned"
-                      ariaLabel={`Nöbetçi ${slotIdx + 1} için öğretmen seç`}
+                      ariaLabel={t("step3.pinSlotAria", { n: slotIdx + 1 })}
                       onChange={(newPin) => {
                         setPinnedAssignments(prev => {
                           const current = prev[selectedDateStr!] ? [...prev[selectedDateStr!]] : [];
@@ -732,14 +747,14 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
                   style={{ flexGrow: 1, padding: "6px 10px", fontSize: "0.78rem" }}
                   onClick={() => handleClearPins(selectedDateStr)}
                 >
-                  Sıfırla
+                  {t("step3.reset")}
                 </button>
                 <button
                   className="btn btn-primary"
                   style={{ flexGrow: 1, padding: "6px 10px", fontSize: "0.78rem" }}
                   onClick={() => setSelectedDateStr(null)}
                 >
-                  Kapat
+                  {t("step3.close")}
                 </button>
               </div>
             </div>
@@ -748,9 +763,9 @@ export const Step3Solver: React.FC<Step3SolverProps> = ({
             // <p> below (inherited from here) — --text-secondary passes.
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", minHeight: "250px", color: "var(--text-secondary)", textAlign: "center" }}>
               <div style={{ fontSize: "2rem", marginBottom: "8px" }} aria-hidden="true">📅</div>
-              <h4 style={{ fontWeight: "800", color: "var(--text-primary)", margin: "0 0 4px 0", fontSize: "0.95rem" }}>Gün Seçilmedi</h4>
+              <h4 style={{ fontWeight: "800", color: "var(--text-primary)", margin: "0 0 4px 0", fontSize: "0.95rem" }}>{t("step3.noDaySelected")}</h4>
               <p style={{ fontSize: "0.78rem", margin: 0, lineHeight: "1.15rem" }}>
-                Öğretmen sabitlemek veya o güne özel nöbetçi sayısı girmek için ortadaki takvimden aktif bir güne tıklayın.
+                {t("step3.noDaySelectedHelp")}
               </p>
             </div>
           )}

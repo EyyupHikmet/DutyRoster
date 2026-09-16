@@ -1,4 +1,4 @@
-import { MONTHS_TR } from "./dateUtils";
+import { monthName } from "./dateUtils";
 import { foldForSearch } from "./turkishText";
 
 interface MonthKey {
@@ -47,7 +47,7 @@ export function searchApprovedSchedules<T extends MonthKey & { postName?: string
   const folded = foldForSearch(query);
   if (!folded) return copies;
   return copies.filter((c) =>
-    foldForSearch(`${c.postName ?? ""} ${MONTHS_TR[c.month - 1]} ${c.year}`).includes(folded)
+    foldForSearch(`${c.postName ?? ""} ${monthName(c.month)} ${c.year}`).includes(folded)
   );
 }
 

@@ -1,5 +1,6 @@
+import { useTranslation } from "react-i18next";
 import React, { useState } from "react";
-import { MONTHS_TR, DAYS_TR, getMonthDatesWithPadding, formatDateYYYYMMDD } from "../utils/dateUtils";
+import { monthNames, shortDayNames, getMonthDatesWithPadding, formatDateYYYYMMDD } from "../utils/dateUtils";
 import { CustomSelect } from "./CustomSelect";
 
 interface Step2ActiveDaysProps {
@@ -33,6 +34,7 @@ export const Step2ActiveDays: React.FC<Step2ActiveDaysProps> = ({
   copyPosts = [],
   onCopyFromPost
 }) => {
+  const { t } = useTranslation();
   const paddedDates = getMonthDatesWithPadding(selectedYear, selectedMonth);
   const [copySource, setCopySource] = useState<string>("");
   // Falls back to the first offered post until one is picked, and after the
@@ -59,7 +61,7 @@ export const Step2ActiveDays: React.FC<Step2ActiveDaysProps> = ({
       >
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <h2 className="step-title" style={{ margin: 0, fontSize: "1.15rem", fontWeight: "800" }}>
-            📅 Ay Seçimi & Aktif Günler{postName ? ` — ${postName}` : ""}
+            {postName ? t("step2.titleWithPost", { post: postName }) : t("step2.title")}
           </h2>
           
           <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
@@ -72,15 +74,15 @@ export const Step2ActiveDays: React.FC<Step2ActiveDaysProps> = ({
               value={String(selectedYear)}
               onChange={(val) => setSelectedYear(Number(val))}
               style={{ width: "100px" }}
-              ariaLabel="Yıl seçimi"
+              ariaLabel={t("availability.yearSelect")}
             />
 
             <CustomSelect
-              options={MONTHS_TR.map((m, idx) => ({ value: String(idx + 1), label: m }))}
+              options={monthNames().map((m, idx) => ({ value: String(idx + 1), label: m }))}
               value={String(selectedMonth)}
               onChange={(val) => setSelectedMonth(Number(val))}
               style={{ width: "140px" }}
-              ariaLabel="Ay seçimi"
+              ariaLabel={t("availability.monthSelect")}
             />
           </div>
 
@@ -91,7 +93,7 @@ export const Step2ActiveDays: React.FC<Step2ActiveDaysProps> = ({
             <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
               <select
                 className="form-control"
-                aria-label="Gün ayarlarının kopyalanacağı nöbet yeri"
+                aria-label={t("step2.copySource")}
                 value={source}
                 onChange={(e) => setCopySource(e.target.value)}
                 style={{ width: "auto", minWidth: "150px", padding: "6px 10px", fontSize: "0.85rem" }}
@@ -106,7 +108,7 @@ export const Step2ActiveDays: React.FC<Step2ActiveDaysProps> = ({
                 style={{ padding: "6px 12px", fontSize: "0.8rem" }}
                 onClick={() => source && onCopyFromPost(source)}
               >
-                Başka nöbet yerinden kopyala
+                {t("step2.copyAction")}
               </button>
             </div>
           )}
@@ -125,7 +127,7 @@ export const Step2ActiveDays: React.FC<Step2ActiveDaysProps> = ({
                 borderRadius: "3px" 
               }}
             ></div>
-            <span style={{ fontSize: "0.78rem", fontWeight: "700" }}>Nöbet Günü</span>
+            <span style={{ fontSize: "0.78rem", fontWeight: "700" }}>{t("step2.legendDutyDay")}</span>
           </div>
           <div className="color-guide-item" style={{ gap: "6px" }}>
             <div 
@@ -153,9 +155,9 @@ export const Step2ActiveDays: React.FC<Step2ActiveDaysProps> = ({
                 fontWeight: "bold" 
               }}
             >
-              Ekstra
+              {t("step2.extra")}
             </span>
-            <span style={{ fontSize: "0.78rem", fontWeight: "700" }}>Nöbet Farkı</span>
+            <span style={{ fontSize: "0.78rem", fontWeight: "700" }}>{t("step2.legendExtra")}</span>
           </div>
         </div>
       </div>
@@ -163,7 +165,7 @@ export const Step2ActiveDays: React.FC<Step2ActiveDaysProps> = ({
       {/* Main Calendar Grid Area (Fills remaining height with massive typography!) */}
       <div className="step2-calendar-wrapper card">
         <div className="calendar-header-grid" style={{ flexShrink: 0, marginBottom: "16px", fontSize: "0.95rem" }}>
-          {DAYS_TR.map(d => <div key={d}>{d}</div>)}
+          {shortDayNames().map((d) => <div key={d}>{d}</div>)}
         </div>
 
         <div
@@ -185,10 +187,8 @@ export const Step2ActiveDays: React.FC<Step2ActiveDaysProps> = ({
 
             const isExtra = extraDays.includes(dateStr);
 
-            const dayToggleLabel = `${date.getDate()}, ${isIncluded ? "nöbet günü. Tatile çevirmek için etkinleştirin." : "tatil. Nöbet gününe çevirmek için etkinleştirin."}`;
-            const extraToggleLabel = isExtra
-              ? "Ekstra nöbet günü. Standarta çevirmek için etkinleştirin."
-              : "Standart nöbet günü. Ekstraya çevirmek için etkinleştirin.";
+            const dayToggleLabel = t(isIncluded ? "step2.toggleToOff" : "step2.toggleToDuty", { day: date.getDate() });
+            const extraToggleLabel = t(isExtra ? "step2.extraToStandard" : "step2.standardToExtra");
 
             // The day-toggle control and the Standart/Ekstra badge are two
             // independent actions that used to be rendered as parent/child
@@ -239,7 +239,7 @@ export const Step2ActiveDays: React.FC<Step2ActiveDaysProps> = ({
                     </span>
                   </div>
                   <span className={`cell-badge step2-cell-badge ${isIncluded ? 'cell-badge-pref' : 'cell-badge-excluded'}`}>
-                    {isIncluded ? "Nöbet Var" : "Tatil"}
+                    {isIncluded ? t("step2.dutyDay") : t("step2.offDay")}
                   </span>
                 </button>
 
@@ -257,9 +257,9 @@ export const Step2ActiveDays: React.FC<Step2ActiveDaysProps> = ({
                         handleToggleExtraDay(dateStr);
                       }
                     }}
-                    title={isExtra ? "Ekstra nöbet günü. Standarta çevirmek için tıklayın." : "Standart nöbet günü. Ekstraya çevirmek için tıklayın."}
+                    title={t(isExtra ? "step2.extraToStandardTitle" : "step2.standardToExtraTitle")}
                   >
-                    {isExtra ? "Ekstra" : "Standart"}
+                    {isExtra ? t("step2.extra") : t("step2.standard")}
                   </span>
                 )}
               </div>

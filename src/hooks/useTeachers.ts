@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { getTeachers, saveTeacher, deleteTeacher, moveTeacherToPost, DbTeacher } from "../db";
 import { effectiveTarget } from "../utils/targets";
 import { PartnerGroup, committedGroupDays } from "../solver/partners";
@@ -29,6 +30,7 @@ export interface DeleteTeacherContext {
  * names are unique across all posts, but `teachers` is only the given post's.
  */
 export function useTeachers(postId?: string | null) {
+  const { t } = useTranslation();
   const [allTeachers, setAllTeachers] = useState<DbTeacher[]>([]);
   const teachers = allTeachers.filter((t) => t.post_id === postId);
   const [selectedTeacherId, setSelectedTeacherId] = useState<string | null>(null);
@@ -50,7 +52,7 @@ export function useTeachers(postId?: string | null) {
       }
       return own;
     } catch (err) {
-      console.error("Öğretmenler yüklenemedi:", err);
+      console.error("Could not load the teachers:", err);
       return [];
     }
   };
@@ -67,9 +69,7 @@ export function useTeachers(postId?: string | null) {
     // another teacher already has is refused rather than saved as a twin.
     const conflict = findNameConflict(teacherName, allTeachers, editingTeacherId);
     if (conflict) {
-      setTeacherError(
-        `“${conflict.name}” adında bir öğretmen zaten var. İki öğretmeni ayırt edebilmek için adı değiştirin (ör. “${conflict.name} (Mat.)”).`
-      );
+      setTeacherError(t("teacherForm.nameTaken", { name: conflict.name }));
       return false;
     }
 
@@ -87,9 +87,7 @@ export function useTeachers(postId?: string | null) {
     const committed = committedGroupDays(id, ctx.partnerGroups);
 
     if (committed > target) {
-      setTeacherError(
-        `${teacherName.trim()}: bu ay gruplarda toplam ${committed} ortak nöbet günü tanımlı, hedefi ${target} yapamazsınız. Önce grupların gün sayısını azaltın.`
-      );
+      setTeacherError(t("teacherForm.belowCommitted", { name: teacherName.trim(), committed, target }));
       return false;
     }
 
@@ -133,8 +131,8 @@ export function useTeachers(postId?: string | null) {
       setTeacherPostId(null);
       return true;
     } catch (err) {
-      console.error("Öğretmen kaydedilemedi:", err);
-      setTeacherError("Öğretmen kaydedilemedi. Lütfen tekrar deneyin.");
+      console.error("Could not save the teacher:", err);
+      setTeacherError(t("teacherForm.saveFailed"));
       return false;
     }
   };
@@ -151,7 +149,7 @@ export function useTeachers(postId?: string | null) {
   };
 
   const handleDeleteTeacherClick = async (id: string, ctx: DeleteTeacherContext) => {
-    if (!window.confirm("Bu öğretmeni ve tüm uygunluk kayıtlarını silmek istediğinize emin misiniz?")) return false;
+    if (!window.confirm(t("teacherForm.confirmDelete"))) return false;
     try {
       await deleteTeacher(id);
       // db.ts's deleteTeacher() already cascaded this id out of every SAVED
@@ -167,7 +165,7 @@ export function useTeachers(postId?: string | null) {
       }
       return true;
     } catch (err) {
-      console.error("Öğretmen silinemedi:", err);
+      console.error("Could not delete the teacher:", err);
       return false;
     }
   };

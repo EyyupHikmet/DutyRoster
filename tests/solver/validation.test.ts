@@ -50,9 +50,7 @@ describe("validatePartnerGroups", () => {
     const over = issues.find((i) => i.code === "over_committed");
     expect(over).toBeDefined();
     expect(over!.teacherId).toBe("T3");
-    expect(over!.message).toContain("Can");
-    expect(over!.message).toContain("4");
-    expect(over!.message).toContain("3");
+    expect(over!.values).toEqual({ name: "Can", total: 4, target: 3 });
   });
 
   it("taahhüt tam hedefe eşitse kabul eder", () => {

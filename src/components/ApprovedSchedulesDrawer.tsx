@@ -1,6 +1,7 @@
+import { useTranslation } from "react-i18next";
 import React, { useEffect, useRef, useState } from "react";
 import { ApprovedSchedule } from "../hooks/useApprovedSchedules";
-import { MONTHS_TR } from "../utils/dateUtils";
+import { monthName } from "../utils/dateUtils";
 import { formatApprovalDate, searchApprovedSchedules } from "../utils/approvedSchedules";
 import { openSlotCount } from "../utils/scheduleReport";
 
@@ -22,6 +23,7 @@ export const ApprovedSchedulesDrawer: React.FC<ApprovedSchedulesDrawerProps> = (
   onExport,
   onDelete,
 }) => {
+  const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
   const visible = searchApprovedSchedules(approvedSchedules, query);
@@ -60,9 +62,9 @@ export const ApprovedSchedulesDrawer: React.FC<ApprovedSchedulesDrawerProps> = (
     >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
         <h2 id="approved-schedules-title" style={{ margin: 0, fontSize: "1.1rem", fontWeight: 850, color: "var(--text-primary)" }}>
-          Onaylı Çizelgeler
+          {t("drawer.title")}
         </h2>
-        <button className="btn btn-secondary" style={{ padding: "4px 10px" }} onClick={onClose} aria-label="Kapat">
+        <button className="btn btn-secondary" style={{ padding: "4px 10px" }} onClick={onClose} aria-label={t("drawer.close")}>
           ✕
         </button>
       </div>
@@ -71,8 +73,8 @@ export const ApprovedSchedulesDrawer: React.FC<ApprovedSchedulesDrawerProps> = (
         ref={searchRef}
         type="search"
         className="form-control"
-        aria-label="Onaylı çizelge ara"
-        placeholder="Ay veya yıl yazın (ör. kasım 2026)"
+        aria-label={t("drawer.search")}
+        placeholder={t("drawer.searchPlaceholder")}
         value={query}
         onChange={(e) => setQuery(e.target.value)}
       />
@@ -80,32 +82,32 @@ export const ApprovedSchedulesDrawer: React.FC<ApprovedSchedulesDrawerProps> = (
       <div style={{ overflowY: "auto", flexGrow: 1 }}>
         {approvedSchedules.length === 0 ? (
           <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--text-secondary)" }}>
-            Henüz onaylanmış çizelge yok. Adım 3'te hazırladığınız çizelgeyi onaylayabilirsiniz.
+            {t("drawer.empty")}
           </p>
         ) : visible.length === 0 ? (
           <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--text-secondary)" }}>
-            Aramanızla eşleşen onaylı çizelge yok.
+            {t("drawer.noMatch")}
           </p>
         ) : (
           <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: "8px" }}>
             {visible.map((copy) => {
-              const label = `${MONTHS_TR[copy.month - 1]} ${copy.year}`;
+              const label = `${monthName(copy.month)} ${copy.year}`;
               const openSlots = openSlotCount(copy.report);
               return (
                 <li key={copy.id} className="card" style={{ margin: 0, padding: "12px", display: "flex", flexDirection: "column", gap: "6px" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "8px", flexWrap: "wrap" }}>
                     <strong style={{ color: "var(--text-primary)" }}>{label}</strong>
                     <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>
-                      Onay: {formatApprovalDate(copy.approved_at)}
+                      {t("drawer.approvedOn", { date: formatApprovalDate(copy.approved_at) })}
                     </span>
                   </div>
                   <div style={{ fontSize: "0.78rem", color: "var(--text-secondary)" }}>
                     {copy.postName ? `${copy.postName} · ` : ""}
-                    {copy.report.teachers.length} öğretmen
+                    {t("drawer.teacherCount", { count: copy.report.teachers.length })}
                     {openSlots > 0 && (
                       <>
                         {" · "}
-                        <span style={{ color: "var(--warning-text)", fontWeight: 700 }}>{openSlots} boş slot</span>
+                        <span style={{ color: "var(--warning-text)", fontWeight: 700 }}>{t("drawer.openSlots", { count: openSlots })}</span>
                       </>
                     )}
                   </div>
@@ -114,17 +116,17 @@ export const ApprovedSchedulesDrawer: React.FC<ApprovedSchedulesDrawerProps> = (
                       className="btn btn-secondary"
                       style={{ flexGrow: 1, padding: "6px 10px", fontSize: "0.78rem" }}
                       onClick={() => onExport(copy)}
-                      aria-label={`${label} çizelgesini Excel'e aktar`}
+                      aria-label={t("drawer.exportOne", { label })}
                     >
-                      📥 Excel'e aktar
+                      {t("drawer.exportAction")}
                     </button>
                     <button
                       className="btn btn-danger"
                       style={{ padding: "6px 12px", fontSize: "0.78rem" }}
                       onClick={() => onDelete(copy)}
-                      aria-label={`${label} çizelgesini sil`}
+                      aria-label={t("drawer.deleteOne", { label })}
                     >
-                      Sil
+                      {t("common.delete")}
                     </button>
                   </div>
                 </li>

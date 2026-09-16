@@ -39,6 +39,9 @@ export interface SolverConfig {
   partnerGroups?: PartnerGroup[];
 }
 
+/** What stopped the search: an empty staff, or a day nobody could take. */
+export type SolverErrorCode = "no_teachers" | "no_eligible_teacher";
+
 // One duty day that ended up with fewer teachers than it asked for.
 export interface UnfilledSlot {
   date: string;     // YYYY-MM-DD
@@ -57,7 +60,12 @@ export interface SolverResult {
   // Only present when the month actually has groups, so a month without them
   // returns the exact same shape it always has.
   unfilledGroups?: { groupId: string; goal: number; placed: number }[];
-  error_message?: string;
+  /**
+   * Why no schedule could be built. The sentence itself belongs to the
+   * interface: this module stays pure and language-free, so a locale can word
+   * the diagnosis without the search having to know any language.
+   */
+  error_code?: SolverErrorCode;
   error_date?: string;
 }
 
@@ -84,7 +92,7 @@ export function solve(
   if (teachers.length === 0) {
     return {
       success: false,
-      error_message: "Kadroda kayıtlı öğretmen bulunmamaktadır. Lütfen öncelikle öğretmen ekleyin veya içe aktarın.",
+      error_code: "no_teachers",
     };
   }
 
@@ -370,22 +378,12 @@ export function solve(
 
     return { success: true, schedule: assignments, unfilled, unfilledGroups };
   } else {
-    // Formulate a very helpful diagnostic error message in Turkish
-    let friendlyDateStr = deepestFailureDate || "bir gün";
-    if (deepestFailureDate) {
-      try {
-        const dateObj = new Date(deepestFailureDate);
-        const options: Intl.DateTimeFormatOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-        friendlyDateStr = dateObj.toLocaleDateString('tr-TR', options);
-      } catch (e) {
-        friendlyDateStr = deepestFailureDate;
-      }
-    }
-
+    // The date the search got stuck on is all the interface needs to explain
+    // what happened and what to change; wording it is the interface's job.
     return {
       success: false,
       error_date: deepestFailureDate || undefined,
-      error_message: `${friendlyDateStr} günü için görevlendirilecek uygun öğretmen bulunamadı. \n\nOlası nedenler:\n1. O gün için tüm öğretmenler "Uygun Değil" (Kırmızı) olarak işaretlenmiş olabilir.\n2. Öğretmenlerin aylık nöbet hedefleri dolmuş ve sistem diğer günleri planlarken sıkışmış olabilir.\n\nÖneri: Lütfen o gün için en az birkaç öğretmeni "Uygun" (Sarı) veya "Tercih Edilen" (Yeşil) olarak işaretleyip tekrar deneyin!`,
+      error_code: "no_eligible_teacher",
     };
   }
 }

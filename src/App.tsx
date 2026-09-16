@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Trans, useTranslation } from "react-i18next";
+import { i18n } from "./i18n";
 import { useTeachers } from "./hooks/useTeachers";
 import { useAvailabilities } from "./hooks/useAvailabilities";
 import { useScheduleState } from "./hooks/useScheduleState";
@@ -10,7 +12,7 @@ import { creditPartnerGroups } from "./solver/partners";
 import { splitImportByName } from "./utils/teacherNames";
 import { useApprovedSchedules, ApprovedSchedule } from "./hooks/useApprovedSchedules";
 import { useDutyPosts } from "./hooks/useDutyPosts";
-import { getDutyDates, findUnfilledDays, MONTHS_TR } from "./utils/dateUtils";
+import { getDutyDates, findUnfilledDays, monthName } from "./utils/dateUtils";
 import { effectiveTarget } from "./utils/targets";
 import { solve, Teacher, SolverConfig, SolverResult } from "./solver";
 import { saveTeacher, resetDb, getLastPostId, setLastPostId, getAllSchedules } from "./db";
@@ -32,6 +34,7 @@ import { ModalDialog } from "./components/ModalDialog";
 import { PostMenu } from "./components/PostMenu";
 
 export default function App() {
+  const { t } = useTranslation();
   const [activeStep, setActiveStep] = useState<number>(1);
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [fontSizeFactor, setFontSizeFactor] = useState<number>(1); // 0.8 to 1.6 scale range
@@ -380,7 +383,7 @@ export default function App() {
   // selectedMonth).
   const [copyMonths, setCopyMonths] = useState<{ year: number; month: number }[]>([]);
 
-  const monthLabel = `${MONTHS_TR[selectedMonth - 1]} ${selectedYear}`;
+  const monthLabel = `${monthName(selectedMonth)} ${selectedYear}`;
 
   const handleCopyPartnersFromMonth = async (year: number, month: number) => {
     await copyPartnersFromMonth(year, month, teachers.map((t) => t.id));
@@ -444,17 +447,17 @@ export default function App() {
     setTeacherPostId(null);
     setTeacherError(null);
     setSelectedPostId(postId);
-    setLastPostId(postId).catch((err) => console.error("Seçili nöbet yeri kaydedilemedi:", err));
+    setLastPostId(postId).catch((err) => console.error("Could not remember the selected duty post:", err));
   };
 
-  const duplicatePostMessage = (name: string) => `“${name}” adında bir nöbet yeri zaten var.`;
+  const duplicatePostMessage = (name: string) => t("app.postNameTaken", { name });
 
   // Resolves to the message the dialog shows when the name is refused.
   const handleAddPost = async (name: string): Promise<string | null> => {
     const result = await addPost(name);
     if (result.status === "duplicate") return duplicatePostMessage(result.existing.name);
-    if (result.status === "empty") return "Nöbet yerinin adını yazın.";
-    if (result.status === "error") return "Nöbet yeri eklenemedi. Lütfen tekrar deneyin.";
+    if (result.status === "empty") return t("app.postNameEmpty");
+    if (result.status === "error") return t("app.postAddFailed");
     requestPostChange(result.post.id);
     return null;
   };
@@ -463,8 +466,8 @@ export default function App() {
     if (!selectedPostId) return null;
     const result = await renamePost(selectedPostId, name);
     if (result.status === "duplicate") return duplicatePostMessage(result.existing.name);
-    if (result.status === "empty") return "Nöbet yerinin adını yazın.";
-    if (result.status === "error") return "Nöbet yerinin adı değiştirilemedi. Lütfen tekrar deneyin.";
+    if (result.status === "empty") return t("app.postNameEmpty");
+    if (result.status === "error") return t("app.postRenameFailed");
     return null;
   };
 
@@ -475,24 +478,24 @@ export default function App() {
     const name = selectedPost?.name ?? "";
     const result = await removePost(selectedPostId);
     if (result.status !== "deleted") {
-      setExportErrorMessage("Nöbet yeri silinemedi. Lütfen tekrar deneyin.");
+      setExportErrorMessage(t("app.postDeleteFailed"));
       setTimeout(() => setExportErrorMessage(null), 5000);
       return;
     }
     const remaining = await loadPosts();
     if (remaining.length > 0) switchPost(remaining[0].id);
     await loadApprovedSchedules();
-    setSuccessMessage(`${name} nöbet yeri silindi.`);
+    setSuccessMessage(t("app.postDeleted", { name }));
     setTimeout(() => setSuccessMessage(null), 4000);
   };
 
   const handleCopyDaySettings = async (sourcePostId: string) => {
     const sourceName = posts.find((p) => p.id === sourcePostId)?.name ?? "";
     if (await copyDaySettingsFromPost(sourcePostId)) {
-      setSuccessMessage(`${sourceName} nöbet yerinin gün ayarları bu aya kopyalandı.`);
+      setSuccessMessage(t("app.daySettingsCopied", { name: sourceName }));
       setTimeout(() => setSuccessMessage(null), 4000);
     } else {
-      setExportErrorMessage(`${sourceName} nöbet yerinin bu ay için kaydedilmiş gün ayarı yok.`);
+      setExportErrorMessage(t("app.daySettingsMissing", { name: sourceName }));
       setTimeout(() => setExportErrorMessage(null), 5000);
     }
   };
@@ -534,7 +537,7 @@ export default function App() {
         await loadPosts();
         setSelectedPostId(await getLastPostId());
       } catch (err) {
-        console.error("Nöbet yerleri yüklenemedi:", err);
+        console.error("Could not load the duty posts:", err);
       }
     }
     openLastPost();
@@ -553,7 +556,7 @@ export default function App() {
         setCopyPostIds(await postsWithMonthSetup());
         await loadApprovedSchedules();
       } catch (err) {
-        console.error("Veritabanı yüklenirken hata oluştu:", err);
+        console.error("Could not load the database:", err);
       }
     }
     loadData();
@@ -572,7 +575,7 @@ export default function App() {
       try {
         const imported = parseExcelRoster(data as string);
         if (imported.length === 0) {
-          alert("Excel dosyasında geçerli öğretmen bilgisi bulunamadı.");
+          alert(t("app.importNoTeachers"));
           return;
         }
 
@@ -587,20 +590,20 @@ export default function App() {
 
         const skippedNote =
           skipped.length > 0
-            ? ` ${skipped.length} isim zaten kadroda olduğu için atlandı: ${skipped.join(", ")}.`
+            ? t("app.importSkipped", { count: skipped.length, names: skipped.join(", ") })
             : "";
         if (added.length === 0) {
-          setSuccessMessage(`Yeni öğretmen eklenmedi.${skippedNote}`);
+          setSuccessMessage(t("app.importNoneAdded", { skipped: skippedNote }));
         } else if (skipped.length === 0) {
-          setSuccessMessage(`${added.length} öğretmen başarıyla yüklendi.`);
+          setSuccessMessage(t("app.importAdded", { count: added.length }));
         } else {
-          setSuccessMessage(`${added.length} öğretmen yüklendi.${skippedNote}`);
+          setSuccessMessage(t("app.importAddedWithSkipped", { count: added.length, skipped: skippedNote }));
         }
         // A list of skipped names needs longer on screen to be read.
         setTimeout(() => setSuccessMessage(null), skipped.length > 0 ? 8000 : 4000);
       } catch (err) {
-        console.error("İçe aktarma sırasında hata oluştu:", err);
-        alert("Dosya okunurken bir hata oluştu. Lütfen dosya formatını kontrol edin.");
+        console.error("Could not import the roster:", err);
+        alert(t("app.importFailed"));
       }
     };
     reader.readAsBinaryString(file);
@@ -654,12 +657,12 @@ export default function App() {
     const targetDates = getDutyDates(selectedYear, selectedMonth, holidays, weekendDutyDays);
 
     if (targetDates.length === 0) {
-      setSolverError("Planlanacak hiç nöbet günü seçilmedi! Lütfen Adım 2'ye giderek aktif günleri seçin.");
+      setSolverError(t("app.noDutyDays"));
       return;
     }
 
     if (teachers.length === 0) {
-      setSolverError("Planlama başlatılamadı çünkü sistemde hiç kayıtlı öğretmen yok. Lütfen önce öğretmen ekleyin.");
+      setSolverError(t("app.noTeachers"));
       return;
     }
 
@@ -700,12 +703,21 @@ export default function App() {
       const gapCount = result.unfilled?.length ?? 0;
       setSuccessMessage(
         gapCount > 0
-          ? `Nöbet çizelgesi oluşturuldu, ancak ${gapCount} gün boş kaldı.`
-          : "Nöbet çizelgesi başarıyla oluşturuldu."
+          ? t("app.generatedWithGaps", { count: gapCount })
+          : t("app.generated")
       );
       setTimeout(() => setSuccessMessage(null), 3000);
     } else {
-      setSolverError(result.error_message || "Çizelge planlanırken bilinmeyen bir hata oluştu.");
+      // The solver reports what stopped it; the sentence is the interface's.
+      setSolverError(
+        result.error_code
+          ? t(`solverError.${result.error_code}`, {
+              date: result.error_date
+                ? new Date(result.error_date).toLocaleDateString(i18n.language, { weekday: "long", year: "numeric", month: "long", day: "numeric" })
+                : t("solverError.someDay"),
+            })
+          : t("solverError.unknown")
+      );
     }
   };
 
@@ -800,8 +812,8 @@ export default function App() {
     if (result.status === "saved") {
       setExportToast({ path: result.path, filename: result.filename });
     } else if (result.status === "error") {
-      console.error("Excel dışa aktarma sırasında hata oluştu:", result.message);
-      setExportErrorMessage("Rapor kaydedilirken bir hata oluştu. Lütfen tekrar deneyin.");
+      console.error("Could not export to Excel:", result.message);
+      setExportErrorMessage(t("app.exportFailed"));
       setTimeout(() => setExportErrorMessage(null), 5000);
     }
     // status === "canceled": intentionally a no-op.
@@ -841,24 +853,24 @@ export default function App() {
     const savedId = await saveGeneratedScheduleToDb(generatedSchedule);
     const approved = savedId ? await approve(savedId, selectedPostId ?? "", report) : false;
     if (approved) {
-      setSuccessMessage(`${monthLabel} çizelgesi onaylandı.`);
+      setSuccessMessage(t("app.approved", { month: monthLabel }));
       setTimeout(() => setSuccessMessage(null), 4000);
     } else {
-      setExportErrorMessage("Çizelge onaylanırken bir hata oluştu. Lütfen tekrar deneyin.");
+      setExportErrorMessage(t("app.approveFailed"));
       setTimeout(() => setExportErrorMessage(null), 5000);
     }
   };
 
   const handleConfirmDeleteApproved = async () => {
     if (!approvedToDelete) return;
-    const label = `${MONTHS_TR[approvedToDelete.month - 1]} ${approvedToDelete.year}`;
+    const label = `${monthName(approvedToDelete.month)} ${approvedToDelete.year}`;
     const id = approvedToDelete.id;
     setApprovedToDelete(null);
     if (await remove(id)) {
-      setSuccessMessage(`${label} onaylı çizelgesi silindi.`);
+      setSuccessMessage(t("app.approvedDeleted", { label }));
       setTimeout(() => setSuccessMessage(null), 4000);
     } else {
-      setExportErrorMessage("Onaylı çizelge silinirken bir hata oluştu. Lütfen tekrar deneyin.");
+      setExportErrorMessage(t("app.approvedDeleteFailed"));
       setTimeout(() => setExportErrorMessage(null), 5000);
     }
   };
@@ -880,9 +892,9 @@ export default function App() {
     try {
       await openPath(exportToast.path);
     } catch (err) {
-      console.error("Dosya açılırken hata oluştu:", err);
+      console.error("Could not open the file:", err);
       setExportErrorMessage(
-        `Dosya açılamadı. Raporu şu konumdan kendiniz açabilirsiniz: ${exportToast.path}`
+        t("app.openFileFailed", { path: exportToast.path })
       );
       setTimeout(() => setExportErrorMessage(null), 8000);
     }
@@ -895,9 +907,9 @@ export default function App() {
     try {
       await revealItemInDir(exportToast.path);
     } catch (err) {
-      console.error("Klasör açılırken hata oluştu:", err);
+      console.error("Could not open the folder:", err);
       setExportErrorMessage(
-        `Klasör açılamadı. Rapor şu konuma kaydedildi: ${exportToast.path}`
+        t("app.openFolderFailed", { path: exportToast.path })
       );
       setTimeout(() => setExportErrorMessage(null), 8000);
     }
@@ -923,7 +935,7 @@ export default function App() {
       await openUrl(PROJECT_URL);
       setIsSettingsOpen(false);
     } catch (err) {
-      console.error("Proje sayfası açılamadı:", err);
+      console.error("Could not open the project page:", err);
     }
   };
 
@@ -958,11 +970,11 @@ export default function App() {
         setSelectedPostId(postId);
       }
       
-      setSuccessMessage("Veritabanı başarıyla sıfırlandı.");
+      setSuccessMessage(t("app.dbReset"));
       setTimeout(() => setSuccessMessage(null), 4000);
     } catch (err) {
-      console.error("Veritabanı sıfırlanırken hata oluştu:", err);
-      alert("Sıfırlama işlemi gerçekleştirilirken bir hata oluştu.");
+      console.error("Could not reset the database:", err);
+      alert(t("app.dbResetFailed"));
     }
   };
 
@@ -981,7 +993,7 @@ export default function App() {
             have to change on every step and stop being a stable page title —
             is the right fit here; the step titles correctly stay <h2> as the
             actual visible heading hierarchy already has them. */}
-        <h1 className="sr-only">Öğretmen Nöbet Çizelgesi Hazırlayıcı</h1>
+        <h1 className="sr-only">{t("app.title")}</h1>
 
         {/* One row: the duty post menu (left), the wizard steps
             (centre), and approved schedules with settings (right). A grid
@@ -1014,13 +1026,13 @@ export default function App() {
             <button
               className="header-pill-btn"
               onClick={() => setIsApprovedDrawerOpen((open) => !open)}
-              title="Onaylı Çizelgeler"
-              aria-label="Onaylı Çizelgeler"
+              title={t("app.approvedDrawer")}
+              aria-label={t("app.approvedDrawer")}
               aria-expanded={isApprovedDrawerOpen}
               aria-controls="approved-schedules-drawer"
             >
               <span aria-hidden="true">📚</span>
-              {!compactHeader && <span>Onaylı Çizelgeler</span>}
+              {!compactHeader && <span>{t("app.approvedDrawer")}</span>}
             </button>
 
         <div style={{ position: "relative" }} ref={settingsWrapperRef}>
@@ -1028,8 +1040,8 @@ export default function App() {
             ref={settingsToggleBtnRef}
             className="settings-toggle-btn"
             onClick={() => setIsSettingsOpen(prev => !prev)}
-            title="Sistem ve Erişilebilirlik Ayarları"
-            aria-label="Sistem ve Erişilebilirlik Ayarları"
+            title={t("app.settings")}
+            aria-label={t("app.settings")}
             aria-haspopup="true"
             aria-expanded={isSettingsOpen}
             aria-controls="settings-dropdown-panel"
@@ -1067,11 +1079,11 @@ export default function App() {
                     Visual size is unaffected since it's controlled by the
                     inline fontSize, not the tag. */}
                 <h2 id="font-scale-heading" style={{ margin: 0, fontSize: "0.85rem", fontWeight: "800", color: "var(--text-primary)" }}>
-                  ♿ Erişilebilirlik (Yazı Ölçeği)
+                  {t("app.textScale")}
                 </h2>
                 <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.75rem", color: "var(--text-secondary)", fontWeight: "600" }}>
-                    <label htmlFor="font-scale-slider">Ölçek:</label>
+                    <label htmlFor="font-scale-slider">{t("app.scale")}</label>
                     <span aria-hidden="true">%{Math.round(fontSizeFactor * 100)}</span>
                   </div>
                   <input
@@ -1082,7 +1094,7 @@ export default function App() {
                     step="0.05"
                     value={fontSizeFactor}
                     onChange={(e) => setFontSizeFactor(Number(e.target.value))}
-                    aria-valuetext={`Yüzde ${Math.round(fontSizeFactor * 100)}`}
+                    aria-valuetext={t("app.scaleValue", { percent: Math.round(fontSizeFactor * 100) })}
                     style={{ width: "100%", cursor: "pointer", accentColor: "var(--primary)" }}
                   />
                   <button
@@ -1090,7 +1102,7 @@ export default function App() {
                     style={{ padding: "4px 8px", fontSize: "0.7rem", width: "100%", marginTop: "2px" }}
                     onClick={() => setFontSizeFactor(1)}
                   >
-                    Yazı Boyutunu Sıfırla
+                    {t("app.resetTextSize")}
                   </button>
                 </div>
               </div>
@@ -1105,14 +1117,14 @@ export default function App() {
                   alignItems: "center" 
                 }}
               >
-                <span style={{ fontSize: "0.82rem", fontWeight: "700", color: "var(--text-secondary)" }}>Tema Görünümü:</span>
+                <span style={{ fontSize: "0.82rem", fontWeight: "700", color: "var(--text-secondary)" }}>{t("app.theme")}</span>
                 <button 
                   className="btn btn-secondary" 
                   style={{ padding: "6px 12px", fontSize: "0.75rem", height: "28px", minWidth: "110px", fontWeight: "bold" }}
                   onClick={() => setTheme(prev => prev === "light" ? "dark" : "light")}
-                  title={theme === "light" ? "Karanlık temaya geçmek için tıklayın" : "Aydınlık temaya geçmek için tıklayın"}
+                  title={t(theme === "light" ? "app.toDark" : "app.toLight")}
                 >
-                  {theme === "light" ? "☀️ Aydınlık" : "🌙 Karanlık"}
+                  {t(theme === "light" ? "app.light" : "app.dark")}
                 </button>
               </div>
 
@@ -1124,7 +1136,7 @@ export default function App() {
                   style={{ padding: "8px 12px", fontSize: "0.75rem", width: "100%" }}
                   onClick={handleResetAllDatabase}
                 >
-                  ⚠️ Veritabanını Sıfırla
+                  {t("app.resetDb")}
                 </button>
               </div>
 
@@ -1137,9 +1149,9 @@ export default function App() {
                   className="btn btn-secondary"
                   style={{ padding: "8px 12px", fontSize: "0.75rem", width: "100%" }}
                   onClick={handleOpenProjectPage}
-                  title="Projenin GitHub sayfasını tarayıcınızda açar"
+                  title={t("app.projectTitle")}
                 >
-                  <span aria-hidden="true">🌐</span> Proje Sayfası (GitHub)
+                  <span aria-hidden="true">🌐</span> {t("app.project")}
                 </button>
               </div>
             </div>
@@ -1280,27 +1292,27 @@ export default function App() {
             via normal Tab order. */}
         {exportToast && (
           <div className="alert alert-success" role="status">
-            <span>📥 Nöbet raporu kaydedildi: <strong>{exportToast.filename}</strong></span>
+            <span>{t("app.exportSaved")} <strong>{exportToast.filename}</strong></span>
             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
               <button
                 className="btn btn-secondary"
                 style={{ padding: "6px 12px", fontSize: "0.78rem" }}
                 onClick={handleOpenExportedFile}
               >
-                Dosyayı Aç
+                {t("app.openFile")}
               </button>
               <button
                 className="btn btn-secondary"
                 style={{ padding: "6px 12px", fontSize: "0.78rem" }}
                 onClick={handleOpenExportedFolder}
               >
-                Klasörü Aç
+                {t("app.openFolder")}
               </button>
               <button
                 className="btn btn-secondary"
                 style={{ padding: "6px 12px", fontSize: "0.78rem" }}
                 onClick={handleDismissExportToast}
-                aria-label="Bildirimi kapat"
+                aria-label={t("app.dismiss")}
               >
                 ✕
               </button>
@@ -1358,12 +1370,12 @@ export default function App() {
             <div style={{ display: "flex", alignItems: "center", gap: "10px", borderBottom: "1.5px solid var(--border)", paddingBottom: "12px" }}>
               <span style={{ fontSize: "1.5rem" }} aria-hidden="true">⚠️</span>
               <h3 id="reset-confirm-title" style={{ margin: 0, color: "var(--danger)", fontWeight: "850", fontSize: "1.15rem" }}>
-                Sistemi ve Veritabanını Sıfırla
+                {t("app.resetTitle")}
               </h3>
             </div>
 
             <p id="reset-confirm-desc" style={{ margin: 0, fontSize: "0.9rem", color: "var(--text-secondary)", lineHeight: "1.45rem" }}>
-              Tüm öğretmen kayıtları, nöbet uygunluk tercihleri ve kaydedilmiş tüm aylık çizelgeler veritabanından kalıcı olarak silinecektir.
+              {t("app.resetBody")}
             </p>
             {/* Approved schedules are official records: kept unless asked. */}
             <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.88rem", fontWeight: 600, color: "var(--text-primary)", cursor: "pointer" }}>
@@ -1373,15 +1385,15 @@ export default function App() {
                 onChange={(e) => setResetIncludesApproved(e.target.checked)}
                 style={{ accentColor: "var(--danger)" }}
               />
-              Onaylı çizelgeleri de sil
+              {t("app.resetIncludeApproved")}
             </label>
             <p style={{ margin: 0, fontSize: "0.8rem", color: "var(--text-secondary)" }}>
               {resetIncludesApproved
-                ? "Onaylı çizelgeler de kalıcı olarak silinecek."
-                : "Onaylı çizelgeler korunacak."}
+                ? t("app.resetApprovedGone")
+                : t("app.resetApprovedKept")}
             </p>
             <p style={{ margin: 0, fontSize: "0.9rem", color: "var(--danger)", fontWeight: "700" }}>
-              Bu işlem kesinlikle geri alınamaz! Onaylıyor musunuz?
+              {t("app.resetConfirmQuestion")}
             </p>
 
             <div style={{ display: "flex", gap: "12px", marginTop: "4px" }}>
@@ -1390,7 +1402,7 @@ export default function App() {
                 style={{ flexGrow: 1 }}
                 onClick={() => setIsResetConfirmOpen(false)}
               >
-                İptal Et
+                {t("app.cancelAction")}
               </button>
               <button
                 className="btn btn-danger"
@@ -1400,7 +1412,7 @@ export default function App() {
                   await handleResetAllDatabaseDirect();
                 }}
               >
-                Evet, Tümünü Sıfırla
+                {t("app.resetConfirm")}
               </button>
             </div>
           </div>
@@ -1451,21 +1463,21 @@ export default function App() {
             <div style={{ display: "flex", alignItems: "center", gap: "10px", borderBottom: "1.5px solid var(--border)", paddingBottom: "12px" }}>
               <span style={{ fontSize: "1.5rem" }} aria-hidden="true">📋</span>
               <h3 id="incomplete-export-title" style={{ margin: 0, color: "var(--warning-text)", fontWeight: "850", fontSize: "1.15rem" }}>
-                Çizelge Eksik
+                {t("app.incompleteTitle")}
               </h3>
             </div>
 
             {incompleteAction === "export" && allPostsExport ? (
               <>
                 <p id="incomplete-export-desc" style={{ margin: 0, fontSize: "0.9rem", color: "var(--text-secondary)", lineHeight: "1.45rem" }}>
-                  {MONTHS_TR[selectedMonth - 1]} {selectedYear} raporunda bazı nöbet yerlerinin çizelgesi eksik.
+                  {t("app.allPostsIncomplete", { month: monthName(selectedMonth), year: selectedYear })}
                 </p>
                 <ul style={{ margin: 0, paddingLeft: "20px", fontSize: "0.85rem", color: "var(--text-secondary)", lineHeight: "1.4rem", maxHeight: "160px", overflowY: "auto" }}>
                   {allPostsExport.gaps.map((gap) => (
-                    <li key={`gap-${gap.postName}`}>{`${gap.postName}: ${gap.days} gün eksik, ${gap.slots} boş slot`}</li>
+                    <li key={`gap-${gap.postName}`}>{t("app.postGap", { post: gap.postName, days: gap.days, slots: gap.slots })}</li>
                   ))}
                   {allPostsExport.skippedPosts.map((name) => (
-                    <li key={`skipped-${name}`}>{`${name}: bu ay için çizelge yok, rapora eklenmedi.`}</li>
+                    <li key={`skipped-${name}`}>{t("app.postSkipped", { post: name })}</li>
                   ))}
                 </ul>
               </>
@@ -1474,21 +1486,21 @@ export default function App() {
                 <p id="incomplete-export-desc" style={{ margin: 0, fontSize: "0.9rem", color: "var(--text-secondary)", lineHeight: "1.45rem" }}>
                   {unfilledDays.length > 0 ? (
                     <>
-                      {MONTHS_TR[selectedMonth - 1]} {selectedYear} çizelgesinde{" "}
-                      <strong style={{ color: "var(--text-primary)" }}>{unfilledDays.length} gün</strong> eksik.
-                      Toplam{" "}
+                      {t("app.monthMissingDays", { month: monthName(selectedMonth), year: selectedYear })}{" "}
+                      <strong style={{ color: "var(--text-primary)" }}>{t("app.missingDays", { count: unfilledDays.length })}</strong>{" "}
+                      {t("app.missingEnd")}{" "}
                       <strong style={{ color: "var(--text-primary)" }}>
-                        {unfilledDays.reduce((sum, g) => sum + (g.required - g.assigned), 0)} nöbet yeri
+                        {t("app.missingSlots", { count: unfilledDays.reduce((sum, g) => sum + (g.required - g.assigned), 0) })}
                       </strong>{" "}
-                      doldurulamadı.
+                      {t("app.missingTail")}
                     </>
                   ) : (
-                    <>{MONTHS_TR[selectedMonth - 1]} {selectedYear} çizelgesinde bütün nöbet günleri dolu.</>
+                    <>{t("app.monthComplete", { month: monthName(selectedMonth), year: selectedYear })}</>
                   )}
                   {incompleteAction === "approve" && shortGroupCount > 0 && (
                     <>
                       {" "}
-                      <strong style={{ color: "var(--text-primary)" }}>{shortGroupCount} nöbet grubu</strong> ortak nöbet günü hedefine ulaşamadı.
+                      <strong style={{ color: "var(--text-primary)" }}>{t("app.shortGroups", { count: shortGroupCount })}</strong> {t("app.shortGroupsTail")}
                     </>
                   )}
                 </p>
@@ -1502,11 +1514,11 @@ export default function App() {
                     <li key={gap.date}>
                       {new Date(gap.date).toLocaleDateString("tr-TR", { day: "numeric", month: "long", weekday: "long" })}
                       {" — "}
-                      {gap.assigned}/{gap.required} nöbetçi
+                      {t("app.gapLine", { filled: `${gap.assigned}/${gap.required}` })}
                     </li>
                   ))}
                   {unfilledDays.length > 8 && (
-                    <li style={{ fontStyle: "italic" }}>ve {unfilledDays.length - 8} gün daha…</li>
+                    <li style={{ fontStyle: "italic" }}>{t("app.andMoreDays", { count: unfilledDays.length - 8 })}</li>
                   )}
                 </ul>
               </>
@@ -1514,8 +1526,8 @@ export default function App() {
 
             <p style={{ margin: 0, fontSize: "0.9rem", color: "var(--text-primary)", fontWeight: "700" }}>
               {incompleteAction === "approve"
-                ? "Eksik hâliyle onaylamak istiyor musunuz?"
-                : "Eksik hâliyle Excel'e aktarmak istiyor musunuz?"}
+                ? t("app.approveAnyway")
+                : t("app.exportAnyway")}
             </p>
 
             <div style={{ display: "flex", gap: "12px", marginTop: "4px" }}>
@@ -1524,7 +1536,7 @@ export default function App() {
                 style={{ flexGrow: 1 }}
                 onClick={() => setIsIncompleteExportConfirmOpen(false)}
               >
-                Vazgeç
+                {t("dialog.cancel")}
               </button>
               <button
                 className="btn btn-primary"
@@ -1540,7 +1552,7 @@ export default function App() {
                   }
                 }}
               >
-                {incompleteAction === "approve" ? "Yine de Onayla" : "Yine de Aktar"}
+                {t(incompleteAction === "approve" ? "app.approveAnywayAction" : "app.exportAnywayAction")}
               </button>
             </div>
           </div>
@@ -1591,13 +1603,12 @@ export default function App() {
             <div style={{ display: "flex", alignItems: "center", gap: "10px", borderBottom: "1.5px solid var(--border)", paddingBottom: "12px" }}>
               <span style={{ fontSize: "1.5rem" }} aria-hidden="true">💾</span>
               <h3 id="unsaved-nav-title" style={{ margin: 0, color: "var(--text-primary)", fontWeight: "850", fontSize: "1.15rem" }}>
-                Kaydedilmemiş Değişiklikler
+                {t("app.unsavedTitle")}
               </h3>
             </div>
 
             <p id="unsaved-nav-desc" style={{ margin: 0, fontSize: "0.9rem", color: "var(--text-secondary)", lineHeight: "1.45rem" }}>
-              {MONTHS_TR[selectedMonth - 1]} {selectedYear} için yaptığınız değişiklikler henüz kaydedilmedi.
-              Başka bir aya ya da nöbet yerine geçmeden önce ne yapmak istersiniz?
+              {t("app.unsavedBody", { month: monthName(selectedMonth), year: selectedYear })}
             </p>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "4px" }}>
@@ -1606,7 +1617,7 @@ export default function App() {
                 style={{ width: "100%" }}
                 onClick={handleSaveUnsavedNav}
               >
-                Kaydet ve Devam Et
+                {t("app.saveAndGo")}
               </button>
               <div style={{ display: "flex", gap: "12px" }}>
                 <button
@@ -1614,14 +1625,14 @@ export default function App() {
                   style={{ flexGrow: 1 }}
                   onClick={handleCancelUnsavedNav}
                 >
-                  İptal Et
+                  {t("app.cancelAction")}
                 </button>
                 <button
                   className="btn btn-danger"
                   style={{ flexGrow: 1 }}
                   onClick={handleDiscardUnsavedNav}
                 >
-                  Kaydetmeden Devam Et
+                  {t("app.discardAndGo")}
                 </button>
               </div>
             </div>
@@ -1644,17 +1655,20 @@ export default function App() {
         <ModalDialog
           titleId="replace-approved-title"
           describedById="replace-approved-desc"
-          title="Onaylı Çizelgeyi Değiştir"
+          title={t("app.replaceApprovedTitle")}
           icon="✅"
           onCancel={() => setIsReplaceApprovedOpen(false)}
         >
           <p id="replace-approved-desc" style={{ margin: 0, fontSize: "0.9rem", color: "var(--text-secondary)", lineHeight: "1.45rem" }}>
-            {monthLabel} için <strong style={{ color: "var(--text-primary)" }}>{formatApprovalDate(currentApproved.approved_at)}</strong> tarihinde
-            onaylanmış çizelge, ekrandaki çizelgeyle değiştirilecek.
+            <Trans
+              i18nKey="app.replaceApprovedBody"
+              values={{ month: monthLabel, date: formatApprovalDate(currentApproved.approved_at) }}
+              components={{ 1: <strong style={{ color: "var(--text-primary)" }} /> }}
+            />
           </p>
           <div style={{ display: "flex", gap: "12px", marginTop: "4px" }}>
             <button className="btn btn-secondary" style={{ flexGrow: 1 }} onClick={() => setIsReplaceApprovedOpen(false)}>
-              Vazgeç
+              {t("dialog.cancel")}
             </button>
             <button
               className="btn btn-primary"
@@ -1664,7 +1678,7 @@ export default function App() {
                 await performApproveSchedule();
               }}
             >
-              Değiştir
+              {t("app.replace")}
             </button>
           </div>
         </ModalDialog>
@@ -1672,7 +1686,7 @@ export default function App() {
 
       {approvedToDelete && (
         <DeleteApprovedDialog
-          label={`${MONTHS_TR[approvedToDelete.month - 1]} ${approvedToDelete.year}`}
+          label={`${monthName(approvedToDelete.month)} ${approvedToDelete.year}`}
           postName={approvedToDelete.postName}
           approvedAt={approvedToDelete.approved_at}
           onCancel={() => setApprovedToDelete(null)}

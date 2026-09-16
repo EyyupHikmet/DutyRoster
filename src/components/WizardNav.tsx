@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 
 interface WizardNavProps {
   activeStep: number;
@@ -6,6 +7,7 @@ interface WizardNavProps {
 }
 
 export const WizardNav: React.FC<WizardNavProps> = ({ activeStep, setActiveStep }) => {
+  const { t } = useTranslation();
   // These were onClick-only <div>s with no keyboard access at all — the
   // primary wizard step navigation (explicitly called out by the accessibility audit)
   // was mouse-only. role="tab"/aria-selected + a real key handler mirrors
@@ -13,9 +15,9 @@ export const WizardNav: React.FC<WizardNavProps> = ({ activeStep, setActiveStep 
   // exclusive views, i.e. tabs), with Enter/Space to activate and
   // Left/Right arrow keys to move between steps like a native tablist.
   const stepDefs = [
-    { step: 1, label: "Kadro & Uygunluk" },
-    { step: 2, label: "Ay Seçimi & Özel Günler" },
-    { step: 3, label: "Planla & Dışa Aktar" }
+    { step: 1, label: t("wizard.step1") },
+    { step: 2, label: t("wizard.step2") },
+    { step: 3, label: t("wizard.step3") }
   ];
 
   const tabRefs = useRef<Array<HTMLDivElement | null>>([]);
@@ -60,7 +62,7 @@ export const WizardNav: React.FC<WizardNavProps> = ({ activeStep, setActiveStep 
   };
 
   return (
-    <nav className="wizard-steps" role="tablist" aria-label="Nöbet çizelgesi sihirbazı adımları">
+    <nav className="wizard-steps" role="tablist" aria-label={t("wizard.label")}>
       {stepDefs.map(({ step, label }) => {
         const isActive = activeStep === step;
         const isCompleted = activeStep > step;

@@ -122,10 +122,7 @@ describe("Nöbet Çözücü Motor Testleri (solver)", () => {
     expect(result.error_date, "Hata kaynağı tarih 2026-10-07 olarak tespit edilmeli").toBe(
       "2026-10-07"
     );
-    expect(
-      !!result.error_message?.includes("7 Ekim 2026"),
-      "Hata mesajı Türkçe tarih içermeli"
-    ).toBe(true);
+    expect(result.error_code, "Sıkışmanın nedeni kodla bildirilmeli").toBe("no_eligible_teacher");
   });
 
   it("Test 5: Gün Bazlı Öğretmen Sayısı Varyasyonları Override", () => {
@@ -475,7 +472,7 @@ describe("Nöbet Çözücü Motor Testleri (solver)", () => {
     const result = solve(dates, mockTeachers, mockAvailabilities, config);
 
     expect(result.success, "Kısmi de olsa sonuç dönmeli").toBe(true);
-    expect(result.error_message, "Sıkışma hatası verilmemeli").toBeUndefined();
+    expect(result.error_code, "Sıkışma hatası verilmemeli").toBeUndefined();
 
     const schedule = result.schedule!;
     const filled = dates.filter((d) => (schedule[d] ?? []).length === 1);

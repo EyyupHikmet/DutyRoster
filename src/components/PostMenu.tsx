@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import React, { useEffect, useRef, useState } from "react";
 import { DbDutyPost } from "../db";
 import { ModalDialog } from "./ModalDialog";
@@ -25,6 +26,7 @@ const itemSelector = '[role="menuitem"]:not([disabled]), [role="menuitemradio"]:
  * button with arrow-key navigation, following the WAI-ARIA menu button pattern.
  */
 export const PostMenu: React.FC<PostMenuProps> = ({ posts, selectedPostId, onSelectPost, onAddPost, onRenamePost, onDeletePost, compact = false }) => {
+  const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const [dialog, setDialog] = useState<"add" | "rename" | "delete" | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -76,7 +78,7 @@ export const PostMenu: React.FC<PostMenuProps> = ({ posts, selectedPostId, onSel
         aria-haspopup="menu"
         aria-expanded={isOpen}
         aria-controls="duty-post-menu"
-        aria-label={`Nöbet yeri: ${selected?.name ?? ""}`}
+        aria-label={t("posts.current", { name: selected?.name ?? "" })}
         title={selected?.name}
         onClick={() => setIsOpen((open) => !open)}
       >
@@ -90,7 +92,7 @@ export const PostMenu: React.FC<PostMenuProps> = ({ posts, selectedPostId, onSel
           id="duty-post-menu"
           ref={menuRef}
           role="menu"
-          aria-label="Nöbet yerleri"
+          aria-label={t("posts.menu")}
           className="card surface-solid"
           onKeyDown={moveFocus}
           style={{
@@ -124,22 +126,22 @@ export const PostMenu: React.FC<PostMenuProps> = ({ posts, selectedPostId, onSel
           <div role="separator" style={{ borderTop: "1px solid var(--border)", margin: "4px 0" }} />
           <button type="button" role="menuitem" className="post-menu-item" onClick={() => choose(() => setDialog("add"))}>
             <span aria-hidden="true" style={{ width: "1em" }}>+</span>
-            Nöbet yeri ekle
+            {t("posts.add")}
           </button>
           <button type="button" role="menuitem" className="post-menu-item" onClick={() => choose(() => setDialog("rename"))}>
             <span aria-hidden="true" style={{ width: "1em" }}>✎</span>
-            Adını değiştir
+            {t("posts.rename")}
           </button>
           <button
             type="button"
             role="menuitem"
             className="post-menu-item"
             disabled={posts.length <= 1}
-            title={posts.length <= 1 ? "Tek nöbet yeri silinemez" : undefined}
+            title={posts.length <= 1 ? t("posts.lastOne") : undefined}
             onClick={() => choose(() => setDialog("delete"))}
           >
             <span aria-hidden="true" style={{ width: "1em" }}>🗑</span>
-            Nöbet yerini sil
+            {t("posts.remove")}
           </button>
         </div>
       )}
@@ -159,13 +161,12 @@ export const PostMenu: React.FC<PostMenuProps> = ({ posts, selectedPostId, onSel
 
       {dialog === "delete" && selected && (
         <TypedDeleteDialog
-          title="Nöbet Yerini Sil"
+          title={t("posts.deleteTitle")}
           confirmText={selected.name}
           description={
             <>
-              {selected.name} nöbet yeri; öğretmenleri, onların uygunlukları ve aylık planlarıyla birlikte kalıcı olarak
-              silinecek. Onaylı çizelgeleri korunur.{" "}
-              <strong style={{ color: "var(--danger)" }}>Bu işlem geri alınamaz.</strong>
+              {t("posts.deleteWarning", { name: selected.name })}{" "}
+              <strong style={{ color: "var(--danger)" }}>{t("approved.irreversible")}</strong>
             </>
           }
           onCancel={() => setDialog(null)}
@@ -188,6 +189,7 @@ interface PostNameDialogProps {
 }
 
 const PostNameDialog: React.FC<PostNameDialogProps> = ({ mode, initialName, onCancel, onSubmit }) => {
+  const { t } = useTranslation();
   const [name, setName] = useState(initialName);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -205,20 +207,20 @@ const PostNameDialog: React.FC<PostNameDialogProps> = ({ mode, initialName, onCa
   return (
     <ModalDialog
       titleId={mode === "add" ? "add-post-title" : "rename-post-title"}
-      title={mode === "add" ? "Nöbet Yeri Ekle" : "Nöbet Yerini Yeniden Adlandır"}
+      title={mode === "add" ? t("posts.addTitle") : t("posts.renameTitle")}
       icon="🏠"
       initialFocusRef={inputRef}
       onCancel={onCancel}
     >
       <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
         <div className="form-group" style={{ margin: 0 }}>
-          <label htmlFor="post-name-input">Nöbet yerinin adı</label>
+          <label htmlFor="post-name-input">{t("posts.nameLabel")}</label>
           <input
             id="post-name-input"
             ref={inputRef}
             className="form-control"
             autoComplete="off"
-            placeholder="Örn: Kız Yurdu"
+            placeholder={t("posts.namePlaceholder")}
             value={name}
             onChange={(e) => {
               setName(e.target.value);
@@ -233,10 +235,10 @@ const PostNameDialog: React.FC<PostNameDialogProps> = ({ mode, initialName, onCa
         )}
         <div style={{ display: "flex", gap: "12px" }}>
           <button type="button" className="btn btn-secondary" style={{ flexGrow: 1 }} onClick={onCancel}>
-            Vazgeç
+            {t("common.cancel")}
           </button>
           <button type="submit" className="btn btn-primary" style={{ flexGrow: 1 }} disabled={busy}>
-            {mode === "add" ? "Ekle" : "Kaydet"}
+            {mode === "add" ? t("posts.addAction") : t("posts.saveAction")}
           </button>
         </div>
       </form>
