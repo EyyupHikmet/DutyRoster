@@ -18,6 +18,16 @@ i18next.use(initReactI18next).init({
   interpolation: { escapeValue: false },
 });
 
+/**
+ * Keeps <html lang> in step with the interface. CSS text-transform and screen
+ * readers both go by it: with lang="tr", uppercasing "Fri" produces "FRİ".
+ */
+const followDocumentLanguage = (language: string) => {
+  if (typeof document !== "undefined") document.documentElement.lang = language;
+};
+followDocumentLanguage(i18next.language);
+i18next.on("languageChanged", followDocumentLanguage);
+
 export const i18n = i18next;
 
 /** Looks up a string in the active language. */

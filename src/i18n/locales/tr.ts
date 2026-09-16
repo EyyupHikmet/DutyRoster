@@ -353,5 +353,14 @@ export const tr = {
  * The shape of a locale: Turkish's areas and keys, with any string as the
  * value. `typeof tr` alone would demand the Turkish text itself, since tr is
  * declared `as const` so that t() can check keys.
+ *
+ * A language may add `_one` / `_other` forms of a key that interpolates
+ * `{{count}}`: English needs "1 open slot" and "3 open slots" where Turkish,
+ * which does not inflect a noun after a numeral, needs only "3 boş slot".
  */
-export type Locale = { [Area in keyof typeof tr]: Record<keyof (typeof tr)[Area], string> };
+type Plural<Key extends string> = `${Key}_one` | `${Key}_other`;
+
+export type Locale = {
+  [Area in keyof typeof tr]: Record<keyof (typeof tr)[Area], string> &
+    Partial<Record<Plural<string & keyof (typeof tr)[Area]>, string>>;
+};

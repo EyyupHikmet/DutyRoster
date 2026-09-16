@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { i18n } from "../../src/i18n";
 import { tr } from "../../src/i18n/locales/tr";
 import { en } from "../../src/i18n/locales/en";
 
@@ -19,9 +20,17 @@ const placeholdersOf = (text: string): string[] =>
 const valueAt = (resource: object, key: string): string =>
   key.split(".").reduce<any>((level, part) => level[part], resource);
 
+/**
+ * The key a message belongs to, with any plural variant folded away:
+ * "step3.openSlots_one" and "step3.openSlots_other" are both "step3.openSlots".
+ * Turkish does not inflect a noun after a numeral, so it needs one form where
+ * English needs two.
+ */
+const baseKey = (key: string): string => key.replace(/_(one|other)$/, "");
+
 describe("the English locale", () => {
-  const turkishKeys = keysOf(tr).sort();
-  const englishKeys = keysOf(en).sort();
+  const turkishKeys = [...new Set(keysOf(tr).map(baseKey))].sort();
+  const englishKeys = [...new Set(keysOf(en).map(baseKey))].sort();
 
   it("has exactly the keys Turkish has", () => {
     expect(englishKeys.filter((key) => !turkishKeys.includes(key)), "keys English has and Turkish does not").toEqual([]);
@@ -29,7 +38,26 @@ describe("the English locale", () => {
   });
 
   it("says something in every one of them", () => {
-    expect(englishKeys.filter((key) => valueAt(en, key).trim() === "")).toEqual([]);
+    expect(keysOf(en).filter((key) => valueAt(en, key).trim() === "")).toEqual([]);
+  });
+
+  it("gives a plural form whenever it gives a singular one", () => {
+    const singulars = keysOf(en).filter((key) => key.endsWith("_one"));
+    const missingPlural = singulars.filter((key) => !keysOf(en).includes(key.replace(/_one$/, "_other")));
+
+    expect(missingPlural).toEqual([]);
+  });
+
+  it("counts things the way English does", async () => {
+    const inEnglish = i18n.getFixedT("en");
+
+    expect(inEnglish("step3.openSlots", { count: 1 })).toBe("1 open slot");
+    expect(inEnglish("step3.openSlots", { count: 3 })).toBe("3 open slots");
+    expect(inEnglish("drawer.teacherCount", { count: 1 })).toBe("1 teacher");
+    expect(inEnglish("groups.days", { count: 1 })).toBe("1 day");
+    // Turkish does not inflect after a numeral, and must not start.
+    expect(i18n.getFixedT("tr")("step3.openSlots", { count: 1 })).toBe("1 boş slot");
+    expect(i18n.getFixedT("tr")("step3.openSlots", { count: 3 })).toBe("3 boş slot");
   });
 
   it("is actually translated, not the Turkish text copied over", () => {
