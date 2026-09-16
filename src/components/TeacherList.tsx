@@ -98,7 +98,7 @@ export const TeacherList: React.FC<TeacherListProps> = ({
                 <div className="teacher-info">
                   <h4>{t.name}</h4>
                   <p>
-                    Hedef: {target} Nöbet | Kıdem:{" "}
+                    Hedef: {target} Nöbet | Öncelik:{" "}
                     {t.priority === 3 ? "Yüksek" : t.priority === 2 ? "Orta" : "Standart"}
                     {fullyCommittedToGroups && (
                       // A plain, non-interactive <span>: it must not become

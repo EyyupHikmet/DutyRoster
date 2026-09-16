@@ -6,7 +6,7 @@ describe("ExcelImport", () => {
   it("renders the Turkish upload prompt and expected column names", () => {
     render(<ExcelImport onFileImport={() => {}} />);
     expect(screen.getByText("Excel / CSV Dosyası Yükle")).toBeInTheDocument();
-    expect(screen.getByText(/Ad, Hedef Saat, Kıdem/)).toBeInTheDocument();
+    expect(screen.getByText(/Ad, Hedef Nöbet, Öncelik/)).toBeInTheDocument();
   });
 
   it("has a hidden file input wired to onFileImport, accepting the right extensions", () => {

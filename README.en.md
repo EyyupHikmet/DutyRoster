@@ -2,9 +2,10 @@
 
 [Türkçe](README.md) · **English**
 
-Offline desktop app that builds fair monthly teacher duty rosters from each
-teacher's availability and monthly target, then exports them to Excel. Built
-with Tauri, React and SQLite.
+Offline desktop app that builds fair monthly rosters for overnight supervision
+duty in a school's boarding house — after school on a school day, the whole day
+otherwise — from each teacher's availability and monthly target, then exports
+them to Excel. Built with Tauri, React and SQLite.
 
 > **The user interface is currently Turkish only.** The app was built for
 > Turkish school principals, who assign teachers to *nöbet* (supervision duty)
@@ -26,14 +27,16 @@ example, that a given Tuesday has nobody marked available.
 ## Features
 
 - **Roster management** — add, edit and remove teachers, each with a monthly
-  duty target and a seniority/priority weight. No cap on roster size.
+  duty target and a priority weight. No cap on roster size.
 - **Per-teacher availability calendar** — mark each date as preferred,
   available, or unavailable.
 - **Excel/CSV import** for the roster, so you do not retype it every year.
-  Either a table with name, target and seniority columns, or just a single
-  column of names — in which case target and seniority take their defaults.
-- **Four solving strategies**: distribute duties evenly, weight by seniority,
-  pin specific teachers to specific days, or fill remaining days randomly.
+  Either a table with name, target and priority columns, or just a single
+  column of names — in which case target and priority take their defaults.
+- **Four distribution rules**: distribute duties evenly, order by priority,
+  focus on monthly targets, or fill remaining days randomly. Every rule serves
+  teachers below their target first, and pinning specific teachers to specific
+  days applies under all four.
 - **Hard monthly targets** — optionally guarantee that no teacher is ever
   given more duties than their monthly target. If the roster cannot cover the
   month, days are left open rather than targets exceeded; open days are

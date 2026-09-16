@@ -1,7 +1,9 @@
 # Architecture
 
-DutyRoster is a React/TypeScript application hosted inside a Tauri (Rust)
-desktop shell, persisting to a local SQLite file. Essentially all the logic —
+DutyRoster rosters overnight supervision duty in a school's boarding house —
+after school on a school day, the whole day otherwise. It is a React/TypeScript
+application hosted inside a Tauri (Rust) desktop shell, persisting to a local
+SQLite file. Essentially all the logic —
 including the scheduling engine — is TypeScript running in the webview. The
 Rust side is a thin host: it owns the window, the database bridge, and the
 native file dialogs, and contains no business logic.
@@ -31,7 +33,7 @@ domain jargon out of their way.
 2. **Month shape** — pick a year and month, then click days to toggle weekends
    and holidays in or out of duty, and optionally set a different number of
    teachers for specific days.
-3. **Solve and export** — pick a strategy, generate, review the result, and
+3. **Solve and export** — pick a distribution rule, generate, review the result, and
    export to Excel.
 
 ## Code layout

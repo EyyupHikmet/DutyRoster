@@ -102,6 +102,18 @@ describe("buildDutyReportWorkbook", () => {
     ]);
   });
 
+  it("calls a day without duty exactly that, since the dorm is not necessarily closed", () => {
+    // Eylül 2026: the 3rd is switched off, the 5th is a weekend day with no duty.
+    const off = freezeScheduleReport(
+      month(2026, 9, { generatedSchedule: { "2026-09-01": ["T1"] }, holidays: ["2026-09-03"] }),
+      [teacher("T1", "Cengiz", 3)]
+    );
+    const listed = rows(readBack(buildDutyReportWorkbook([off])), "Nöbet Listesi");
+
+    expect(listed[3], "a weekday switched off").toEqual(["3 Eylül 2026", "Perşembe", "-", "-", "Nöbet Yok"]);
+    expect(listed[5], "a weekend day without duty").toEqual(["5 Eylül 2026", "Cumartesi", "-", "-", "Nöbet Yok (Hafta Sonu)"]);
+  });
+
   it("adds up each teacher across schedules in Toplam, matched by name", () => {
     const wb = readBack(buildDutyReportWorkbook([kasim, aralik, eylul]));
 

@@ -74,7 +74,7 @@ describe("teachers below their target come first", () => {
     expect(tuesdays.map((d) => result.schedule![d][0])).toEqual(["Ali", "Ali"]);
   });
 
-  it("serves the higher-priority teacher's target first, then the other's (Kıdem Öncelikli)", () => {
+  it("serves the higher-priority teacher's target first, then the other's (Öncelik Sırası)", () => {
     const mondays = ["2026-12-07", "2026-12-14", "2026-12-21", "2026-12-28"];
     const prefersMondays = status(
       mondays.flatMap((date) => [

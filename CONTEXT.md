@@ -143,7 +143,7 @@ _Turkish_: Eşit Dağıt (Adalet)
 
 **Priority first**:
 The distribution rule that breaks ties in favour of higher priority, so a high-priority teacher takes every date they prefer until they reach their effective target.
-_Turkish_: Öncelikli
+_Turkish_: Öncelik Sırası
 _Avoid_: Seniority first, Kıdem Öncelikli
 
 **Target-focused**:
