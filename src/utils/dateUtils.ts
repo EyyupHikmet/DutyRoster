@@ -13,6 +13,14 @@ export const monthNames = (): string[] => {
 /** One month's name in the active language, for a 1-based month. */
 export const monthName = (month: number): string => monthNames()[month - 1];
 
+/**
+ * A date written out in the active language: the one place that formats a date
+ * for a person to read, so no screen is left formatting in Turkish while the
+ * rest of the interface speaks English.
+ */
+export const formatDateLong = (date: Date | string, options: Intl.DateTimeFormatOptions): string =>
+  new Date(date).toLocaleDateString(i18n.language, options);
+
 /** The seven short weekday names of the active language, Monday first. */
 export const shortDayNames = (): string[] => {
   // 1 June 2026 is a Monday, which is where a duty calendar's week starts.

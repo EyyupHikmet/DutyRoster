@@ -1,4 +1,4 @@
-import { monthName } from "./dateUtils";
+import { monthName, formatDateLong } from "./dateUtils";
 import { foldForSearch } from "./turkishText";
 
 interface MonthKey {
@@ -8,7 +8,7 @@ interface MonthKey {
 
 /** An approval date as the interface shows it, e.g. "3 Aralık 2026". */
 export function formatApprovalDate(approvedAt: string): string {
-  return new Date(approvedAt).toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
+  return formatDateLong(approvedAt, { day: "numeric", month: "long", year: "numeric" });
 }
 
 /** The calendar year a school year starts in: the months from Eylül to the following Ağustos. */

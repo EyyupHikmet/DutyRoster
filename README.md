@@ -52,6 +52,10 @@ günü için uygun işaretlenmiş hiç öğretmen bulunmadığını.
   klasörü açma seçeneği sunulur.
 - **Anlaşılır hata açıklamaları** — çizelge kurulamadığında hangi tarihte ve
   neden takılındığı açıkça belirtilir.
+- **Türkçe veya İngilizce arayüz** — başlıktaki ayarlar düğmesinden
+  değiştirilir ve seçiminiz hatırlanır. Varsayılan dil Türkçedir. Öğretmen ve
+  nöbet yeri adları her iki dilde de Türkçe veri olarak kalır; sıralama ve
+  arama Türkçe kurallarına göre çalışmaya devam eder.
 - **Tamamen çevrimdışı.** Hesap yok, sunucu yok, veri toplama yok. Bütün
   veriler bilgisayarınızdaki yerel bir SQLite dosyasında saklanır.
 

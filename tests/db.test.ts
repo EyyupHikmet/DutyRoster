@@ -460,6 +460,18 @@ describe("db.ts — duty posts", () => {
     expect((await getDutyPosts()).map((p) => p.name)).toEqual(["Erkek Yurdu", "KIZ YURDU"]);
   });
 
+  it("remembers the interface language, and has none until one is chosen", async () => {
+    const { getLanguage, setLanguage } = await freshDb();
+
+    expect(await getLanguage(), "nothing saved means the default language applies").toBeNull();
+
+    await setLanguage("en");
+    expect(await getLanguage()).toBe("en");
+
+    await setLanguage("tr");
+    expect(await getLanguage()).toBe("tr");
+  });
+
   it("remembers the last selected post, falling back to the first when it no longer exists", async () => {
     const { addDutyPost, setLastPostId, getLastPostId, getDutyPosts } = await freshDb();
     const kiz = await addDutyPost("Kız Yurdu");

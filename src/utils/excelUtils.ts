@@ -2,7 +2,7 @@ import * as XLSX from "xlsx";
 import { save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { writeFile as writeFsFile } from "@tauri-apps/plugin-fs";
 import { DbTeacher } from "../db";
-import { monthName, getDaysInMonth, formatDateYYYYMMDD } from "./dateUtils";
+import { monthName, getDaysInMonth, formatDateYYYYMMDD, formatDateLong } from "./dateUtils";
 import { t } from "../i18n";
 import { foldForSearch, foldName } from "./turkishText";
 import { freezeScheduleReport, ReportTeacher, ScheduleReport } from "./scheduleReport";
@@ -221,8 +221,8 @@ const listRows = (report: ScheduleReport): unknown[][] => {
 
   for (const d of getDaysInMonth(report.year, report.month)) {
     const dateStr = formatDateYYYYMMDD(d);
-    const dayName = d.toLocaleDateString("tr-TR", { weekday: "long" });
-    const dateFriendly = d.toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
+    const dayName = formatDateLong(d, { weekday: "long" });
+    const dateFriendly = formatDateLong(d, { day: "numeric", month: "long", year: "numeric" });
     const isWeekend = d.getDay() === 0 || d.getDay() === 6;
 
     let status: string = t("export.statusDuty");

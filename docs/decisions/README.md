@@ -18,6 +18,7 @@ what would justify revisiting the choice.
 | [ADR-0005](ADR-0005-drafts-persist-independently.md) | A month's setup is saved independently of solving it |
 | [ADR-0006](ADR-0006-approved-schedules-are-frozen-copies.md) | Approved schedules are frozen copies, stored apart from the working month |
 | [ADR-0007](ADR-0007-month-setups-belong-to-duty-posts.md) | A month setup belongs to a duty post, and each post has its own staff |
+| [ADR-0008](ADR-0008-locales-and-turkish-data-rules.md) | One locale per language, and data rules that stay Turkish |
 
 These were written when the project was opened to the public, and document
 decisions taken during its initial development rather than at the moment each

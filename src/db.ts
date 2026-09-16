@@ -208,6 +208,25 @@ export async function setLastPostId(id: string): Promise<void> {
   await db.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES ($1, $2)", [LAST_POST_KEY, id]);
 }
 
+const LANGUAGE_KEY = "language";
+
+/**
+ * The interface language the principal chose, or null while they have not
+ * chosen one (the app then opens in Turkish, ADR-0004). It lives here rather
+ * than in the webview's storage so it survives clearing that storage, exactly
+ * like the last selected duty post above.
+ */
+export async function getLanguage(): Promise<string | null> {
+  const db = await getDb();
+  const rows = await db.select<{ value: string }[]>("SELECT value FROM app_settings WHERE key = $1", [LANGUAGE_KEY]);
+  return rows && rows.length > 0 ? rows[0].value : null;
+}
+
+export async function setLanguage(language: string): Promise<void> {
+  const db = await getDb();
+  await db.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES ($1, $2)", [LANGUAGE_KEY, language]);
+}
+
 // Teachers CRUD Operations
 export interface DbTeacher {
   id: string;
